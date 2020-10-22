@@ -688,7 +688,7 @@ class IxonUltra(Base, CameraInterface):
     def _get_temperature(self):
         temp = c_int()
         error_code = self.dll.GetTemperature(byref(temp))
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+        if ERROR_DICT[error_code] != 'DRV_TEMP_STABILIZED':
             self.log.error('Can not retrieve temperature'.format(ERROR_DICT[error_code]))
         return temp.value
 
