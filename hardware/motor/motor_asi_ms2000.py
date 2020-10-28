@@ -35,6 +35,8 @@ class MS2000(Base, MotorInterface):
     _first_axis_label = ConfigOption('first_axis_label', 'x', missing='warn')
     _second_axis_label = ConfigOption('second_axis_label', 'y', missing='warn')
     
+    _conversion_factor = 10.0 # user will send positions in um, stage uses 0.1 um
+    
     
         
 
@@ -81,9 +83,9 @@ class MS2000(Base, MotorInterface):
     def move_rel(self, param_dict):
         """ Moves the stage in the given direction relative to the current position.
         
-        @ param dict param_dict: Dictionary with axis name and relative movement in units of 0.1 µm
+        @ param dict param_dict: Dictionary with axis name and relative movement in units of µm
         
-        @ returns dict pos: Dictionary with the axis name and the current position
+        @ returns dict pos: Dictionary with the axis name and the current position in µm
         
         """
         pos = {}
@@ -91,14 +93,14 @@ class MS2000(Base, MotorInterface):
         try:
             for axis_label in param_dict:
                 if axis_label in self.axis_list: # to ensure that only configured axes are taken into account in case param_dict indicates other axes  
-                    new_pos = param_dict[axis_label]
-                    cmd = f'R {axis_label}={new_pos}\r'
+                    step = param_dict[axis_label]*self._conversion_factor
+                    cmd = f'R {axis_label}={step}\r'
                     self.write(cmd)
                     # eventually: add here read_error function to be implemented 
                     self.wait_for_idle() # this timer is necessary to correctly handle write followed by query method. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
                     # see get_pos method. it cannot be called directly because we would again iterate over the axis_list.
                     cmd = f'W {axis_label}\r' 
-                    pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
+                    pos[axis_label] = float(self.query(cmd)[3:])/self._conversion_factor  # [3:] -> remove the leading 'A: '
                 
                 else: 
                     self.log.warn(f'axis {axis_label} is not configured')
@@ -115,9 +117,9 @@ class MS2000(Base, MotorInterface):
     def move_abs(self, param_dict):
         """ Moves the stage to the given position.
         
-        @ param dict param_dict: Dictionary with axis name and absolute position in units of 0.1 µm
+        @ param dict param_dict: Dictionary with axis name and absolute position in units of µm
         
-        @ returns 
+        @ returns dict pos: Dictionary with axis name and current position in µm
         
         """
         pos = {}
@@ -125,14 +127,14 @@ class MS2000(Base, MotorInterface):
         try:
             for axis_label in param_dict:
                 if axis_label in self.axis_list: # to ensure that only configured axes are taken into account in case param_dict indicates other axes  
-                    new_pos = param_dict[axis_label]
+                    new_pos = param_dict[axis_label]*self._conversion_factor
                     cmd = f'M {axis_label}={new_pos}\r'
                     self.write(cmd)
                     # eventually: add here read_error function to be implemented 
                     self.wait_for_idle() # this timer is necessary to correctly handle write followed by query method. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
                     # see get_pos method. it cannot be called directly because we would again iterate over the axis_list.
                     cmd = f'W {axis_label}\r' 
-                    pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
+                    pos[axis_label] = float(self.query(cmd)[3:])/self._conversion_factor  # [3:] -> remove the leading 'A: '
                 
                 else: 
                     self.log.warn(f'axis {axis_label} is not configured')
@@ -167,7 +169,7 @@ class MS2000(Base, MotorInterface):
         
         for axis_label in self.axis_list: # this list is generated above to generalize more easily in case that more axes are added
             cmd = f'W {axis_label}\r' 
-            pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
+            pos[axis_label] = float(self.query(cmd)[3:])/self._conversion_factor  # [3:] -> remove the leading 'A: '
             
         return pos
     
