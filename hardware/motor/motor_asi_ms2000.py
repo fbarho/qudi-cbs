@@ -33,7 +33,9 @@ class MS2000(Base, MotorInterface):
     _com_port = ConfigOption('com_port', missing='error')
     
     _first_axis_label = ConfigOption('first_axis_label', 'x', missing='warn')
-    #_second_axis_label = ConfigOption('second_axis_label', 'y', missing='warn')
+    _second_axis_label = ConfigOption('second_axis_label', 'y', missing='warn')
+    
+    
         
 
 
@@ -51,6 +53,10 @@ class MS2000(Base, MotorInterface):
         
         # add here the setting of private attributes
         self._timeout = 15
+        
+        
+        # create a list as iterator for methods that need a specified axis to apply to
+        self.axis_list = [self._first_axis_label, self._second_axis_label]
         
         return 0
         
@@ -77,27 +83,31 @@ class MS2000(Base, MotorInterface):
         
         @ param dict param_dict: Dictionary with axis name and relative movement in units of 0.1 µm
         
-        @ returns 
+        @ returns dict pos: Dictionary with the axis name and the current position
         
         """
+        pos = {}
+        
         try:
-            if self._first_axis_label in param_dict:
-                new_pos = param_dict[self._first_axis_label]
-                cmd = f'R {self._first_axis_label}={new_pos}\r'
-                self.write(cmd)
-                # eventually: add here read_error function to be implemented 
-                self.wait_for_idle() # this timer is necessary to correctly handle write followed by query method. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
-                pos = self.get_pos()
-            
-            else:
-                self.log.error('specified axis not available')
-                pos = self.get_pos()
+            for axis_label in param_dict:
+                if axis_label in self.axis_list: # to ensure that only configured axes are taken into account in case param_dict indicates other axes  
+                    new_pos = param_dict[axis_label]
+                    cmd = f'R {axis_label}={new_pos}\r'
+                    self.write(cmd)
+                    # eventually: add here read_error function to be implemented 
+                    self.wait_for_idle() # this timer is necessary to correctly handle write followed by query method. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
+                    # see get_pos method. it cannot be called directly because we would again iterate over the axis_list.
+                    cmd = f'W {axis_label}\r' 
+                    pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
                 
+                else: 
+                    self.log.warn(f'axis {axis_label} is not configured')
+                       
         except:
             self.log.error('relative movement of ASI MS2000 translation stage is not possible')
-            pos = self.get_pos()  # retrieve the unchanged position
+            pos = {}
             
-        return {self._first_axis_label: pos}
+        return pos
     
    
     
@@ -110,24 +120,28 @@ class MS2000(Base, MotorInterface):
         @ returns 
         
         """
+        pos = {}
+        
         try:
-            if self._first_axis_label in param_dict:
-                new_pos = param_dict[self._first_axis_label]
-                cmd = f'M {self._first_axis_label}={new_pos}\r'
-                self.write(cmd)
-                # eventually: add here read_error function to be implemented 
-                self.wait_for_idle() # this timer is necessary to correctly handle write followed by query methods. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
-                pos = self.get_pos()
+            for axis_label in param_dict:
+                if axis_label in self.axis_list: # to ensure that only configured axes are taken into account in case param_dict indicates other axes  
+                    new_pos = param_dict[axis_label]
+                    cmd = f'M {axis_label}={new_pos}\r'
+                    self.write(cmd)
+                    # eventually: add here read_error function to be implemented 
+                    self.wait_for_idle() # this timer is necessary to correctly handle write followed by query method. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
+                    # see get_pos method. it cannot be called directly because we would again iterate over the axis_list.
+                    cmd = f'W {axis_label}\r' 
+                    pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
                 
-            else:
-                self.log.error('specified axis not available')
-                pos = self.get_pos()
-                    
+                else: 
+                    self.log.warn(f'axis {axis_label} is not configured')
+                       
         except:
-            self.log.error('absolute movement of ASI MS2000 translation stage is not possible')
-            pos = self.get_pos() 
+            self.log.error('relative movement of ASI MS2000 translation stage is not possible')
+            pos = {}
             
-        return {self._first_axis_label: pos}
+        return pos
             
             
    
@@ -144,13 +158,17 @@ class MS2000(Base, MotorInterface):
         return 0
     
     
-    def get_pos(self): # only for x axis now (for testing)
+    def get_pos(self): 
         """ Gets current position of the translation stage.
         
-        @ returns: float pos: position
+        @ returns: dict pos: Dictionary with axis name and current position of the translation stage
         """
-        cmd="W X\r" # 'W X Y Z\r'
-        pos = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
+        pos = {}
+        
+        for axis_label in self.axis_list: # this list is generated above to generalize more easily in case that more axes are added
+            cmd = f'W {axis_label}\r' 
+            pos[axis_label] = float(self.query(cmd)[3:])  # [3:] -> remove the leading 'A: '
+            
         return pos
     
     
@@ -159,29 +177,35 @@ class MS2000(Base, MotorInterface):
         
         @ returns: str status: 'N' if no motors running, 'B' if busy
         """
-        cmd="/ \r"
+        cmd = "/ \r"
         status = self.query(cmd)
         return status
     
     
-    def calibrate(self): # only x axis for testing
+    def calibrate(self): 
         # to be defined what should be done here: AALIGN, ZEROING, HOMING ? 
         """ Performs self-calibration of the axis motor drive circuit. 
         
         @ returns error code (ok: 0)
         """
-        cmd="AA X\r"
-        self.write(cmd)
+        # iterate over axes, for generalization. other option is to hardcode 'AA X Y \r' when always the two axes are used
+        for axis_label in self.axis_list:
+            cmd = f'AA {axis_label} \r'
+            self.write(cmd)
         return 0
     
     
     def get_velocity(self):
         """ Gets the current velocity of the translation stage (for the specified axis).
         
-        @ returns float velo: current velocity of the specified axis. 
+        @ returns dict velo: Dictionary with axis name and current velocity of the specified axis. 
         """
-        cmd="S X?\r" 
-        velo = float(self.query(cmd)[5:])   # format from query ':A X=5.745920', remove leading X= and convert to float
+        velo = {}
+        
+        for axis_label in self.axis_list:
+            cmd = f'S {axis_label}?\r' 
+            velo[axis_label] = float(self.query(cmd)[5:])   # format from query ':A X=5.745920', remove leading X= and convert to float
+        
         return velo
        
     
@@ -191,28 +215,29 @@ class MS2000(Base, MotorInterface):
         
         @ param dict param_dict: Dictionary with axis name and target velocity in mm/s
         
-        @ returns dict: velocity: Dictionary with axis name and current velocity in mm/s -> to be done !!!
+        @ returns dict: velo: Dictionary with axis name and current velocity in mm/s 
         """
+        velo = {}
+        
         try:
-            if self._first_axis_label in param_dict:
-                self._serial_connection.flushInput()
-                new_velo = param_dict[self._first_axis_label]
-                cmd = f'S {self._first_axis_label}={new_velo}\r'
-                self._serial_connection.write(cmd.encode())
-                # eventually: add here read_error function to be implemented 
-                self.wait_for_idle() # this timer is necessary to correctly handle write followed by query methods. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
-                velo = self.get_velocity()
+            for axis_label in param_dict:
+                if axis_label in self.axis_list: 
+                    new_velo = param_dict[axis_label]
+                    cmd = f'S {axis_label}={new_velo}\r'
+                    self.write(cmd)
+                    self.wait_for_idle() # this timer is necessary to correctly handle write followed by query methods. otherwise the serial port is still busy. replace eventually by wait_for_idle method to be implemented
+                    cmd = f'S {axis_label}?\r'
+                    velo[axis_label] = float(self.query(cmd)[5:])   
                 
-            else:
-                self.log.error('specified axis not available')
-                velo = self.get_velocity()
+                else:
+                    self.log.warn('specified axis {axis_label} not available')
                     
         except:
             self.log.error('could not set new velocity')
-            velo = self.get_velocity()
+            velo = {}
             
-        return {self._first_axis_label: velo}
-        
+        return velo 
+     
     
 ##################    
         
@@ -231,8 +256,8 @@ class MS2000(Base, MotorInterface):
             if waiting_time >= self._timeout:
                 self.log.error('ASI MS2000 translation stage timeout occured')
                 break
-            
     
+         
     def homing(self):
         """ Moves the stage to homeposition on x and y axes.
         Motor stops when hardware or firmware limit switch is encountered.
@@ -242,6 +267,7 @@ class MS2000(Base, MotorInterface):
         cmd="! X Y \r"
         self.write(cmd)
         return 0
+    
     
     def set_to_zero(self):
         """ Sets the current position as the origin
