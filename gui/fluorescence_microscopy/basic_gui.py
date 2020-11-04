@@ -22,6 +22,7 @@ import pyqtgraph as pg
 from gui.guibase import GUIBase
 from core.connector import Connector
 
+import numpy as np
 
 
 class BasicWindow(QtWidgets.QMainWindow):
@@ -46,13 +47,18 @@ class BasicGUI(GUIBase):
     
     # Define connectors to logic modules
     camera_logic = Connector(interface='CameraLogic')
+    daq_ao_logic = Connector(interface='DAQaoLogic')
+    piezo_logic = Connector(interface='PiezoLogic')
     
       
     # Signals
     sigVideoStart = QtCore.Signal()
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
-    sigImageStop = QtCore.Signal()
+    # sigImageStop = QtCore.Signal() # not used
+    
+    sigTimetraceOn = QtCore.Signal()
+    sigTimetraceOff = QtCore.Signal()
     
     sigLaserOn = QtCore.Signal()
     sigLaserOff = QtCore.Signal()
@@ -61,6 +67,8 @@ class BasicGUI(GUIBase):
     _image = []
 
     _camera_logic = None
+    _daq_ao_logic = None
+    _piezo_logic = None
     _mw = None
 
     def __init__(self, config, **kwargs):
@@ -73,6 +81,8 @@ class BasicGUI(GUIBase):
         """
 
         self._camera_logic = self.camera_logic()
+        self._daq_ao_logic = self.daq_ao_logic()
+        self._piezo_logic = self.piezo_logic()
 
         # Windows
         self._mw = BasicWindow()
@@ -104,35 +114,70 @@ class BasicGUI(GUIBase):
         self._mw.image_PlotWidget.setAspectLocked(True)
         
         
+        
+        # piezo dockwidget
+        
+        self._mw.z_track_Action.setEnabled(True) # button can be used # just to be sure, this is the initial state defined in designer
+        self._mw.z_track_Action.setChecked(self._piezo_logic.enabled) # checked state takes the same bool value as enabled attribute in logic (enabled = 0: no timetrace running) # button is defined as checkable in designer
+        self._mw.z_track_Action.triggered.connect(self.start_z_track_clicked)
+        
+        # start and stop the physical measurement
+        self.sigTimetraceOn.connect(self._piezo_logic.start_tracking)
+        self._piezo_logic.sigUpdateDisplay.connect(self.update_timetrace)
+        self.sigTimetraceOff.connect(self._piezo_logic.stop_tracking)
+
+        
+        
+        # some data for testing
+        #self.t_data = np.arange(100) # not needed if the x axis stays fixed (no moving ticks)
+        self.y_data = np.zeros(100) # for initialization
+        
+
+        
+        # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
+        self._timetrace = self._mw.piezo_PlotWidget.plot(self.y_data)
+           
+        
+        
+        
+        
+        
+        
         # laser dockwidget
-        self._mw.laser_on_Action.setEnabled(True)
-        self._mw.laser_on_Action.triggered.connect(self.laser_on_clicked)
-        
-        # laser off part still missing 
-        
-        
         self._mw.laser_zero_Action.setEnabled(True)
         self._mw.laser_zero_Action.triggered.connect(self.laser_set_to_zero)
         
+        self._mw.laser_on_Action.setEnabled(True)
+        # self._mw.laser_on_Action.setChecked(self._daq_ao_logic.enabled) # is this really needed ?
+        self._mw.laser_on_Action.triggered.connect(self.laser_on_clicked)
+        
+        # starting the analog output - interact with logic module
+        self.sigLaserOn.connect(self._daq_ao_logic.apply_voltage)
+        self.sigLaserOff.connect(self._daq_ao_logic.voltage_off)
+        
+
+        
         # connect the slider with the spinbox so that they show the same value     
         
-        self.slider_list = [self._mw.laser1_HorizontalSlider, self._mw.laser2_HorizontalSlider]
-        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox]
+        self.slider_list = [self._mw.laser1_HorizontalSlider, self._mw.laser2_HorizontalSlider, self._mw.laser3_HorizontalSlider, self._mw.laser4_HorizontalSlider]
+        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox, self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
         
+        self._mw.laser1_HorizontalSlider.valueChanged.connect(lambda: self.set_spinbox_value(0))
+        self._mw.laser1_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(0))
         
-        # exploratory part: 
-#        for item in self.slider_list:
-#            item.valueChanged.connect(lambda num = 0: self.set_spinbox_value(num))
-            
+        self._mw.laser2_HorizontalSlider.valueChanged.connect(lambda: self.set_spinbox_value(1))
+        self._mw.laser2_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(1))
         
-        #
-        for item in self.spinbox_list:
-            item.valueChanged.connect(self.set_slider_value)
-        # the slot has to be generalized to take an argument corresponding to the element in the list .. 
-        #self._mw.laser1_HorizontalSlider.valueChanged.connect(self.set_spinbox_value)
-        #self._mw.laser1_control_SpinBox.valueChanged.connect(self.set_slider_value)
-        # so there should be the same thing for all other lasers .. but there must be a way without repetition. 
-        # use a signal mapper ? to explore .. 
+        self._mw.laser3_HorizontalSlider.valueChanged.connect(lambda: self.set_spinbox_value(2))
+        self._mw.laser3_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(2))
+        
+        self._mw.laser4_HorizontalSlider.valueChanged.connect(lambda: self.set_spinbox_value(3))
+        self._mw.laser4_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(3))
+        # lambda function is used to pass in an additional argument. This allows to use the same slots for all sliders / spinboxes
+        # in case lambda does not work well on runtime, check functools.partial
+        # or signal mapper ? to explore ..
+        
+
  
         
 
@@ -197,24 +242,53 @@ class BasicGUI(GUIBase):
         self._image.setImage(image=raw_data_image)
         
 
-    def updateView(self):
-        """
-        Update the view when the model changes
-        """
-        pass
+
     
  
 # color bar functions to be defined here    
 
+
+
+    # focus dockwidget 
+    
+    def start_z_track_clicked(self):
+        if self._piezo_logic.enabled: # timetrace already running
+            self._mw.z_track_Action.setText('Piezo: Start Tracking')
+            self.sigTimetraceOff.emit()
+        else: 
+            self._mw.z_track_Action.setText('Piezo: Stop Tracking')
+            self.sigTimetraceOn.emit()
+            
+            
+    def update_timetrace(self):
+        # t data not needed, only if it is wanted that the axis labels move also. then see variant 2 from pyqtgraph.examples scrolling plot
+        #self.t_data[:-1] = self.t_data[1:] # shift data in the array one position to the left, keeping same array size
+        #self.t_data[-1] += 1 # add the new last element
+        self.y_data[:-1] = self.y_data[1:] # shfit data one position to the left ..
+        self.y_data[-1] = self._piezo_logic.get_last_position()
+
+        
+        #self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
+        self._timetrace.setData(self.y_data) # x axis values do not move
+        
+    
+    
+    
     
     # laser dockwidget
     def laser_on_clicked(self):
         """
         """
-        self._mw.laser_on_Action.setText('Laser Off')
-        self._mw.laser_zero_Action.setDisabled(True)
-        self.sigLaserOn.emit()
-        
+        if self._daq_ao_logic.enabled:
+            # laser is initially on
+            self._mw.laser_zero_Action.setDisabled(False)
+            self._mw.laser_on_Action.setText('Laser On')
+            self.sigLaserOff.emit()
+        else:
+            # laser is initially off
+            self._mw.laser_zero_Action.setDisabled(True)
+            self._mw.laser_on_Action.setText('Laser Off')
+            self.sigLaserOn.emit()
         
     def laser_set_to_zero(self):
         """
@@ -231,11 +305,13 @@ class BasicGUI(GUIBase):
 #        laser1_value = self._mw.laser1_HorizontalSlider.value()
 #        self._mw.laser1_control_SpinBox.setValue(laser1_value)
         
-    def set_slider_value(self):
+    def set_slider_value(self, num):
         """
         """
-        laser1_value = self._mw.laser1_control_SpinBox.value()
-        self._mw.laser1_HorizontalSlider.setValue(laser1_value)
+        laser_value = self.spinbox_list[num].value()
+        self.slider_list[num].setValue(laser_value)
+#        laser1_value = self._mw.laser1_control_SpinBox.value()
+#        self._mw.laser1_HorizontalSlider.setValue(laser1_value)
 
 
 
