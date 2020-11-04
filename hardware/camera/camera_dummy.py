@@ -37,7 +37,7 @@ class CameraDummy(Base, CameraInterface):
         support_live: True
         camera_name: 'Dummy camera'
         resolution: (1280, 720)
-        exposure: 0.1
+        exposure: 0.1 
         gain: 1.0
     """
 
@@ -47,7 +47,7 @@ class CameraDummy(Base, CameraInterface):
 
     _live = False
     _acquiring = False
-    _exposure = ConfigOption('exposure', .1)
+    _exposure = ConfigOption('exposure', .1) 
     _gain = ConfigOption('gain', 1.)
 
     def on_activate(self):
@@ -119,8 +119,10 @@ class CameraDummy(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
-        data = np.random.random(self._resolution)*self._exposure*self._gain
-        return data.transpose()
+        #data = np.random.random(self._resolution)*self._exposure*self._gain
+        data = np.random.normal(size=self._resolution)*self._exposure*self._gain
+        return data
+        #return data.transpose()
 
     def set_exposure(self, exposure):
         """ Set the exposure time in seconds

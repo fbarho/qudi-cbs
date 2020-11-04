@@ -103,15 +103,25 @@ class BasicGUI(GUIBase):
         
         #self._mw.save_last_image_Action.triggered.connect(self.save_last_image)
 
-        # starting the physical measurement
+        #starting the physical measurement
         self.sigVideoStart.connect(self._camera_logic.start_loop)
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigImageStart.connect(self._camera_logic.start_single_acquistion)
+        
 
-        raw_data_image = self._camera_logic.get_last_image()
-        self._image = pg.ImageItem(image=raw_data_image, axisOrder='row-major')
-        self._mw.image_PlotWidget.addItem(self._image)
-        self._mw.image_PlotWidget.setAspectLocked(True)
+        # prepare the image display. Data is added in the slot update_data
+        # interpret image data as row-major instead of col-major
+        pg.setConfigOptions(imageAxisOrder='row-major') 
+        
+        # hide ROI and menubutton, histogram is activated when data is added to the ImageView
+        self._mw.camera_ImageView.ui.roiBtn.hide()
+        self._mw.camera_ImageView.ui.menuBtn.hide()
+        self._mw.camera_ImageView.ui.histogram.hide()
+        
+        cmap = pg.ColorMap(pos = np.linspace(0.0, 1.0, 3), color = self._camera_logic.colors)
+        self._mw.camera_ImageView.setColorMap(cmap)
+        
+         
         
         
         
@@ -238,15 +248,10 @@ class BasicGUI(GUIBase):
         """ Callback from sigUpdateDisplay in the camera_logic module. 
         Get the image data from the logic and print it on the window
         """
-        raw_data_image = self._camera_logic.get_last_image()
-        self._image.setImage(image=raw_data_image)
-        
-
-
-    
- 
-# color bar functions to be defined here    
-
+        image_data = self._camera_logic.get_last_image()
+        self._mw.camera_ImageView.setImage(image_data)
+        self._mw.camera_ImageView.ui.histogram.show()
+       
 
 
     # focus dockwidget 

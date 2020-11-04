@@ -266,23 +266,13 @@
       <height>428</height>
      </size>
     </property>
-    <widget class="PlotWidget" name="image_PlotWidget">
+    <widget class="ImageView" name="camera_ImageView">
      <property name="geometry">
       <rect>
        <x>20</x>
        <y>40</y>
-       <width>400</width>
+       <width>601</width>
        <height>400</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="PlotWidget" name="image_zoom_PlotWidget">
-     <property name="geometry">
-      <rect>
-       <x>430</x>
-       <y>40</y>
-       <width>200</width>
-       <height>200</height>
       </rect>
      </property>
     </widget>
@@ -407,6 +397,11 @@
    <class>PlotWidget</class>
    <extends>QGraphicsView</extends>
    <header>pyqtgraph</header>
+  </customwidget>
+  <customwidget>
+   <class>ImageView</class>
+   <extends>QGraphicsView</extends>
+   <header>pyqtgraph.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

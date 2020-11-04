@@ -57,6 +57,7 @@ class CameraLogic(GenericLogic):
     _gain = 1.
     _last_image = None
 
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
