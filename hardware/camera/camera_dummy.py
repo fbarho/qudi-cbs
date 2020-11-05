@@ -49,6 +49,7 @@ class CameraDummy(Base, CameraInterface):
     _acquiring = False
     _exposure = ConfigOption('exposure', .1) 
     _gain = ConfigOption('gain', 1.)
+    _has_temp = False
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -166,5 +167,12 @@ class CameraDummy(Base, CameraInterface):
         @return bool: ready ?
         """
         return not (self._live or self._acquiring)
+    
+    def has_temp(self):
+        """ Does the camera support setting of the temperature?
+        
+        @return bool: has temperature ?
+        """
+        return self._has_temp
 
 

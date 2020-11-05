@@ -8,7 +8,6 @@ Created on Thu Oct 29 08:13:08 2020
 
 This module contains a GUI for the basic functions of the fluorescence microscopy setup.
 
-current state: handling the camera image 
 """
 import os
 import sys
@@ -25,6 +24,33 @@ from core.connector import Connector
 import numpy as np
 
 
+class CameraSettingDialog(QtWidgets.QDialog):
+    """ Create the SettingsDialog window, based on the corresponding *.ui file."""
+
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_camera_settings.ui')
+
+        # Load it
+        super(CameraSettingDialog, self).__init__()
+        uic.loadUi(ui_file, self)
+        
+        
+        
+class PiezoSettingDialog(QtWidgets.QDialog):
+    """ Create the SettingsDialog window, based on the corresponding *.ui file."""
+
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_piezo_settings.ui')
+
+        # Load it
+        super(PiezoSettingDialog, self).__init__()
+        uic.loadUi(ui_file, self)
+        
+        
 class BasicWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
 
@@ -39,6 +65,8 @@ class BasicWindow(QtWidgets.QMainWindow):
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
+        
+        
         
         
 class BasicGUI(GUIBase):
@@ -86,6 +114,17 @@ class BasicGUI(GUIBase):
 
         # Windows
         self._mw = BasicWindow()
+        self._mw.centralwidget.hide() # everything is in dockwidgets
+        #self._mw.setDockNestingEnabled(True)
+        self.initCameraSettingsUI()
+        self.initPiezoSettingsUI()
+        
+        
+        
+        # Menu bar actions
+        # Options menu
+        self._mw.camera_settings_Action.triggered.connect(self.open_camera_settings)
+        self._mw.piezo_settings_Action.triggered.connect(self.open_piezo_settings)
         
         # camera dockwidget
         # configure the toolbar action buttons and connect signals
@@ -126,7 +165,6 @@ class BasicGUI(GUIBase):
         
         
         # piezo dockwidget
-        
         self._mw.z_track_Action.setEnabled(True) # button can be used # just to be sure, this is the initial state defined in designer
         self._mw.z_track_Action.setChecked(self._piezo_logic.enabled) # checked state takes the same bool value as enabled attribute in logic (enabled = 0: no timetrace running) # button is defined as checkable in designer
         self._mw.z_track_Action.triggered.connect(self.start_z_track_clicked)
@@ -168,7 +206,6 @@ class BasicGUI(GUIBase):
 
         
         # connect the slider with the spinbox so that they show the same value     
-        
         self.slider_list = [self._mw.laser1_HorizontalSlider, self._mw.laser2_HorizontalSlider, self._mw.laser3_HorizontalSlider, self._mw.laser4_HorizontalSlider]
         self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox, self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
         
@@ -204,6 +241,89 @@ class BasicGUI(GUIBase):
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
+        
+        
+    # Initialisation of the camera settings windows in the options menu    
+    def initCameraSettingsUI(self):
+        """ Definition, configuration and initialisation of the camera settings GUI.
+
+        """
+        # Create the Camera settings window
+        self._cam_sd = CameraSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._cam_sd.accepted.connect(self.cam_update_settings) # ok button
+        self._cam_sd.rejected.connect(self.cam_keep_former_settings) # cancel buttons
+        #self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
+        
+        if self._camera_logic.has_temp == False:
+            self._cam_sd.temp_doubleSpinBox.setEnabled(False)
+            self._cam_sd.label_3.setEnabled(False)
+
+        # write the configuration to the settings window of the GUI.
+        self.cam_keep_former_settings()
+        
+        
+    # slots of the camerasettingswindow
+    def cam_update_settings(self):
+        """ Write new settings from the gui to the file. 
+        """
+        self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
+        self._camera_logic.set_gain(self._cam_sd.gain_doubleSpinBox.value())
+        #self._camera_logic.set_temperature(self._cam_sd.temp_doubleSpinBox.value())
+     
+
+    def cam_keep_former_settings(self):
+        """ Keep the old settings and restores them in the gui. 
+        """
+        self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
+        self._cam_sd.gain_doubleSpinBox.setValue(self._camera_logic._gain)
+        #self._cam_sd.temperature_doubleSpinBox.setValue(self._camera_logic._temperature)
+        
+
+    # slot to open the camerasettingswindow
+    def open_camera_settings(self):
+        """ Opens the settings menu. 
+        """
+        self._cam_sd.exec_()
+        
+        
+    # Initialisation of the piezo settings windows in the options menu    
+    def initPiezoSettingsUI(self):
+        """ Definition, configuration and initialisation of the camera settings GUI.
+
+        """
+        # Create the Piezo settings window
+        self._piezo_sd = PiezoSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._piezo_sd.accepted.connect(self.piezo_update_settings) # ok button
+        self._piezo_sd.rejected.connect(self.piezo_keep_former_settings) # cancel buttons
+        #self._piezo_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.piezo_update_settings)
+
+        # write the configuration to the settings window of the GUI.
+        self.piezo_keep_former_settings()
+        
+        
+    # slots of the piezosettingswindow
+    def piezo_update_settings(self):
+        """ Write new settings from the gui to the file. 
+        """
+        self._piezo_logic.set_step(self._piezo_sd.step_doubleSpinBox.value())
+
+  
+    def piezo_keep_former_settings(self):
+        """ Keep the old settings and restores them in the gui. 
+        """
+        self._piezo_sd.step_doubleSpinBox.setValue(self._piezo_logic._step)
+
+        
+    # slot to open the camerasettingswindow
+    def open_piezo_settings(self):
+        """ Opens the settings menu. 
+        """
+        self._piezo_sd.exec_()
+    
+    
+    
 
     # definition of the slots
     # camera dockwidget
@@ -307,18 +427,13 @@ class BasicGUI(GUIBase):
         """
         laser_value = self.slider_list[num].value()
         self.spinbox_list[num].setValue(laser_value)
-#        laser1_value = self._mw.laser1_HorizontalSlider.value()
-#        self._mw.laser1_control_SpinBox.setValue(laser1_value)
+
         
     def set_slider_value(self, num):
         """
         """
         laser_value = self.spinbox_list[num].value()
         self.slider_list[num].setValue(laser_value)
-#        laser1_value = self._mw.laser1_control_SpinBox.value()
-#        self._mw.laser1_HorizontalSlider.setValue(laser1_value)
-
-
 
         
         

@@ -42,6 +42,8 @@
     <property name="title">
      <string>Options</string>
     </property>
+    <addaction name="camera_settings_Action"/>
+    <addaction name="piezo_settings_Action"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -389,6 +391,16 @@
    </property>
    <property name="text">
     <string>Piezo: Start Tracking</string>
+   </property>
+  </action>
+  <action name="camera_settings_Action">
+   <property name="text">
+    <string>Camera settings</string>
+   </property>
+  </action>
+  <action name="piezo_settings_Action">
+   <property name="text">
+    <string>Piezo settings</string>
    </property>
   </action>
  </widget>

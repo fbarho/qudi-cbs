@@ -25,6 +25,16 @@ class PiezoInterface(metaclass=InterfaceMetaclass):
         @returns: float position
         """
         pass
+    
+    
+    
+    @abstract_interface_method
+    def set_step(self, step):
+        """ sets the step entered on the GUI by the user
+        
+        @returns: None
+        """
+        pass
 
 
 

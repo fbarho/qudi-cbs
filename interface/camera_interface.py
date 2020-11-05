@@ -130,3 +130,11 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @return bool: ready ?
         """
         pass
+    
+    @abstract_interface_method
+    def has_temp(self):
+        """ Does the camera support setting of the temperature?
+        
+        @return bool: has temperature ?
+        """
+        pass

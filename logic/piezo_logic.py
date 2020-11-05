@@ -38,6 +38,7 @@ class PiezoLogic(GenericLogic):
     
     # attributes    
     _position = None
+    _step = 0.1 # maybe use configoption instead 
     
     refresh_time = 100 # time in ms for timer interval
 
@@ -95,6 +96,12 @@ class PiezoLogic(GenericLogic):
         """ called from GUI to get the last registered position
         """
         return self._position
+    
+    
+    def set_step(self, step):
+        """ sets the step entered on the GUI by the user
+        """
+        self._piezo.set_step(step)
         
 
         

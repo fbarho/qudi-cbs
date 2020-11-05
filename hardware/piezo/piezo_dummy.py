@@ -11,7 +11,7 @@ This module contains the piezo dummy for the piezo interface
 
 import numpy as np
 from core.module import Base
-#from core.configoption import ConfigOption
+from core.configoption import ConfigOption
 from interface.piezo_interface import PiezoInterface
 
 
@@ -22,9 +22,11 @@ class PiezoDummy(Base, PiezoInterface):
 
     piezo_dummy:
         module.Class: 'piezo.piezo_dummy.PiezoDummy'
+        step: 0.01 # in µm
     """
 
 
+    step = ConfigOption('step', 0.01) 
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -43,3 +45,11 @@ class PiezoDummy(Base, PiezoInterface):
         """
         pos = np.random.normal()
         return pos
+    
+    
+    def set_step(self, step):
+        """ sets the step entered on the GUI by the user
+        
+        @returns: None
+        """
+        self.step = step

@@ -51,6 +51,7 @@ class CameraLogic(GenericLogic):
     timer = None
 
     enabled = False
+    has_temp = False
 
     _exposure = 1.
     _gain = 1.
@@ -76,6 +77,7 @@ class CameraLogic(GenericLogic):
         self._hardware = self.hardware()
 
         self.enabled = False
+        self.has_temp = self._hardware.has_temp()
 
         self.get_exposure()
         self.get_gain()
