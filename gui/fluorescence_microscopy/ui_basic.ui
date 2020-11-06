@@ -43,7 +43,6 @@
      <string>Options</string>
     </property>
     <addaction name="camera_settings_Action"/>
-    <addaction name="piezo_settings_Action"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -97,142 +96,71 @@
       <string>Laser settings</string>
      </property>
     </widget>
-    <widget class="QWidget" name="layoutWidget">
+    <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
-       <x>20</x>
+       <x>30</x>
        <y>30</y>
-       <width>261</width>
-       <height>212</height>
+       <width>131</width>
+       <height>124</height>
       </rect>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QSplitter" name="splitter">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="laser1_Label">
+        <property name="text">
+         <string>405 nm</string>
         </property>
-        <widget class="QLabel" name="laser1_Label">
-         <property name="text">
-          <string>405 nm</string>
-         </property>
-        </widget>
-        <widget class="QLabel" name="laser2_Label">
-         <property name="text">
-          <string>488 nm</string>
-         </property>
-        </widget>
-        <widget class="QLabel" name="laser3_Label">
-         <property name="text">
-          <string>561 nm</string>
-         </property>
-        </widget>
-        <widget class="QLabel" name="laser4_Label">
-         <property name="text">
-          <string>641 nm</string>
-         </property>
-        </widget>
        </widget>
       </item>
-      <item>
-       <layout class="QVBoxLayout" name="verticalLayout">
-        <item>
-         <widget class="QSlider" name="laser1_HorizontalSlider">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSlider" name="laser2_HorizontalSlider">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSlider" name="laser3_HorizontalSlider">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSlider" name="laser4_HorizontalSlider">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
-        </item>
-       </layout>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="laser1_control_SpinBox">
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
       </item>
-      <item>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <widget class="QSpinBox" name="laser1_control_SpinBox">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSpinBox" name="laser2_control_SpinBox">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSpinBox" name="laser3_control_SpinBox">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSpinBox" name="laser4_control_SpinBox">
-          <property name="maximum">
-           <number>100</number>
-          </property>
-         </widget>
-        </item>
-       </layout>
+      <item row="1" column="0">
+       <widget class="QLabel" name="laser2_Label">
+        <property name="text">
+         <string>488 nm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="laser2_control_SpinBox">
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="laser3_Label">
+        <property name="text">
+         <string>561 nm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="laser3_control_SpinBox">
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="laser4_Label">
+        <property name="text">
+         <string>641 nm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QSpinBox" name="laser4_control_SpinBox">
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>
@@ -280,42 +208,6 @@
     </widget>
    </widget>
   </widget>
-  <widget class="QDockWidget" name="focus_DockWidget">
-   <attribute name="dockWidgetArea">
-    <number>1</number>
-   </attribute>
-   <widget class="QWidget" name="dockWidgetContents_3">
-    <property name="minimumSize">
-     <size>
-      <width>500</width>
-      <height>200</height>
-     </size>
-    </property>
-    <widget class="QLabel" name="label">
-     <property name="geometry">
-      <rect>
-       <x>50</x>
-       <y>0</y>
-       <width>91</width>
-       <height>17</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>z position</string>
-     </property>
-    </widget>
-    <widget class="PlotWidget" name="piezo_PlotWidget">
-     <property name="geometry">
-      <rect>
-       <x>40</x>
-       <y>30</y>
-       <width>591</width>
-       <height>161</height>
-      </rect>
-     </property>
-    </widget>
-   </widget>
-  </widget>
   <widget class="QToolBar" name="toolBar_3">
    <property name="windowTitle">
     <string>toolBar_3</string>
@@ -326,7 +218,6 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="z_track_Action"/>
   </widget>
   <action name="save_image_MenuAction">
    <property name="text">
@@ -385,14 +276,6 @@
     <string>Reset laser settings</string>
    </property>
   </action>
-  <action name="z_track_Action">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Piezo: Start Tracking</string>
-   </property>
-  </action>
   <action name="camera_settings_Action">
    <property name="text">
     <string>Camera settings</string>
@@ -405,11 +288,6 @@
   </action>
  </widget>
  <customwidgets>
-  <customwidget>
-   <class>PlotWidget</class>
-   <extends>QGraphicsView</extends>
-   <header>pyqtgraph</header>
-  </customwidget>
   <customwidget>
    <class>ImageView</class>
    <extends>QGraphicsView</extends>
