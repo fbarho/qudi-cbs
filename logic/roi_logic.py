@@ -85,6 +85,7 @@ class RegionOfInterestList:
         else:
             raise TypeError('ROIlist name to set must be None or of type str.')
         return None
+          
 
     @property
     def roi_nametag(self):
@@ -190,19 +191,40 @@ class RegionOfInterestList:
         self._rois[new_name] = self._rois.pop(name)
         return None
 
-    def add_roi(self, position, name=None): # change the default name setting
+#    def add_roi(self, position, name=None): # change the default name setting
+#        if isinstance(position, RegionOfInterest):
+#            roi_inst = position
+#        else:
+#            position = position - self.origin
+#            # Create a generic name from the roi_nametag if it is set and no name is given.
+#            if name is None and self._roi_tag is not None:
+#                tag_index = len(self._rois)
+#                while True:
+#                    tag_index += 1
+#                    name = '{0}{1:d}'.format(self._roi_tag, tag_index)
+#                    if name not in self._rois:
+#                        break
+#            roi_inst = RegionOfInterest(position=position, name=name)
+#        if roi_inst.name in self._rois:
+#            raise ValueError('ROI with name "{0}" already present in ROIlist "{1}".\n'
+#                             'Could not add ROI to ROIlist'.format(roi_inst.name, self.name))
+#        self._rois[roi_inst.name] = roi_inst
+#        return None
+        
+    # redefine it without allowing a name to be given # this works but could probably be simplified
+    def add_roi(self, position, name=None):
         if isinstance(position, RegionOfInterest):
             roi_inst = position
         else:
             position = position - self.origin
-            # Create a generic name from the roi_nametag if it is set and no name is given.
-            if name is None and self._roi_tag is not None:
-                tag_index = len(self._rois)
-                while True:
-                    tag_index += 1
-                    name = '{0}{1:d}'.format(self._roi_tag, tag_index)
-                    if name not in self._rois:
-                        break
+            # Create a generic name 
+            index = len(self._rois)
+            while True:
+                index += 1
+                str_index = str(index).zfill(3) # zero padding 
+                name = 'ROI_'+str_index
+                if name not in self._rois:
+                    break
             roi_inst = RegionOfInterest(position=position, name=name)
         if roi_inst.name in self._rois:
             raise ValueError('ROI with name "{0}" already present in ROIlist "{1}".\n'
@@ -283,16 +305,18 @@ class RegionOfInterest:
     def name(self):
         return str(self._name)
 
+    # redefined the name.setter so that it can be called from the RegionOfInterestList instance
     @name.setter
     def name(self, new_name):
         if new_name is not None and not isinstance(new_name, str):
             raise TypeError('Name to set must be either None or of type str.')
-
-        if not new_name:
-            new_name = datetime.now().strftime('roi_%Y%m%d%H%M%S%f') # change format
-        self._name = str(new_name)
+        if not new_name: 
+            index = len(self._rois) + 1
+            str_index = str(index).zfill(3)
+            new_name = 'ROI_'+str_index
+        self._name = new_name
         return None
-
+        
     @property
     def position(self):
         return self._position

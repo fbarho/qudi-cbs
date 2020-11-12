@@ -497,7 +497,7 @@ class RoiGUI(GUIBase):
             self._update_roi_nametag(tag=roi_dict['roi_nametag'])
         if 'cam_image' in roi_dict and 'cam_image_extent' in roi_dict:
             self._update_cam_image(cam_image=roi_dict['cam_image'],
-                                    image_extent=roi_dict['cam_image_extent'])
+                                    cam_image_extent=roi_dict['cam_image_extent'])
         if 'rois' in roi_dict:
             self._update_rois(roi_dict=roi_dict['rois'])
         return
