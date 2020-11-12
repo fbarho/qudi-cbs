@@ -22,7 +22,7 @@ import pyqtgraph as pg
 #import re
 
 from core.connector import Connector
-from core.util.units import ScaledFloat
+#from core.util.units import ScaledFloat
 from core.util.helpers import natural_sort
 from gui.guibase import GUIBase
 #from gui.guiutils import ColorBar
@@ -31,7 +31,7 @@ from gui.guibase import GUIBase
 from qtpy import QtCore, QtGui
 from qtpy import QtWidgets
 from qtpy import uic
-from qtwidgets.scan_plotwidget import ScanImageItem
+#from qtwidgets.scan_plotwidget import ScanImageItem
 
 ####################################################################
 # try to add the sigMouseClicked signal to the ImageItem (alternative: import and use ScanImageItem from qudi qtwidgets.scan_plotwidget but there is a lot of other functionality therein)
@@ -141,7 +141,7 @@ class RoiMarker(pg.RectROI):
         """
         self._position = np.array(position, dtype=float)
         width = self.width
-        label_offset = width / np.sqrt(2) # to adjust
+        label_offset = width   # / np.sqrt(2) # to adjust
         self.setPos(self._position[0] - width/2, self._position[1] - width/2) # check if the origin is at the lower left corner, then this should be correct, else to be modified !!!
         self.label.setPos(self._position[0] + label_offset, self._position[1] + label_offset)
         return
@@ -162,7 +162,7 @@ class RoiMarker(pg.RectROI):
 
         @param float width: Width of the square 
         """
-        label_offset = width / np.sqrt(2) # to adjust 
+        label_offset = width / 2 # to adjust 
         self.setSize((width, width))
         self.setPos(self.position[0] - width/2, self.position[1] - width/2)
         self.label.setPos(self.position[0] + label_offset, self.position[1] + label_offset)
@@ -193,6 +193,8 @@ class RoiMarker(pg.RectROI):
 
 
 class RoiMainWindow(QtWidgets.QMainWindow):
+    """ Create the Mainwindow from the ui.file
+    """
 
     def __init__(self):
         # Get the path to the *.ui file
@@ -203,13 +205,7 @@ class RoiMainWindow(QtWidgets.QMainWindow):
         super(RoiMainWindow, self).__init__()
         uic.loadUi(ui_file, self)
         self.show()
-        
-        
-        
-        
-        
-        
-
+    
         
         
 class RoiGUI(GUIBase):
@@ -221,8 +217,6 @@ class RoiGUI(GUIBase):
     
     # declare signals
     sigRoiWidthChanged = QtCore.Signal(float)
-    sigRoiNameChanged = QtCore.Signal(str)
-    sigRoiNameTagChanged = QtCore.Signal(str)
     sigRoiListNameChanged = QtCore.Signal(str)
     #sigAddRoiByClick = QtCore.Signal(np.ndarray)
 
@@ -230,13 +224,13 @@ class RoiGUI(GUIBase):
         super().__init__(config=config, **kwargs)
 
         self._mw = None             # QMainWindow handle
-        self.roi_image = None       # pyqtgraph PlotImage for ROI scan image
+        self.roi_image = None       # pyqtgraph PlotImage for ROI overview image
 
-        self._markers = {}      # dict to hold handles for the POI markers
+        self._markers = {}      # dict to hold handles for the ROI markers
 
         self._mouse_moved_proxy = None  # Signal proxy to limit mousMoved event rate
 
-        #self.__roi_selector_active = False  # Flag indicating if the roi selector is active
+        #self.__roi_selector_active = False  # Flag indicating if the roi selector is active # for selection on click
         return None
 
     def on_activate(self):
@@ -252,27 +246,24 @@ class RoiGUI(GUIBase):
         self._mw = RoiMainWindow()
         
 
-#        # Add validator to LineEdits # maybe add later 
+#        # Add validator to LineEdit # maybe add later 
 #        self._mw.roi_list_name_LineEdit.setValidator(NameValidator())
-#        self._mw.roi_name_LineEdit.setValidator(NameValidator())
-#        self._mw.roi_nametag_LineEdit.setValidator(NameValidator(empty_allowed=True))
-
+        
+        
         # Initialize plot
         self.__init_roi_map_image()
   
         # Initialize ROIs
-        #self._update_rois(self.roi_logic().roi_positions)
+        self._update_rois(self.roi_logic().roi_positions)
         # Initialize ROI list name
         self._update_roi_list_name(self.roi_logic().roi_list_name)
-        # Initialize ROI nametag
-        self._update_roi_nametag(self.roi_logic().roi_nametag)
-
         
         # Initialize ROI width
         self._update_roi_width(self.roi_logic().roi_width)
+
         
         # Distance Measurement: # to be added later
-        # Introducing a SignalProxy will limit the rate of signals that get fired.
+#        # Introducing a SignalProxy will limit the rate of signals that get fired.
 #        self._mouse_moved_proxy = pg.SignalProxy(signal=self.roi_image.scene().sigMouseMoved,
 #                                                 rateLimit=30,
 #                                                 slot=self.mouse_moved_callback)
@@ -294,7 +285,6 @@ class RoiGUI(GUIBase):
         self.__disconnect_update_signals_from_logic()
         self.__disconnect_internal_signals()
         self._mw.close()
-      
       
         
     # is it needed to have the camera image superposed with the roi markers ? 
@@ -318,6 +308,7 @@ class RoiGUI(GUIBase):
         self.roi_logic().sigActiveRoiUpdated.connect(self.update_active_roi, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigRoiListUpdated.connect(self.update_roi_list, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigWidthUpdated.connect(self._update_roi_width, QtCore.Qt.QueuedConnection)
+
         return None
 
     def __disconnect_update_signals_from_logic(self):
@@ -340,53 +331,41 @@ class RoiGUI(GUIBase):
         # signals
         self.sigRoiWidthChanged.connect(self.roi_logic().set_roi_width)
         self.sigRoiListNameChanged.connect(self.roi_logic().rename_roi_list, QtCore.Qt.QueuedConnection)
-        self.sigRoiNameChanged.connect(self.roi_logic().rename_roi, QtCore.Qt.QueuedConnection)
-        self.sigRoiNameTagChanged.connect(self.roi_logic().set_roi_nametag, QtCore.Qt.QueuedConnection)
         #self.sigAddRoiByClick.connect(self.roi_logic().add_roi, QtCore.Qt.QueuedConnection)
+        self._mw.active_roi_ComboBox.activated[str].connect(self.roi_logic().set_active_roi, QtCore.Qt.QueuedConnection)
         
 
-        #self._mw.manual_update_poi_PushButton.clicked.connect(self.poimanagerlogic().move_roi_from_poi_position, QtCore.Qt.QueuedConnection)      
-   
-        #self._mw.goto_poi_after_update_checkBox.stateChanged.connect(self.poimanagerlogic().set_move_scanner_after_optimise, QtCore.Qt.QueuedConnection)      
-        # this will be needed : to add !!!!
+        # something similar will be needed : to add !!!!
         #self._mw.get_confocal_image_PushButton.clicked.connect(self.poimanagerlogic().set_scan_image, QtCore.Qt.QueuedConnection)
-        
-        #self._mw.active_poi_ComboBox.activated[str].connect(self.poimanagerlogic().set_active_poi, QtCore.Qt.QueuedConnection)
         return None
 
     def __disconnect_control_signals_to_logic(self):
         self._mw.new_roi_Action.triggered.disconnect()
         self._mw.go_to_roi_Action.triggered.disconnect()
         self._mw.new_list_Action.triggered.disconnect()
+        self._mw.active_roi_ComboBox.activated[str].disconnect()
         
         #self._mw.get_confocal_image_PushButton.clicked.disconnect()
 
         self.sigRoiWidthChanged.disconnect()
         self.sigRoiListNameChanged.disconnect()
-        self.sigRoiNameChanged.disconnect()
-        self.sigRoiNameTagChanged.disconnect()
         #self.sigAddRoiByClick.disconnect()
         for marker in self._markers.values():
             marker.sigRoiSelected.disconnect()
         return None
 
     def __connect_internal_signals(self):
-#        self._mw.roi_width_doubleSpinBox.editingFinished(self.roi_width_changed)
+        self._mw.roi_width_doubleSpinBox.editingFinished.connect(self.roi_width_changed) # just emit one signal when finished and not at each modification of the value (valueChanged)
         #self._mw.roi_selector_Action.toggled.connect(self.toggle_roi_selector)
-        
-        # the following need to be added to GUI :
-#        self._mw.roi_name_LineEdit.editingFinished.connect(self.roi_name_changed)
-#        self._mw.poi_name_LineEdit.returnPressed.connect(self.poi_name_changed)
-#        self._mw.poi_nametag_LineEdit.editingFinished.connect(self.poi_nametag_changed)
-#        self._mw.save_roi_Action.triggered.connect(self.save_roi)
-#        self._mw.load_roi_Action.triggered.connect(self.load_roi)      
-#        self._mw.poi_selector_Action.toggled.connect(self.toggle_poi_selector)
-        
-
+        self._mw.save_list_Action.triggered.connect(self.save_roi_list)
+        self._mw.load_list_Action.triggered.connect(self.load_roi_list)      
         return None
 
     def __disconnect_internal_signals(self):
         self._mw.roi_width_doubleSpinBox.editingFinished.disconnect()
+        #self._mw.roi_selector_Action.toggled.disconnect()
+        self._mw.save_list_Action.triggered.disconnect()
+        self._mw.load_list_Action.triggered.disconnect()
         return None
 
     def show(self):
@@ -395,7 +374,7 @@ class RoiGUI(GUIBase):
         self._mw.activateWindow()
         self._mw.raise_()
 
-# to fix: unit display 
+# to fix: unit display + bug when initializing a new list 
 #    @QtCore.Slot(object)
 #    def mouse_moved_callback(self, event):
 #        """ Handles any mouse movements inside the image.
@@ -427,7 +406,7 @@ class RoiGUI(GUIBase):
 
 
 ##########################################
-# add roi on click tools ... to be continued 
+# add roi on click tool ... to be continued 
 #    @QtCore.Slot(bool)
 #    def toggle_roi_selector(self, is_active):
 #        if is_active != self._mw.roi_selector_Action.isChecked():
@@ -493,8 +472,6 @@ class RoiGUI(GUIBase):
 
         if 'name' in roi_dict:
             self._update_roi_list_name(name=roi_dict['name'])
-        if 'roi_nametag' in roi_dict:
-            self._update_roi_nametag(tag=roi_dict['roi_nametag'])
         if 'cam_image' in roi_dict and 'cam_image_extent' in roi_dict:
             self._update_cam_image(cam_image=roi_dict['cam_image'],
                                     cam_image_extent=roi_dict['cam_image_extent'])
@@ -529,7 +506,7 @@ class RoiGUI(GUIBase):
             self._remove_roi_marker(name=old_name)
         else:
             # ROI has been renamed and/or changed position
-            size = self.roi_logic.roi_width # to modify .... # self.roi_logic().optimise_xy_size * np.sqrt(2)
+            size = self.roi_logic.roi_width ## check if width should be changed again 
             self._markers[old_name].set_name(new_name)
             self._markers[new_name] = self._markers.pop(old_name)
             self._markers[new_name].setSize((size, size))
@@ -572,10 +549,10 @@ class RoiGUI(GUIBase):
         return None
     
 
-#    @QtCore.Slot()
-#    def roi_width_changed(self):
-#        self.sigRoiWidthChanged.emit(self._mw.roi_width_doubleSpinBox.value())
-#        return
+    @QtCore.Slot()
+    def roi_width_changed(self):
+        self.sigRoiWidthChanged.emit(self._mw.roi_width_doubleSpinBox.value())
+        return
 
     @QtCore.Slot()
     def roi_list_name_changed(self):
@@ -583,44 +560,29 @@ class RoiGUI(GUIBase):
         self.sigRoiListNameChanged.emit(self._mw.roi_list_name_LineEdit.text())
         return None
 
-    @QtCore.Slot()
-    def roi_name_changed(self): #### this should maybe deactivated so that only a default name can be assigned
-        """ Change the name of the active roi."""
-        new_name = self._mw.roi_name_LineEdit.text()
-        if self._mw.active_roi_ComboBox.currentText() == new_name or not new_name:
-            return None
 
-        self.sigRoiNameChanged.emit(new_name)
-
-        # After ROI name is changed, empty name field
-        self._mw.roi_name_LineEdit.blockSignals(True)
-        self._mw.roi_name_LineEdit.setText('')
-        self._mw.roi_name_LineEdit.blockSignals(False)
-        return None
-
-    @QtCore.Slot()
-    def roi_nametag_changed(self):
-        self.sigRoiNameTagChanged.emit(self._mw.roi_nametag_LineEdit.text())
-        return None
-
+    ## to do !
     @QtCore.Slot()
     def save_roi_list(self):
         """ Save ROI list to file."""
-        roi_list_name = self._mw.roi_list_name_LineEdit.text()
-        self.roi_logic().rename_roi_list(roi_list_name)
-        self.roi_logic().save_roi_list()
+        pass
+#        roi_list_name = self._mw.roi_list_name_LineEdit.text()
+#        self.roi_logic().rename_roi_list(roi_list_name)
+#        self.roi_logic().save_roi_list()
         return None
 
+    ## to do !
     @QtCore.Slot()
     def load_roi_list(self):
         """ Load a saved ROI list from file."""
-        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
-                                                          'Open ROI list',
-                                                          self.roi_logic().data_directory,
-                                                          'Data files (*.dat)')[0]
-        if this_file:
-            self.roi_logic().load_roi_list(complete_path=this_file)
-        return None
+        pass
+#        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
+#                                                          'Open ROI list',
+#                                                          self.roi_logic().data_directory,
+#                                                          'Data files (*.dat)')[0]
+#        if this_file:
+#            self.roi_logic().load_roi_list(complete_path=this_file)
+#        return None
 
     @QtCore.Slot()
     def delete_all_roi_clicked(self):
@@ -635,15 +597,15 @@ class RoiGUI(GUIBase):
     def _update_cam_image(self, cam_image, cam_image_extent):
         """
 
-        @param scan_image:
-        @param image_extent:
+        @param cam_image:
+        @param cam_image_extent:
         """
         if cam_image is None or cam_image_extent is None:
             self._mw.roi_map_ViewWidget.removeItem(self.roi_image)
             return
         elif self.roi_image not in self._mw.roi_map_ViewWidget.items():
             self._mw.roi_map_ViewWidget.addItem(self.roi_image)
-        self.roi_image.setImage(image=scan_image)
+        self.roi_image.setImage(image=cam_image)
         (x_min, x_max), (y_min, y_max) = cam_image_extent
         self.roi_image.getViewBox().enableAutoRange()
         self.roi_image.setRect(QtCore.QRectF(x_min, y_min, x_max - x_min, y_max - y_min))
@@ -655,13 +617,6 @@ class RoiGUI(GUIBase):
         self._mw.roi_list_name_LineEdit.blockSignals(False)
         return None
 
-    def _update_roi_nametag(self, tag):
-        if tag is None:
-            tag = ''
-        self._mw.roi_nametag_LineEdit.blockSignals(True)
-        self._mw.roi_nametag_LineEdit.setText(tag)
-        self._mw.roi_nametag_LineEdit.blockSignals(False)
-        return None
 
 
     def _update_roi_width(self, width):
@@ -702,6 +657,7 @@ class RoiGUI(GUIBase):
             self._mw.active_roi_ComboBox.setCurrentText(active_roi)
             self._markers[active_roi].select()
             active_roi_pos = roi_dict[active_roi]
+
             #self._mw.roi_coords_label.setText(
             #    '({0:.2r}m, {1:.2r}m, {2:.2r}m)'.format(ScaledFloat(active_poi_pos[0]),
             #                                            ScaledFloat(active_poi_pos[1]),
@@ -715,7 +671,7 @@ class RoiGUI(GUIBase):
 
 
     def _add_roi_marker(self, name, position):
-        """ Add a square ROI marker to the scan image. """
+        """ Add a square ROI marker to the roi overview image. """
         if name:
             if name in self._markers:
                 self.log.error('Unable to add ROI marker to image. ROI marker already present.')
@@ -725,7 +681,7 @@ class RoiGUI(GUIBase):
                                roi_name=name,
                                width=100, #self.roi_logic().optimise_xy_size / np.sqrt(2), # to change !!!!!!!
                                movable=False)
-            # Add to the scan image widget
+            # Add to the roi overview image widget
             marker.add_to_view_widget()
             marker.sigRoiSelected.connect(self.roi_logic().set_active_roi, QtCore.Qt.QueuedConnection)
             self._markers[name] = marker

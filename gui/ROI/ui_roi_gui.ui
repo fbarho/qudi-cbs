@@ -37,16 +37,6 @@
      <string>ROI Map</string>
     </property>
    </widget>
-   <widget class="QComboBox" name="active_roi_ComboBox">
-    <property name="geometry">
-     <rect>
-      <x>530</x>
-      <y>210</y>
-      <width>231</width>
-      <height>181</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
@@ -56,7 +46,7 @@
       <height>121</height>
      </rect>
     </property>
-    <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,2">
+    <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,0">
      <item row="0" column="0" colspan="2">
       <widget class="QLabel" name="label_3">
        <property name="text">
@@ -64,38 +54,18 @@
        </property>
       </widget>
      </item>
+     <item row="1" column="1" colspan="2">
+      <widget class="QDoubleSpinBox" name="roi_width_doubleSpinBox"/>
+     </item>
      <item row="0" column="2">
       <widget class="QLineEdit" name="roi_list_name_LineEdit"/>
      </item>
-     <item row="1" column="0" colspan="2">
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>ROI name:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QLineEdit" name="roi_name_LineEdit"/>
-     </item>
-     <item row="2" column="0" colspan="2">
-      <widget class="QLabel" name="label_5">
-       <property name="text">
-        <string>ROI nametag: </string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="2">
-      <widget class="QLineEdit" name="roi_nametag_LineEdit"/>
-     </item>
-     <item row="3" column="0">
+     <item row="1" column="0">
       <widget class="QLabel" name="label_2">
        <property name="text">
         <string>ROI Width:</string>
        </property>
       </widget>
-     </item>
-     <item row="3" column="1" colspan="2">
-      <widget class="QDoubleSpinBox" name="roi_width_doubleSpinBox"/>
      </item>
     </layout>
    </widget>
@@ -123,6 +93,16 @@
     </property>
     <property name="text">
      <string>ROI distance to cursor: </string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="active_roi_ComboBox">
+    <property name="geometry">
+     <rect>
+      <x>530</x>
+      <y>200</y>
+      <width>231</width>
+      <height>51</height>
+     </rect>
     </property>
    </widget>
   </widget>
