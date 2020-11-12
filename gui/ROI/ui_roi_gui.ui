@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>850</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ROI Manager</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="PlotWidget" name="roi_map_ViewWidget">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>50</y>
+      <width>421</width>
+      <height>411</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>20</y>
+      <width>64</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>ROI Map</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="active_roi_ComboBox">
+    <property name="geometry">
+     <rect>
+      <x>530</x>
+      <y>210</y>
+      <width>231</width>
+      <height>181</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>530</x>
+      <y>50</y>
+      <width>244</width>
+      <height>121</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,2">
+     <item row="0" column="0" colspan="2">
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>ROI list name:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QLineEdit" name="roi_list_name_LineEdit"/>
+     </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>ROI name:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QLineEdit" name="roi_name_LineEdit"/>
+     </item>
+     <item row="2" column="0" colspan="2">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>ROI nametag: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QLineEdit" name="roi_nametag_LineEdit"/>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>ROI Width:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1" colspan="2">
+      <widget class="QDoubleSpinBox" name="roi_width_doubleSpinBox"/>
+     </item>
+    </layout>
+   </widget>
+   <widget class="QLabel" name="roi_distance_Label">
+    <property name="geometry">
+     <rect>
+      <x>200</x>
+      <y>470</y>
+      <width>271</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_6">
+    <property name="geometry">
+     <rect>
+      <x>41</x>
+      <y>471</y>
+      <width>153</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>ROI distance to cursor: </string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>850</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuMenu">
+    <property name="title">
+     <string>Menu</string>
+    </property>
+   </widget>
+   <addaction name="menuMenu"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="new_roi_Action"/>
+   <addaction name="roi_selector_Action"/>
+   <addaction name="go_to_roi_Action"/>
+   <addaction name="delete_roi_Action"/>
+  </widget>
+  <widget class="QToolBar" name="toolBar_2">
+   <property name="windowTitle">
+    <string>toolBar_2</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="new_list_Action"/>
+   <addaction name="save_list_Action"/>
+   <addaction name="load_list_Action"/>
+   <addaction name="discard_all_roi_Action"/>
+  </widget>
+  <action name="new_roi_Action">
+   <property name="text">
+    <string>New ROI</string>
+   </property>
+   <property name="toolTip">
+    <string>Adds a new ROI at the current stage position</string>
+   </property>
+  </action>
+  <action name="load_list_Action">
+   <property name="text">
+    <string>Load ROI list</string>
+   </property>
+   <property name="toolTip">
+    <string>Loads saved ROI</string>
+   </property>
+  </action>
+  <action name="save_list_Action">
+   <property name="text">
+    <string>Save ROI list</string>
+   </property>
+   <property name="toolTip">
+    <string>Save all ROI to file</string>
+   </property>
+  </action>
+  <action name="discard_all_roi_Action">
+   <property name="text">
+    <string>Discard all ROI</string>
+   </property>
+  </action>
+  <action name="go_to_roi_Action">
+   <property name="text">
+    <string>Go to ROI</string>
+   </property>
+  </action>
+  <action name="delete_roi_Action">
+   <property name="text">
+    <string>Delete ROI</string>
+   </property>
+   <property name="toolTip">
+    <string>Deletes the active ROI</string>
+   </property>
+  </action>
+  <action name="roi_selector_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Add ROI</string>
+   </property>
+   <property name="toolTip">
+    <string>Adds a ROI on mouseclick</string>
+   </property>
+  </action>
+  <action name="new_list_Action">
+   <property name="text">
+    <string>Start new ROI list</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QGraphicsView</extends>
+   <header>pyqtgraph</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
