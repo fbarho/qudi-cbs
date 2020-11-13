@@ -6,13 +6,8 @@ Created on Thu Nov  5 13:05:03 2020
 @author: fbarho
 
 This module contains the ROI selection user interface.
-It is in large parts taken and adapted from the qudi poimanager gui, in this version reduced to 
+It is in large parts inspired by the qudi poimanager gui, in this version reduced to 
 the functionality that we need. 
-ROIs are regrouped into an ROI list (instead of using the terminology of POI in ROI
-or, as in the current labview measurement software ROIs per embryo.) 
-The chosen nomenclature is more flexible than regrouping by embryo and can be extended to other 
-types of samples. Moreover, it is planned to add a serpentine scan over a sample area and 
-decide which ROI belongs to which object in the analysis step.
 """
 
 
@@ -248,7 +243,7 @@ class RoiGUI(GUIBase):
 
 #        # Add validator to LineEdit # maybe add later 
 #        self._mw.roi_list_name_LineEdit.setValidator(NameValidator())
-        
+#        self._mw.save_path_LineEdit.setValidator(PathValidator())
         
         # Initialize plot
         self.__init_roi_map_image()
@@ -280,7 +275,7 @@ class RoiGUI(GUIBase):
         """
         De-initialisation performed during deactivation of the module.
         """
-        self.toggle_roi_selector(False)
+        #self.toggle_roi_selector(False)
         self.__disconnect_control_signals_to_logic()
         self.__disconnect_update_signals_from_logic()
         self.__disconnect_internal_signals()
@@ -561,28 +556,28 @@ class RoiGUI(GUIBase):
         return None
 
 
-    ## to do !
+    # To do: add a Validator on the save_path_LineEdit.
     @QtCore.Slot()
     def save_roi_list(self):
-        """ Save ROI list to file."""
-        pass
-#        roi_list_name = self._mw.roi_list_name_LineEdit.text()
-#        self.roi_logic().rename_roi_list(roi_list_name)
-#        self.roi_logic().save_roi_list()
+        """ Save ROI list to file, using filepath and filename given on the GUI
+        """
+        roi_list_name = self._mw.roi_list_name_LineEdit.text()
+        path = self._mw.save_path_LineEdit.text()
+        self.roi_logic().rename_roi_list(roi_list_name)
+        self.roi_logic().save_roi_list(path, roi_list_name)
         return None
 
-    ## to do !
+
     @QtCore.Slot()
     def load_roi_list(self):
-        """ Load a saved ROI list from file."""
-        pass
-#        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
-#                                                          'Open ROI list',
-#                                                          self.roi_logic().data_directory,
-#                                                          'Data files (*.dat)')[0]
-#        if this_file:
-#            self.roi_logic().load_roi_list(complete_path=this_file)
-#        return None
+        data_directory = self._mw.save_path_LineEdit.text() # we will use this as default location to look for files 
+        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
+                                                         'Open ROI list',
+                                                          data_directory,
+                                                          'json files (*.json)')[0]
+        if this_file:
+            self.roi_logic().load_roi_list(complete_path=this_file)
+        return None
 
     @QtCore.Slot()
     def delete_all_roi_clicked(self):
