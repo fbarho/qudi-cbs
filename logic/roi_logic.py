@@ -23,6 +23,7 @@ import os
 import numpy as np
 import time
 import json
+from itertools import product
 
 #from collections import OrderedDict
 from core.connector import Connector
@@ -164,7 +165,8 @@ class RegionOfInterestList:
 #        return None
 
        
-    def add_roi(self, position):
+# to be modified: remove kwarg name in calls to this function
+    def add_roi(self, position, name=None):
         if isinstance(position, RegionOfInterest):
             roi_inst = position
         else:
@@ -320,12 +322,22 @@ class RoiLogic(GenericLogic):
     _roi_list = StatusVar(default=dict())  # Notice constructor and representer further below
     _active_roi = StatusVar(default=None)
     _roi_width = StatusVar(default=20) # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
+    #_roi_width = 10 # check if varying size problem is handled using not a StatusVar # maybe it is rather needed to store the roi width in the RegionOfInterest object. To discuss how this should be handled
 
     # Signals for connecting modules
     sigRoiUpdated = QtCore.Signal(str, str, np.ndarray)  # old_name, new_name, current_position
     sigActiveRoiUpdated = QtCore.Signal(str)
     sigRoiListUpdated = QtCore.Signal(dict)  # Dict containing ROI parameters to update
     sigWidthUpdated = QtCore.Signal(float)
+    
+    
+    
+    
+    # variables from mosaic settings dialog and default values
+    _mosaic_x_start = 0
+    _mosaic_y_start = 0
+    _mosaic_roi_width = 0
+    _mosaic_number = 0
 
 
     def __init__(self, config, **kwargs):
@@ -606,8 +618,8 @@ class RoiLogic(GenericLogic):
         if not os.path.exists(path):
             try:
                 os.makedirs(path) # recursive creation of all directories on the path
-            except Exception as err:
-                self.log.error('Error {0}'.format(err))
+            except Exception as e:
+                self.log.error('Error {0}'.format(e))
                 
         p = os.path.join(path, filename)
         
@@ -652,4 +664,23 @@ class RoiLogic(GenericLogic):
     @_roi_list.representer
     def roi_list_to_dict(self, roi_list):
         return roi_list.to_dict()
+    
+    
+    
+    
+    def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
+        """
+        Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
+        
+        Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified if needed .. 
+        """
+        try:
+            self.reset_roi_list() # create a new list
+        
+            # create a grid of the central points (generator type)
+            grid_gen = ((x*roi_width + x_start_pos, y*roi_width + y_start_pos, 0) for y in range(num) for x in range(num))
 
+            for item in grid_gen:
+                self.add_roi(item)
+        except Exception:
+            self.log.error('Could not create mosaic')

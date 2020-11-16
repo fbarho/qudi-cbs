@@ -37,32 +37,6 @@
      <string>ROI Map</string>
     </property>
    </widget>
-   <widget class="QLabel" name="roi_distance_Label">
-    <property name="geometry">
-     <rect>
-      <x>200</x>
-      <y>470</y>
-      <width>271</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string/>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_6">
-    <property name="geometry">
-     <rect>
-      <x>41</x>
-      <y>471</y>
-      <width>153</width>
-      <height>17</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>ROI distance to cursor: </string>
-    </property>
-   </widget>
    <widget class="QComboBox" name="active_roi_ComboBox">
     <property name="geometry">
      <rect>
@@ -73,7 +47,7 @@
      </rect>
     </property>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>534</x>
@@ -129,6 +103,46 @@
      </item>
     </layout>
    </widget>
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>40</x>
+      <y>470</y>
+      <width>471</width>
+      <height>42</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout_2">
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>ROI center coordinates:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="roi_coords_label">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_6">
+       <property name="text">
+        <string>ROI distance to cursor: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="roi_distance_Label">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -144,7 +158,14 @@
      <string>Menu</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuOptions">
+    <property name="title">
+     <string>Options</string>
+    </property>
+    <addaction name="mosaic_scan_MenuAction"/>
+   </widget>
    <addaction name="menuMenu"/>
+   <addaction name="menuOptions"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -233,6 +254,14 @@
   <action name="new_list_Action">
    <property name="text">
     <string>Start new ROI list</string>
+   </property>
+  </action>
+  <action name="mosaic_scan_MenuAction">
+   <property name="text">
+    <string>Mosaic scan</string>
+   </property>
+   <property name="toolTip">
+    <string>Define a mosaic scan</string>
    </property>
   </action>
  </widget>

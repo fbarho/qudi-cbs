@@ -17,7 +17,7 @@ import pyqtgraph as pg
 #import re
 
 from core.connector import Connector
-#from core.util.units import ScaledFloat
+from core.util.units import ScaledFloat
 from core.util.helpers import natural_sort
 from gui.guibase import GUIBase
 #from gui.guiutils import ColorBar
@@ -187,6 +187,19 @@ class RoiMarker(pg.RectROI):
 
 
 
+class MosaicSettingDialog(QtWidgets.QDialog):
+    """ Create the SettingsDialog window, based on the corresponding *.ui file."""
+
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_mosaic_settings.ui')
+
+        # Load it
+        super(MosaicSettingDialog, self).__init__()
+        uic.loadUi(ui_file, self)
+
+
 class RoiMainWindow(QtWidgets.QMainWindow):
     """ Create the Mainwindow from the ui.file
     """
@@ -239,6 +252,7 @@ class RoiGUI(GUIBase):
         self._markers = {} # already initialized in init so maybe remove it here..
 
         self._mw = RoiMainWindow()
+        self.initMosaicSettingsUI() # initialize the Mosaic settings window in the options menu
         
 
 #        # Add validator to LineEdit # maybe add later 
@@ -258,7 +272,7 @@ class RoiGUI(GUIBase):
 
         
         # Distance Measurement: # to be added later
-#        # Introducing a SignalProxy will limit the rate of signals that get fired.
+        # Introducing a SignalProxy will limit the rate of signals that get fired.
 #        self._mouse_moved_proxy = pg.SignalProxy(signal=self.roi_image.scene().sigMouseMoved,
 #                                                 rateLimit=30,
 #                                                 slot=self.mouse_moved_callback)
@@ -353,7 +367,10 @@ class RoiGUI(GUIBase):
         self._mw.roi_width_doubleSpinBox.editingFinished.connect(self.roi_width_changed) # just emit one signal when finished and not at each modification of the value (valueChanged)
         #self._mw.roi_selector_Action.toggled.connect(self.toggle_roi_selector)
         self._mw.save_list_Action.triggered.connect(self.save_roi_list)
-        self._mw.load_list_Action.triggered.connect(self.load_roi_list)      
+        self._mw.load_list_Action.triggered.connect(self.load_roi_list)    
+        
+        # options menu
+        self._mw.mosaic_scan_MenuAction.triggered.connect(self.open_mosaic_settings)
         return None
 
     def __disconnect_internal_signals(self):
@@ -361,6 +378,7 @@ class RoiGUI(GUIBase):
         #self._mw.roi_selector_Action.toggled.disconnect()
         self._mw.save_list_Action.triggered.disconnect()
         self._mw.load_list_Action.triggered.disconnect()
+        self._mw.mosaic_scan_MenuAction.triggered.disconnect()
         return None
 
     def show(self):
@@ -368,6 +386,82 @@ class RoiGUI(GUIBase):
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
+        
+        
+        
+        
+        
+    # Initialisation of the mosaic settings windows in the options menu    
+    def initMosaicSettingsUI(self):
+        """ Definition, configuration and initialisation of the mosaic settings GUI.
+
+        """
+        # Create the settings window
+        self._mosaic_sd = MosaicSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._mosaic_sd.accepted.connect(self.mosaic_update_settings) # ok button
+        self._mosaic_sd.rejected.connect(self.mosaic_default_settings) # cancel button
+        self._mosaic_sd.current_pos_CheckBox.stateChanged.connect(self.mosaic_position) # current position checkbox updates position fields
+        
+        
+    # slots of the mosaic settings window
+    def mosaic_update_settings(self):
+        """ Write new settings from the gui to the roi logic 
+        """
+        self.roi_logic()._mosaic_x_start = self._mosaic_sd.x_pos_DSpinBox.value()
+        self.roi_logic()._mosaic_y_start = self._mosaic_sd.y_pos_DSpinBox.value()
+        self.roi_logic()._mosaic_roi_width = self._mosaic_sd.mosaic_roi_width_DSpinBox.value()
+        self._mw.roi_width_doubleSpinBox.setValue(self._mosaic_sd.mosaic_roi_width_DSpinBox.value()) # synchronize the roi width spinboxes so that the marker is drawn correctly
+        if self._mosaic_sd.mosaic_size1_RadioButton.isChecked() == True:
+            self.roi_logic()._mosaic_number = 9
+        if self._mosaic_sd.mosaic_size2_RadioButton.isChecked() == True:
+            self.roi_logic()._mosaic_number = 25
+        
+        self.roi_logic().add_mosaic(x_start_pos=self.roi_logic()._mosaic_x_start, y_start_pos=self.roi_logic()._mosaic_y_start, roi_width=self.roi_logic()._mosaic_roi_width, num=self.roi_logic()._mosaic_number)
+            
+
+    def mosaic_default_settings(self):
+        """ Restore default settings. 
+        """
+        # reset to default values
+        # as an alternative, reset to the values that are still stored in logic attributes ? (= former settings?) to modify if .. 
+        self._mosaic_sd.current_pos_CheckBox.setChecked(False)
+        self._mosaic_sd.x_pos_DSpinBox.setValue(0)
+        self._mosaic_sd.y_pos_DSpinBox.setValue(0)
+        self._mosaic_sd.mosaic_roi_width_DSpinBox.setValue(0)
+        self._mosaic_sd.mosaic_size1_RadioButton.setAutoExclusive(False)
+        self._mosaic_sd.mosaic_size1_RadioButton.setChecked(False)  
+        self._mosaic_sd.mosaic_size1_RadioButton.setAutoExclusive(True)
+        self._mosaic_sd.mosaic_size2_RadioButton.setAutoExclusive(False)
+        self._mosaic_sd.mosaic_size2_RadioButton.setChecked(False)
+        self._mosaic_sd.mosaic_size2_RadioButton.setAutoExclusive(True)
+        
+    
+    def mosaic_position(self):
+        """ check state of the current position checkbox and handle position settings accordingly
+        """
+        if self._mosaic_sd.current_pos_CheckBox.isChecked():
+            # get current stage position from logic and fill this in, then disable spinboxes
+            self._mosaic_sd.x_pos_DSpinBox.setValue(self.roi_logic().stage_position[0])
+            self._mosaic_sd.y_pos_DSpinBox.setValue(self.roi_logic().stage_position[1])
+            self._mosaic_sd.x_pos_DSpinBox.setEnabled(False)
+            self._mosaic_sd.y_pos_DSpinBox.setEnabled(False)
+
+            
+        else:
+            self._mosaic_sd.x_pos_DSpinBox.setEnabled(True)
+            self._mosaic_sd.y_pos_DSpinBox.setEnabled(True)
+        
+
+    # slot to open the mosaic settings window
+    def open_mosaic_settings(self):
+        """ Opens the settings menu. 
+        """
+        self._mosaic_sd.exec_()
+        
+        
+        
+        
 
 # to fix: unit display + bug when initializing a new list 
 #    @QtCore.Slot(object)
@@ -531,12 +625,13 @@ class RoiGUI(GUIBase):
 
         if name:
             active_roi_pos = self.roi_logic().get_roi_position(name)
+            self._mw.roi_coords_label.setText(
+            'x={0:.2}µm, y={1:.2}µm, z={2:.2}µm'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
+            )
         else:
-            active_roi_pos = np.zeros(2)
-        #self._mw.roi_coords_label.setText(
-#            '({0:.2r}m, {1:.2r}m, {2:.2r}m)'.format(ScaledFloat(active_roi_pos[0]),
-#                                                    ScaledFloat(active_roi_pos[1]),
-#                                                    ScaledFloat(active_roi_pos[2])))
+            active_roi_pos = np.zeros(3)
+            self._mw.roi_coords_label.setText('')
+
 
         if name in self._markers:
             self._markers[name].set_width(self.roi_logic().roi_width)
@@ -653,12 +748,12 @@ class RoiGUI(GUIBase):
             self._markers[active_roi].select()
             active_roi_pos = roi_dict[active_roi]
 
-            #self._mw.roi_coords_label.setText(
-            #    '({0:.2r}m, {1:.2r}m, {2:.2r}m)'.format(ScaledFloat(active_poi_pos[0]),
-            #                                            ScaledFloat(active_poi_pos[1]),
-            #                                            ScaledFloat(active_poi_pos[2])))
+            self._mw.roi_coords_label.setText(
+                'x={0:.2}µm, y={1:.2}µm, z={2:.2}µm'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
+                )
         else:
             self._mw.active_roi_ComboBox.setCurrentIndex(-1)
+            self._mw.roi_coords_label.setText('') # no roi active
 
         self._mw.active_roi_ComboBox.blockSignals(False)
         return None
@@ -674,7 +769,7 @@ class RoiGUI(GUIBase):
             marker = RoiMarker(position=position[:2],
                                view_widget=self._mw.roi_map_ViewWidget,
                                roi_name=name,
-                               width=100, #self.roi_logic().optimise_xy_size / np.sqrt(2), # to change !!!!!!!
+                               width=self.roi_logic()._roi_width, #self.roi_logic().optimise_xy_size / np.sqrt(2), # to change !!!!!!!
                                movable=False)
             # Add to the roi overview image widget
             marker.add_to_view_widget()
