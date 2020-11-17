@@ -67,6 +67,7 @@ class BasicGUI(GUIBase):
     # Define connectors to logic modules
     camera_logic = Connector(interface='CameraLogic')
     daq_ao_logic = Connector(interface='DAQaoLogic')
+    filterwheel_logic = Connector(interface='FilterwheelLogic')
     
       
     # Signals
@@ -78,12 +79,19 @@ class BasicGUI(GUIBase):
     
     sigLaserOn = QtCore.Signal()
     sigLaserOff = QtCore.Signal()
+    
+    
+    sigFilterChanged = QtCore.Signal(int)
+    
+    
+    #_has_filterwheel = True # later: take this from config
 
 
     _image = []
 
     _camera_logic = None
     _daq_ao_logic = None
+    _filterwheel_logic = None
     _mw = None
 
     def __init__(self, config, **kwargs):
@@ -97,6 +105,8 @@ class BasicGUI(GUIBase):
 
         self._camera_logic = self.camera_logic()
         self._daq_ao_logic = self.daq_ao_logic()
+#        if _has_filterwheel: # to be added later on .. for now do as if all setups with filterwheel to set up the basic functionality
+        self._filterwheel_logic = self.filterwheel_logic()
 
         # Windows
         self._mw = BasicWindow()
@@ -166,20 +176,38 @@ class BasicGUI(GUIBase):
 
         # actions on changing laser spinbox values
         self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox, self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
-#        
-#        self._mw.laser1_control_SpinBox.valueChanged.connect(self.update_laser_dict) # or something like this to be defined..
-#        
-#        self._mw.laser2_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(1))
-#        
-#        self._mw.laser3_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(2))
-#        
-#        self._mw.laser4_control_SpinBox.valueChanged.connect(lambda: self.set_slider_value(3))
-        # lambda function is used to pass in an additional argument. This allows to use the same slots for all sliders / spinboxes
+        
+        # for testing lets do as if there was only one laser
+        # the spinbox new value is passed to the slot without explicitely specifying it (see qt documentation the signal is valueChanged(int i))
+        #self._mw.laser1_control_SpinBox.valueChanged.connect(self._daq_ao_logic.update_intensity_value)
+        
+        # actualize the laser intensity dictionary
+        self._mw.laser1_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('405nm', self._mw.laser1_control_SpinBox.value()))
+        self._mw.laser2_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('488nm', self._mw.laser2_control_SpinBox.value()))
+        self._mw.laser3_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('561nm', self._mw.laser3_control_SpinBox.value()))
+        self._mw.laser4_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('641nm', self._mw.laser4_control_SpinBox.value()))
+        # lambda function is used to pass in an additional argument. See also the decorator @QtCore.Slot(str, int).
         # in case lambda does not work well on runtime, check functools.partial
         # or signal mapper ? to explore ..
         
 
  
+    
+        # filter dockwidget
+        self.filter_button_list = [self._mw.filter1_RadioButton, self._mw.filter2_RadioButton, self._mw.filter3_RadioButton, self._mw.filter4_RadioButton, self._mw.filter5_RadioButton, self._mw.filter6_RadioButton]
+        
+        self._mw.filter1_RadioButton.clicked.connect(self.change_filter)
+        self._mw.filter2_RadioButton.clicked.connect(self.change_filter)
+        self._mw.filter3_RadioButton.clicked.connect(self.change_filter)
+        self._mw.filter4_RadioButton.clicked.connect(self.change_filter)
+        self._mw.filter5_RadioButton.clicked.connect(self.change_filter)
+        self._mw.filter6_RadioButton.clicked.connect(self.change_filter)
+        
+        
+        self.sigFilterChanged.connect(self._filterwheel_logic.set_position)
+        
+        # control signal from logic to update GUI when filter was manually changed
+        self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
         
 
 
@@ -304,18 +332,72 @@ class BasicGUI(GUIBase):
             self._mw.laser_zero_Action.setDisabled(False)
             self._mw.laser_on_Action.setText('Laser On')
             self.sigLaserOff.emit()
+            # enable filter setting again
+            for item in self.filter_button_list:
+                item.setEnabled(True)
         else:
             # laser is initially off
             self._mw.laser_zero_Action.setDisabled(True)
             self._mw.laser_on_Action.setText('Laser Off')
             self.sigLaserOn.emit()
+            # do not change filters while laser is on
+            for item in self.filter_button_list:
+                item.setEnabled(False)
+                
         
     def laser_set_to_zero(self):
         """
         """
         for item in self.spinbox_list: 
             item.setValue(0)
+            
+            
+            
+            
+    # filter dockwidget
+    def change_filter(self):
+        """ Slot connected to clicked radiobutton for filter selection. Is in charge of sending the (int) number of the selected filter
+        to the filterwheel_logic. Triggers also the deactivation of forbidden laser control spinboxes for the given filter.
+        
+        @param: none
+        
+        @returns: none
+        """
+        filter = self._filterwheel_logic.get_position() # get current position as initial value 
+        for index, item in enumerate(self.filter_button_list):
+            if item.isChecked():   # set the value corresponding to the radiobutton that selects the filter
+                filter = index + 1 # because of zero indexing 
+                self.sigFilterChanged.emit(filter)
+                
+                # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
+                label = 'filter'+str(filter) # create the key which allows to access the corresponding entry of the allowed_laser_dic
+                self._disable_laser_control(self._filterwheel_logic.allowed_laser_dic[label]) # get the corresponding bool list from the logic
+    
 
+    def update_filter_display(self, position):
+        """ refresh the checked state of the radio buttons to ensure that after manually modifying the filter (for example using the iPython console)
+        the GUI displays the correct filter
+        """
+        list_index = position - 1 # zero indexing
+        self.filter_button_list[list_index].setChecked(True)
+        
+    
+    def _disable_laser_control(self, bool_list):        
+        """ disables the control spinboxes of the lasers which are not allowed for a given filter
+        
+        @param: bool_list: list of length 4 with entries corresponding to laser1 - laser4 [True False True False] -> Laser1 and laser3 allowed, laser2 and laser4 forbidden
+        
+        @returns: None
+        """                   
+        self._mw.laser1_control_SpinBox.setEnabled(bool_list[0])
+        self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
+        self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
+        self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
+            
+   
+    
+        
+        
         
 
 
