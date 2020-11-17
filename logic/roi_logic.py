@@ -214,22 +214,22 @@ class RegionOfInterestList:
 
 
 # can be activated and modified if camera image is added
-#    def set_cam_image(self, image_arr, image_extent):
-#        """
-#
-#        @param scalar[][] image_arr:
-#        @param float[2][2] image_extent:
-#        """
-#        if image_arr is None:
-#            self._cam_image = None
-#            self._cam_image_extent = None
-#        else:
-#            roi_x_pos, roi_y_pos, roi_z_pos = self.origin
-#            x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
-#            y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
-#            self._cam_image = np.array(image_arr)
-#            self._cam_image_extent = (x_extent, y_extent)
-#        return
+    def set_cam_image(self, image_arr=None, image_extent=None):
+        """
+
+        @param scalar[][] image_arr:
+        @param float[2][2] image_extent:
+        """
+        if image_arr is None:
+            self._cam_image = None
+            self._cam_image_extent = None
+        else:
+            roi_x_pos, roi_y_pos, roi_z_pos = self.origin
+            x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
+            y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
+            self._cam_image = np.array(image_arr)
+            self._cam_image_extent = (x_extent, y_extent)
+        return
 
 
     def to_dict(self):
@@ -354,8 +354,8 @@ class RoiLogic(GenericLogic):
         """
 
         # Initialise the ROI camera image (xy image) if not present
-        #if self._roi_list.cam_image is None:
-            #self.set_cam_image(False)
+        if self._roi_list.cam_image is None:
+            self.set_cam_image(False)
 
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
                                  'rois': self.roi_positions,
@@ -587,11 +587,18 @@ class RoiLogic(GenericLogic):
 #            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_scan_image,
 #                                     'scan_image_extent': self.roi_scan_image_extent})
 #        return None
+    
+
+        
+    
+    
+    
+
 
     @QtCore.Slot()
     def reset_roi_list(self):
         self._roi_list = RegionOfInterestList() # create an instance of the RegionOfInterestList class
-        #self.set_cam_image(False)
+        self.set_cam_image()
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
                                  'rois': self.roi_positions,
                                  'cam_image': self.roi_list_cam_image,
@@ -599,6 +606,19 @@ class RoiLogic(GenericLogic):
                                  })
         self.set_active_roi(None)
         return None
+    
+    @QtCore.Slot()
+    def set_cam_image(self, emit_change=True):
+        """ test if this helps to solve the distance measuremetn problem when roi_image is not initialized
+        """
+        self._roi_list.set_cam_image()
+        
+        if emit_change:
+            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_cam_image,
+                                     'scan_image_extent': self.roi_cam_image_extent})
+        return None
+    
+
 
 
     @QtCore.Slot(float)
