@@ -8,7 +8,7 @@ Created on Thu Oct 29 08:13:08 2020
 
 This module contains a GUI for the basic functions of the fluorescence microscopy setup.
 
-Camera image and laser settings. 
+Camera image, laser and filter settings.
 
 """
 import os
@@ -74,7 +74,7 @@ class BasicGUI(GUIBase):
     sigVideoStart = QtCore.Signal()
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
-    # sigImageStop = QtCore.Signal() # not used
+
 
     
     sigLaserOn = QtCore.Signal()
