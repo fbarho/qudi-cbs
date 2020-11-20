@@ -214,22 +214,22 @@ class RegionOfInterestList:
 
 
 # can be activated and modified if camera image is added
-    def set_cam_image(self, image_arr=None, image_extent=None):
-        """
-
-        @param scalar[][] image_arr:
-        @param float[2][2] image_extent:
-        """
-        if image_arr is None:
-            self._cam_image = None
-            self._cam_image_extent = None
-        else:
-            roi_x_pos, roi_y_pos, roi_z_pos = self.origin
-            x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
-            y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
-            self._cam_image = np.array(image_arr)
-            self._cam_image_extent = (x_extent, y_extent)
-        return
+#     def set_cam_image(self, image_arr=None, image_extent=None):
+#         """
+#
+#         @param scalar[][] image_arr:
+#         @param float[2][2] image_extent:
+#         """
+#         if image_arr is None:
+#             self._cam_image = None
+#             self._cam_image_extent = None
+#         else:
+#             roi_x_pos, roi_y_pos, roi_z_pos = self.origin
+#             x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
+#             y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
+#             self._cam_image = np.array(image_arr)
+#             self._cam_image_extent = (x_extent, y_extent)
+#         return
 
 
     def to_dict(self):
@@ -354,8 +354,8 @@ class RoiLogic(GenericLogic):
         """
 
         # Initialise the ROI camera image (xy image) if not present
-        if self._roi_list.cam_image is None:
-            self.set_cam_image(False)
+        # if self._roi_list.cam_image is None:
+        #     self.set_cam_image(False)
 
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
                                  'rois': self.roi_positions,
@@ -598,7 +598,7 @@ class RoiLogic(GenericLogic):
     @QtCore.Slot()
     def reset_roi_list(self):
         self._roi_list = RegionOfInterestList() # create an instance of the RegionOfInterestList class
-        self.set_cam_image()
+        # self.set_cam_image()
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
                                  'rois': self.roi_positions,
                                  'cam_image': self.roi_list_cam_image,
@@ -607,16 +607,16 @@ class RoiLogic(GenericLogic):
         self.set_active_roi(None)
         return None
     
-    @QtCore.Slot()
-    def set_cam_image(self, emit_change=True):
-        """ test if this helps to solve the distance measuremetn problem when roi_image is not initialized
-        """
-        self._roi_list.set_cam_image()
-        
-        if emit_change:
-            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_cam_image,
-                                     'scan_image_extent': self.roi_cam_image_extent})
-        return None
+    # @QtCore.Slot()
+    # def set_cam_image(self, emit_change=True):
+    #     """ test if this helps to solve the distance measuremetn problem when roi_image is not initialized
+    #     """
+    #     self._roi_list.set_cam_image()
+    #
+    #     if emit_change:
+    #         self.sigRoiListUpdated.emit({'scan_image': self.roi_list_cam_image,
+    #                                  'scan_image_extent': self.roi_cam_image_extent})
+    #     return None
     
 
 
@@ -688,19 +688,72 @@ class RoiLogic(GenericLogic):
     
     
     
-    def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
+    # def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
+    #     """
+    #     Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
+    #
+    #     Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified if needed ..
+    #     """
+    #     try:
+    #         self.reset_roi_list() # create a new list
+    #
+    #         # create a grid of the central points (generator type)
+    #         grid_gen = ((x*roi_width + x_start_pos, y*roi_width + y_start_pos, 0) for y in range(num) for x in range(num))
+    #
+    #         for item in grid_gen:
+    #             self.add_roi(item)
+    #     except Exception:
+    #         self.log.error('Could not create mosaic')
+
+    def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, width=1, height=1):
         """
-        Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
-        
-        Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified if needed .. 
+        Defines a new list containing a serpentine scan. Parameters can be specified in the settings dialog on GUI option menu.
+
+        @returns: None
         """
         try:
-            self.reset_roi_list() # create a new list
-        
-            # create a grid of the central points (generator type)
-            grid_gen = ((x*roi_width + x_start_pos, y*roi_width + y_start_pos, 0) for y in range(num) for x in range(num))
+            self.reset_roi_list()  # create a new list
+            print('created new list')
 
-            for item in grid_gen:
+            # create a grid of the central points (generator type)
+            grid = self.make_serpentine_grid(width, height)
+            # type conversion from list to np array for making linear, elementwise operations
+            grid_array = np.array(grid)
+            # shift and stretch the grid to create the roi # mind the 3rd dimension so that it can be passed to self.add_roi
+            roi_centers = grid_array * roi_width + [x_start_pos, y_start_pos, 0]
+
+            for item in roi_centers:
                 self.add_roi(item)
         except Exception:
             self.log.error('Could not create mosaic')
+
+
+
+
+
+
+    def make_serpentine_grid(self, width, height):
+        """ creates the grid points for a serpentine scan, with ascending x values in even numbered rows and descending x values in odd values rows.
+        Each element is appended with z = 0.
+
+        @params: int width: number of columns (x direction)
+                 int height: number of rows (y direction)
+
+        returns: list gridpoints: list with points in serpentine scan order
+        """
+        list_even = [(x, y, 0) for y in range(height) for x in range(width) if y % 2 == 0]
+        list_odd = [(x, y, 0) for y in range(height) for x in reversed(range(width)) if y % 2 != 0]
+        list_all = list_even + list_odd
+        gridpoints = sorted(list_all, key=self.sort_second)
+        return gridpoints
+
+    def sort_second(self, val):
+        """ helper function for sorting a list of tuples by the second element of each tuple, used for setting up the serpentine grid
+
+        @returns: the second element of value (in the context here, value is a 3dim tuple (x, y, z))
+        """
+        return val[1]
+
+
+
+
