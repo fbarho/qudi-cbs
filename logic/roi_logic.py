@@ -705,7 +705,7 @@ class RoiLogic(GenericLogic):
     #     except Exception:
     #         self.log.error('Could not create mosaic')
 
-    def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, width=1, height=1):
+    def add_mosaic(self, x_center_pos=0, y_center_pos=0, roi_width=1, width=3, height=3):
         """
         Defines a new list containing a serpentine scan. Parameters can be specified in the settings dialog on GUI option menu.
 
@@ -713,24 +713,22 @@ class RoiLogic(GenericLogic):
         """
         try:
             self.reset_roi_list()  # create a new list
-            print('created new list')
 
-            # create a grid of the central points (generator type)
+            # create a grid of the central points
             grid = self.make_serpentine_grid(width, height)
             # type conversion from list to np array for making linear, elementwise operations
             grid_array = np.array(grid)
-            # shift and stretch the grid to create the roi # mind the 3rd dimension so that it can be passed to self.add_roi
+            # shift and stretch the grid to create the roi centers
+            # mind the 3rd dimension so that it can be passed to the add_roi method
+            # calculate start positions (lower left corner of the grid) given the central position
+            x_start_pos = x_center_pos - roi_width * (width-1)/2
+            y_start_pos = y_center_pos - roi_width * (height-1)/2
             roi_centers = grid_array * roi_width + [x_start_pos, y_start_pos, 0]
 
             for item in roi_centers:
                 self.add_roi(item)
         except Exception:
             self.log.error('Could not create mosaic')
-
-
-
-
-
 
     def make_serpentine_grid(self, width, height):
         """ creates the grid points for a serpentine scan, with ascending x values in even numbered rows and descending x values in odd values rows.

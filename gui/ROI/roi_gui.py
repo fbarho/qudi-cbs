@@ -417,8 +417,8 @@ class RoiGUI(GUIBase):
         if self._mosaic_sd.mosaic_size2_RadioButton.isChecked() == True:
             self.roi_logic()._mosaic_number = 25
         
-        self.roi_logic().add_mosaic(x_start_pos=self.roi_logic()._mosaic_x_start,
-                                    y_start_pos=self.roi_logic()._mosaic_y_start,
+        self.roi_logic().add_mosaic(x_center_pos=self.roi_logic()._mosaic_x_start,
+                                    y_center_pos=self.roi_logic()._mosaic_y_start,
                                     roi_width=self.roi_logic()._mosaic_roi_width,
                                     width=self.roi_logic()._mosaic_number,
                                     height=self.roi_logic()._mosaic_number)
