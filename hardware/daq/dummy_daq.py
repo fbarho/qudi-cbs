@@ -33,8 +33,6 @@ class DummyDaq(Base, DaqInterface):
     _ao_voltage_ranges = ConfigOption('ao_voltage_ranges', missing='error')  # list of lists [[0, 10], [0, 10], ..]
     _wavelengths = ConfigOption('wavelengths', missing='error')
 
-    def __init__(self):
-        super().__init__()
 
     def on_activate(self):
         """ Initialization steps when module is called.
