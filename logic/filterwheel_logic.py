@@ -39,7 +39,7 @@ class FilterwheelLogic(GenericLogic):
     
     # for now i create this manually with some arbitrary values. it should later be read from a config
     # specify the allowed lasers for a given filter 
-    allowed_laser_dic = {'filter1': [True, False, True, False], 'filter2': [True, False, False, False], 'filter3': [False, True, True, False], 'filter4': [False, False, False, True], 'filter5': [True, False, False, True], 'filter6': [False, False, True, False]}
+    allowed_laser_dic = {'filter1': [True, True, True, True], 'filter2': [True, True, True, True], 'filter3': [True, True, True, True], 'filter4': [True, True, True, True], 'filter5': [True, True, True, False], 'filter6': [True, False, True, True]}
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)

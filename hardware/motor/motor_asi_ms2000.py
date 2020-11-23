@@ -34,7 +34,7 @@ class MS2000(Base, MotorInterface):
 
     _first_axis_label = ConfigOption("first_axis_label", "x", missing="warn")
     _second_axis_label = ConfigOption("second_axis_label", "y", missing="warn")
-
+   
     _conversion_factor = 10.0  # user will send positions in um, stage uses 0.1 um
 
     def __init__(self, config, **kwargs):
@@ -77,7 +77,7 @@ class MS2000(Base, MotorInterface):
         @ returns dict pos: Dictionary with the axis name and the current position in µm
         
         """
-        pos = {}
+        pos = {} 
 
         try:
             for axis_label in param_dict:
@@ -97,10 +97,13 @@ class MS2000(Base, MotorInterface):
 
                 else:
                     self.log.warn(f"axis {axis_label} is not configured")
+            pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
 
         except:
             self.log.error("relative movement of ASI MS2000 translation stage is not possible")
             pos = {}
+            
+        
 
         return pos
 
@@ -132,6 +135,7 @@ class MS2000(Base, MotorInterface):
 
                 else:
                     self.log.warn(f"axis {axis_label} is not configured")
+            pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
 
         except:
             self.log.error("relative movement of ASI MS2000 translation stage is not possible")
@@ -163,7 +167,8 @@ class MS2000(Base, MotorInterface):
         ) in self.axis_list:  # this list is generated above to generalize more easily in case that more axes are added
             cmd = f"W {axis_label}\r"
             pos[axis_label] = float(self.query(cmd)[3:]) / self._conversion_factor  # [3:] -> remove the leading 'A: '
-
+        
+        pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
         return pos
 
     def get_status(self):

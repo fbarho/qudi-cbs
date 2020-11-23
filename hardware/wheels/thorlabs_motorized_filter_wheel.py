@@ -19,10 +19,12 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 import visa
 from core.module import Base
+from interface.filterwheel_interface import FilterwheelInterface
 from core.configoption import ConfigOption
 
 
-class ThorlabsMotorizedFilterWheel(Base):
+
+class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
     """ This class is implements communication with Thorlabs Motorized Filter Wheels
 
     Example config for copy-paste:

@@ -17,10 +17,11 @@ obtained from <https://github.com/Ulm-IQO/qudi/>
 #import nidaqmx
 import PyDAQmx as daq # this only runs on systems where the niDAQmx library is available 
 from core.module import Base
+from interface.daq_interface import DaqInterface
 from core.configoption import ConfigOption
 
 
-class NIDAQMSeries(Base):
+class NIDAQMSeries(Base, DaqInterface):
     """ National Instruments DAQ that controls the lasers via an OTF.
     
     Example config for copy-paste:
@@ -28,8 +29,8 @@ class NIDAQMSeries(Base):
             module.Class: 'national_instruments_m_series.NIDAQMSeries'
             wavelengths:
                 - '405 nm'
-                - '488 nm'
                 - '561 nm'
+                - '488 nm'
                 - '641 nm'
             ao_channels:
                 - '/Dev1/AO0'
@@ -42,7 +43,8 @@ class NIDAQMSeries(Base):
                 - [0, 10]
                 - [0, 10]
             read_write_timeout: 10
-
+            
+            # please indicate belonging elements in the same order in each category ao_channels, voltage_ranges, wavelengths
     """
     
     # config
@@ -56,54 +58,42 @@ class NIDAQMSeries(Base):
     def on_activate(self):
         """ Initialization steps when module is called.
         """
-         # initialize the tasks used on the hardware device:
-        self._ao_task = None
-        
+        # control if the config was correctly specified
         if (len(self._ao_channels) != len(self._ao_voltage_ranges)) or (len(self._ao_channels) != len(self._wavelengths)):
             self.log.error('Specify equal numbers of ao channels, voltage ranges and OTF input channels!')
 
-        # create an analog output task and create the channels
+        # create analog output tasks and channels
         if self._start_analog_output() < 0:
             self.log.error('Failed to start analog output')
             raise Exception('Failed to start analog output')
 
-    def _start_analog_output(self):
-        """ Creates an analog output task and the channels
 
-        @returns: error code: ok = 0
+    def _start_analog_output(self):
+        """ Creates for each physical channel a task and its virtual channel
+
+        @returns: error code: ok = 0 
         """
         try:
-            # if an analog task is already running, stop it first
-            if self._ao_task is not None:
-                # stop analog output task
-                daq.DAQmxStopTask(self._ao_task)
-                # delete the configuration of the analog task
-                daq.DAQmxClearTask(self._ao_task)
-                # set the task handle to None as a safety
-                self._ao_task = None
-
-            # create ao task
-            self._ao_task = daq.TaskHandle()
-            daq.DAQmxCreateTask('OTF_control_AO', daq.byref(self._ao_task))  # Via byref you pass the pointer of the object to the TaskCreation function (see ctypes doc)
-
-            # create the channels
-            for n, chan in enumerate(self._ao_channels): # iterate over the specified channels read from config
-                daq.DAQmxCreateAOVoltageChan(
-                        # The AO voltage operation function is assigned to this task.
-                        self._ao_task,
-                        # use (all) ao_channels for the output
-                        chan,
-                        # assign a name for that channel
-                        'OTF AO Channel {0}'.format(n),
-                        # minimum possible voltage
-                        self._ao_voltage_ranges[n][0],
-                        # maximum possible voltage
-                        self._ao_voltage_ranges[n][1],
-                        # units is Volt
-                        daq.DAQmx_Val_Volts,
-                        # empty for future use
-                        None)
-
+            # create a dictionary with physical channel name as key and a pointer as value {'/Dev1/AO0': c_void_p(None), ... }
+            taskhandles = dict([(name, daq.TaskHandle(0)) for name in self._ao_channels])
+            
+            # if an analog task is already running, stop it first (safety if one of the created pointers already points somewhere) 
+            for channel in self._ao_channels: 
+                if taskhandles[channel].value is not None: 
+                    # stop analog output task
+                    daq.DAQmxStopTask(taskhandles[channel])
+                    # delete the configuration of the analog task
+                    daq.DAQmxClearTask(taskhandles[channel])
+                    # set the task handle to None as a safety
+                    taskhandles[channel].value = None
+            
+            # create an individual task and a channel per analog output 
+            for n, channel in enumerate(self._ao_channels): # use enumerate to access the equivalent list element 
+                daq.DAQmxCreateTask('', daq.byref(taskhandles[channel])) 
+                daq.DAQmxCreateAOVoltageChan(taskhandles[channel], channel, '', self._ao_voltage_ranges[n][0], self._ao_voltage_ranges[n][1], daq.DAQmx_Val_Volts, None) 
+                # to do : acces min and max value and replace it above
+            self.taskhandles = taskhandles
+            
         except:
             self.log.exception('Error starting analog output task.')
             return -1
@@ -115,45 +105,20 @@ class NIDAQMSeries(Base):
         """
         # clear the task
         try:
-            daq.DAQmxClearTask(self._ao_task)
-            self._ao_task = None
+            for channel in self._ao_channels:
+                daq.DAQmxClearTask(self.taskhandles[channel])
+                self.taskhandles[channel].value = None  # reset it to nullpointer
+            print(self.taskhandles)
         except:
             self.log.exception('Could not clear AO Out Task.')
 
         
-    def apply_voltqge(self, voltqge, channel):
+    def apply_voltage(self, voltage, channel, autostart=True, timeout=10): # autostart = False can only be used if timing is configured. to be done later when working on synchronization with camera acquisition
+        """        
         """
-        """
-
-
-  
-
- 
-## this version works well:        
-#    def apply_voltage_test(self, value, channel): # specify channel in format '/Dev1/ao1'
-#        """ simple method to apply a voltage to a channel.
-#        """
-#        
-#        # simple version similar to PyDAQmx doc but using TaskHandle instead of creating a Task object        
-#        self._ao_task = daq.TaskHandle()
-#        daq.DAQmxCreateTask('AO Task', daq.byref(self._ao_task))
-#        # replace physical channel with correct location
-#        daq.DAQmxCreateAOVoltageChan(self._ao_task, channel, 'AO Channel', 0, 10, daq.DAQmx_Val_Volts, None)
-#        daq.DAQmxStartTask(self._ao_task)
-#        daq.WriteAnalogScalarF64(self._ao_task, True, 5.0, value, None) #parameters passed in: taskHandle, autoStart, timeout, value, reserved
-#        daq.DAQmxStopTask(self._ao_task)
-#        daq.DAQmxClearTask(self._ao_task) # clean up after stopping the task
-#        self._ao_task = None # set task handle to None as safety
-        
-        
-       
-        
-    # def apply_voltage(self, value, start=True):
-    #     daq.DAQmxStartTask(self._ao_task)
-    #     daq.DAQmxWriteAnalogScalarF64(self._ao_task, start, self._RWTimeout, value, None)
-    #     #daq.DAQmxStopTask(self._ao_task)
-    #     #daq.DAQmxClearTask(self._ao_task) # clean up after stopping the task
-    #     #self._ao_task = None # set handle to None as safety
+        daq.WriteAnalogScalarF64(self.taskhandles[channel], autostart, timeout, voltage, None)#parameters passed in: taskHandle, autoStart, timeout, value, reserved
+        daq.DAQmxStartTask(self.taskhandles[channel])
+        daq.DAQmxStopTask(self.taskhandles[channel])
 
 
     def get_dict(self):
@@ -185,7 +150,21 @@ class NIDAQMSeries(Base):
         return laser_dict
 
         
-        
+# simple version for tests       
+#    def apply_voltage_test(self, value, channel): # specify channel in format '/Dev1/ao1'
+#        """ simple method to apply a voltage to a channel.
+#        """
+#        
+#        # simple version similar to PyDAQmx doc but using TaskHandle instead of creating a Task object        
+#        self._ao_task = daq.TaskHandle()
+#        daq.DAQmxCreateTask('AO Task', daq.byref(self._ao_task))
+#        # replace physical channel with correct location
+#        daq.DAQmxCreateAOVoltageChan(self._ao_task, channel, 'AO Channel', 0, 10, daq.DAQmx_Val_Volts, None)
+#        daq.DAQmxStartTask(self._ao_task)
+#        daq.WriteAnalogScalarF64(self._ao_task, True, 5.0, value, None) #parameters passed in: taskHandle, autoStart, timeout, value, reserved
+#        daq.DAQmxStopTask(self._ao_task)
+#        daq.DAQmxClearTask(self._ao_task) # clean up after stopping the task
+#        self._ao_task = None # set task handle to None as safety
 
 
 

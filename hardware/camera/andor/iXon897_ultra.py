@@ -690,7 +690,22 @@ class IxonUltra(Base, CameraInterface):
         error_code = self.dll.GetTemperature(byref(temp))
         if ERROR_DICT[error_code] != 'DRV_TEMP_STABILIZED':
             self.log.error('Can not retrieve temperature'.format(ERROR_DICT[error_code]))
-        return temp.value
+        if ERROR_DICT[error_code] in ["DRV_SUCCESS", "DRV_TEMPERATURE_NOT_REACHED", "DRV_TEMP_NOT_STABILIZED", "DRV_TEMPERATURE_STABILIZED"]:
+            return temp.value
+    
+    
+#    def get_temperature(self):
+#        t = c_int()
+#        ret = self.dll.GetTemperature(ctypes.byref(t))
+#        if self.return_codes.get(ret, "UNKNOWN") == "DRV_TEMPERATURE_OFF":
+#            return None
+#        err_check(ret, [
+#            "DRV_SUCCESS",
+#            "DRV_TEMPERATURE_NOT_REACHED",
+#            "DRV_TEMP_NOT_STABILIZED",
+#            "DRV_TEMPERATURE_STABILIZED"])
+#        return t.value
+#        self.get_temperature = get_temperature
 
     def _get_temperature_f(self):
         """
@@ -759,3 +774,12 @@ class IxonUltra(Base, CameraInterface):
         self._cur_image = image_array
         return image_array
 # non interface functions regarding setpoint interface
+        
+    
+    #  
+    def has_temp(self):
+        """ Does the camera support setting of the temperature?
+        
+        @return bool: has temperature ?
+        """
+        return True
