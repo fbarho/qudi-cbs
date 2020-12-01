@@ -105,7 +105,6 @@ class BasicGUI(GUIBase):
 
         self._camera_logic = self.camera_logic()
         self._daq_ao_logic = self.daq_ao_logic()
-#        if _has_filterwheel: # to be added later on .. for now do as if all setups with filterwheel to set up the basic functionality
         self._filterwheel_logic = self.filterwheel_logic()
 
         # Windows
@@ -113,14 +112,32 @@ class BasicGUI(GUIBase):
         self._mw.centralwidget.hide() # everything is in dockwidgets
         #self._mw.setDockNestingEnabled(True)
         self.initCameraSettingsUI()
-        
-        
-        
+
         # Menu bar actions
         # Options menu
         self._mw.camera_settings_Action.triggered.connect(self.open_camera_settings)
         
         # camera dockwidget
+        # initialize the camera setting indicators on the GUI
+        self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
+        self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
+
+        if self._camera_logic.has_temp == False:
+            self._mw.temperature_LineEdit.setText('')
+            self._mw.temperature_LineEdit.setEnabled(False)
+            self._mw.temperature_Label.setEnabled(False)
+        else:
+            self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
+
+        # update the camera setting indicators when value changed (via settings window or iPython console for example)
+        self._camera_logic.sigExposureChanged.connect(self.update_exposure)
+        self._camera_logic.sigGainChanged.connect(self.update_gain)
+        self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
+
+
+
+
+
         # configure the toolbar action buttons and connect signals
         self._mw.start_video_Action.setEnabled(True)
         self._mw.start_video_Action.setChecked(self._camera_logic.enabled)
@@ -140,7 +157,6 @@ class BasicGUI(GUIBase):
         self.sigVideoStart.connect(self._camera_logic.start_loop)
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigImageStart.connect(self._camera_logic.start_single_acquistion)
-        
 
         # prepare the image display. Data is added in the slot update_data
         # interpret image data as row-major instead of col-major
@@ -151,8 +167,8 @@ class BasicGUI(GUIBase):
         self._mw.camera_ImageView.ui.menuBtn.hide()
         self._mw.camera_ImageView.ui.histogram.hide()
         
-        cmap = pg.ColorMap(pos = np.linspace(0.0, 1.0, 3), color = self._camera_logic.colors)
-        self._mw.camera_ImageView.setColorMap(cmap)
+        #cmap = pg.ColorMap(pos = np.linspace(0.0, 1.0, 3), color = self._camera_logic.colors)
+        #self._mw.camera_ImageView.setColorMap(cmap)
         
              
         
@@ -162,6 +178,13 @@ class BasicGUI(GUIBase):
         
         
         # laser dockwidget
+        # set the labels of the laser control spinboxes according to specified wavelengths from config
+        self._mw.laser1_Label.setText(self._daq_ao_logic._laser_dict['laser1']['wavelength'])
+        self._mw.laser2_Label.setText(self._daq_ao_logic._laser_dict['laser2']['wavelength'])
+        self._mw.laser3_Label.setText(self._daq_ao_logic._laser_dict['laser3']['wavelength'])
+        self._mw.laser4_Label.setText(self._daq_ao_logic._laser_dict['laser4']['wavelength'])
+
+        # toolbar actions
         self._mw.laser_zero_Action.setEnabled(True)
         self._mw.laser_zero_Action.triggered.connect(self.laser_set_to_zero)
         
@@ -176,39 +199,32 @@ class BasicGUI(GUIBase):
 
         # actions on changing laser spinbox values
         self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox, self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
-        
-        # for testing lets do as if there was only one laser
-        # the spinbox new value is passed to the slot without explicitely specifying it (see qt documentation the signal is valueChanged(int i))
-        #self._mw.laser1_control_SpinBox.valueChanged.connect(self._daq_ao_logic.update_intensity_value)
-        
+
         # actualize the laser intensity dictionary
-        self._mw.laser1_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('405nm', self._mw.laser1_control_SpinBox.value()))
-        self._mw.laser2_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('488nm', self._mw.laser2_control_SpinBox.value()))
-        self._mw.laser3_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('561nm', self._mw.laser3_control_SpinBox.value()))
-        self._mw.laser4_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict('641nm', self._mw.laser4_control_SpinBox.value()))
+        self._mw.laser1_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser1']['label'], self._mw.laser1_control_SpinBox.value()))
+        self._mw.laser2_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser2']['label'], self._mw.laser2_control_SpinBox.value()))
+        self._mw.laser3_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser3']['label'], self._mw.laser3_control_SpinBox.value()))
+        self._mw.laser4_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser4']['label'], self._mw.laser4_control_SpinBox.value()))
         # lambda function is used to pass in an additional argument. See also the decorator @QtCore.Slot(str, int).
         # in case lambda does not work well on runtime, check functools.partial
         # or signal mapper ? to explore ..
-        
 
- 
-    
+        # update GUI when intensity is changed programatically
+        self._daq_ao_logic.sigIntensityChanged.connect(self.update_laser_spinbox)
+
+
         # filter dockwidget
-        self.filter_button_list = [self._mw.filter1_RadioButton, self._mw.filter2_RadioButton, self._mw.filter3_RadioButton, self._mw.filter4_RadioButton, self._mw.filter5_RadioButton, self._mw.filter6_RadioButton]
-        
-        self._mw.filter1_RadioButton.clicked.connect(self.change_filter)
-        self._mw.filter2_RadioButton.clicked.connect(self.change_filter)
-        self._mw.filter3_RadioButton.clicked.connect(self.change_filter)
-        self._mw.filter4_RadioButton.clicked.connect(self.change_filter)
-        self._mw.filter5_RadioButton.clicked.connect(self.change_filter)
-        self._mw.filter6_RadioButton.clicked.connect(self.change_filter)
-        
-        
+        # initialize the combobox displaying the available filters
+        self.init_filter_selection()
+
+        # signals currentIndexChanged vs activated: currentIndexChanged is sent regardless of being done programatically or by user interaction whereas activated is only sent on user interaction
+        # activated seems the better option, then the signal is only sent when a new value is selected, whereas the slot change_filter is called twice when using currentIndexChanged, once for the old index, once for the new one. comparable to radiobutton toggled vs clicked
+        self._mw.filter_ComboBox.activated[str].connect(self.change_filter)
+
         self.sigFilterChanged.connect(self._filterwheel_logic.set_position)
-        
+
         # control signal from logic to update GUI when filter was manually changed
         self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
-        
 
 
     def on_deactivate(self):
@@ -251,7 +267,7 @@ class BasicGUI(GUIBase):
         """
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_doubleSpinBox.value())
-        #self._camera_logic.set_temperature(self._cam_sd.temp_doubleSpinBox.value())
+        self._camera_logic.set_temperature(self._cam_sd.temp_doubleSpinBox.value())
      
 
     def cam_keep_former_settings(self):
@@ -259,7 +275,7 @@ class BasicGUI(GUIBase):
         """
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_doubleSpinBox.setValue(self._camera_logic._gain)
-        #self._cam_sd.temperature_doubleSpinBox.setValue(self._camera_logic._temperature)
+        self._cam_sd.temp_doubleSpinBox.setValue(self._camera_logic._temperature)
         
 
     # slot to open the camerasettingswindow
@@ -268,13 +284,24 @@ class BasicGUI(GUIBase):
         """
         self._cam_sd.exec_()
         
-        
-   
-    
-    
+
 
     # definition of the slots
     # camera dockwidget
+    @QtCore.Slot(float)
+    def update_exposure(self, exposure):
+        self._mw.exposure_LineEdit.setText(str(exposure))
+
+    @QtCore.Slot(float)
+    def update_gain(self, gain):
+        self._mw.gain_LineEdit.setText(str(gain))
+
+    @QtCore.Slot(float)
+    def update_temperature(self, temp):
+        self._mw.temperature_LineEdit.setText(str(temp))
+
+
+
     def take_image_clicked(self):
         """ Callback from take_image_Action. Emits a signal that is connected to the logic module 
         and disables the tool buttons
@@ -333,53 +360,69 @@ class BasicGUI(GUIBase):
             self._mw.laser_on_Action.setText('Laser On')
             self.sigLaserOff.emit()
             # enable filter setting again
-            for item in self.filter_button_list:
-                item.setEnabled(True)
+            self._mw.filter_ComboBox.setEnabled(True)
+
         else:
             # laser is initially off
             self._mw.laser_zero_Action.setDisabled(True)
             self._mw.laser_on_Action.setText('Laser Off')
             self.sigLaserOn.emit()
             # do not change filters while laser is on
-            for item in self.filter_button_list:
-                item.setEnabled(False)
-                
+            self._mw.filter_ComboBox.setEnabled(False)
+
         
     def laser_set_to_zero(self):
         """
         """
         for item in self.spinbox_list: 
             item.setValue(0)
-            
-            
+
+    def update_laser_spinbox(self):
+        """ update values in laser spinboxes if the intensity dictionary in the logic was changed """
+        for index, item in enumerate(self.spinbox_list):
+            label = 'laser'+str(index + 1) # create the label to address the corresponding laser
+            item.setValue(self._daq_ao_logic._intensity_dict[label])
             
             
     # filter dockwidget
+    def init_filter_selection(self):
+        """ Initializes the filter selection combobox with the available filters"""
+        filter_dict = self._filterwheel_logic.filter_dict
+        for key in filter_dict:
+            text = str(filter_dict[key]['position'])+': '+filter_dict[key]['name']
+            self._mw.filter_ComboBox.addItem(text)
+
+        # set the active filter position in the list
+        current_filter_position = self._filterwheel_logic.get_position()  # returns an int: position
+        index = current_filter_position - 1 # zero indexing
+        self._mw.filter_ComboBox.setCurrentIndex(index)
+
+
     def change_filter(self):
-        """ Slot connected to clicked radiobutton for filter selection. Is in charge of sending the (int) number of the selected filter
-        to the filterwheel_logic. Triggers also the deactivation of forbidden laser control spinboxes for the given filter.
-        
-        @param: none
-        
-        @returns: none
+        """ Slot connected to the filter selection combobox. It sends the (int) number of the selected filter to the filterwheel logic.
+        Triggers also the deactivation of forbidden laser control spinboxes for the given filter.
+        @param: None
+
+        @returns: None
         """
-        filter = self._filterwheel_logic.get_position() # get current position as initial value 
-        for index, item in enumerate(self.filter_button_list):
-            if item.isChecked():   # set the value corresponding to the radiobutton that selects the filter
-                filter = index + 1 # because of zero indexing 
-                self.sigFilterChanged.emit(filter)
-                
-                # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
-                label = 'filter'+str(filter) # create the key which allows to access the corresponding entry of the allowed_laser_dic
-                self._disable_laser_control(self._filterwheel_logic.allowed_laser_dic[label]) # get the corresponding bool list from the logic
+        # get current index of the filter selection combobox
+        index = self._mw.filter_ComboBox.currentIndex()
+        filter_pos = index + 1 # zero indexing
+        self.sigFilterChanged.emit(filter_pos)
+        # to keep in mind: is this the good way to address the filters in case they are not given in an ordered way (filter1 on position 1 etc?) or is this always
+        # covered by using the position as suffix of the label anyway ? but when position starts at > 1 if filterwheel is not completely filled this will not work ..
+
+        # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
+        key = 'filter'+str(filter_pos) # create the key which allows to access the corresponding entry in the filter_dict
+        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers']) # get the corresponding bool list from the logic module
     
 
     def update_filter_display(self, position):
         """ refresh the checked state of the radio buttons to ensure that after manually modifying the filter (for example using the iPython console)
         the GUI displays the correct filter
         """
-        list_index = position - 1 # zero indexing
-        self.filter_button_list[list_index].setChecked(True)
+        index = position - 1 # zero indexing
+        self._mw.filter_ComboBox.setCurrentIndex(index)
         
     
     def _disable_laser_control(self, bool_list):        

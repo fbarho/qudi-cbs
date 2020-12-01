@@ -109,7 +109,7 @@
       <item row="0" column="0">
        <widget class="QLabel" name="laser1_Label">
         <property name="text">
-         <string>405 nm</string>
+         <string>Laser 1</string>
         </property>
        </widget>
       </item>
@@ -123,7 +123,7 @@
       <item row="1" column="0">
        <widget class="QLabel" name="laser2_Label">
         <property name="text">
-         <string>488 nm</string>
+         <string>Laser 2</string>
         </property>
        </widget>
       </item>
@@ -137,7 +137,7 @@
       <item row="2" column="0">
        <widget class="QLabel" name="laser3_Label">
         <property name="text">
-         <string>561 nm</string>
+         <string>Laser 3</string>
         </property>
        </widget>
       </item>
@@ -151,7 +151,7 @@
       <item row="3" column="0">
        <widget class="QLabel" name="laser4_Label">
         <property name="text">
-         <string>641 nm</string>
+         <string>Laser 4</string>
         </property>
        </widget>
       </item>
@@ -206,6 +206,73 @@
       </rect>
      </property>
     </widget>
+    <widget class="QLabel" name="label_3">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>480</y>
+       <width>141</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Camera settings:</string>
+     </property>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>510</y>
+       <width>265</width>
+       <height>89</height>
+      </rect>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Exposure time (s)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="exposure_LineEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Gain</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="gain_LineEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="temperature_Label">
+        <property name="text">
+         <string>Temperature (°C)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="temperature_LineEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </widget>
   </widget>
   <widget class="QToolBar" name="toolBar_3">
@@ -222,7 +289,7 @@
   <widget class="QDockWidget" name="filterwheel_DockWidget">
    <property name="minimumSize">
     <size>
-     <width>350</width>
+     <width>300</width>
      <height>350</height>
     </size>
    </property>
@@ -243,59 +310,15 @@
       <string>Filter selection</string>
      </property>
     </widget>
-    <widget class="QWidget" name="">
+    <widget class="QComboBox" name="filter_ComboBox">
      <property name="geometry">
       <rect>
-       <x>50</x>
-       <y>60</y>
-       <width>73</width>
-       <height>170</height>
+       <x>40</x>
+       <y>50</y>
+       <width>221</width>
+       <height>25</height>
       </rect>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QRadioButton" name="filter1_RadioButton">
-        <property name="text">
-         <string>Filter 1</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="filter2_RadioButton">
-        <property name="text">
-         <string>Filter 2</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="filter3_RadioButton">
-        <property name="text">
-         <string>Filter 3</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="filter4_RadioButton">
-        <property name="text">
-         <string>Filter 4</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="filter5_RadioButton">
-        <property name="text">
-         <string>Filter 5</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="filter6_RadioButton">
-        <property name="text">
-         <string>Filter 6</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
     </widget>
    </widget>
   </widget>

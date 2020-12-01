@@ -9,6 +9,11 @@ class DummyDaq(Base, DaqInterface):
     Example config for copy-paste:
         dummy_daq:
             module.Class: 'daq.dummy_daq.DummyDaq'
+            wavelengths:
+                - '405 nm'
+                - '488 nm'
+                - '512 nm'
+                - '633 nm'
             ao_channels:
                 - '/Dev1/AO0'
                 - '/Dev1/AO1'
@@ -19,11 +24,7 @@ class DummyDaq(Base, DaqInterface):
                 - [0, 10]
                 - [0, 10]
                 - [0, 10]
-            wavelengths:
-                - '405 nm'
-                - '488 nm'
-                - '512 nm'
-                - '633 nm'
+
 
             # please give belonging elements in the same order in each category ao_channels, voltage_ranges, wavelengths
     """

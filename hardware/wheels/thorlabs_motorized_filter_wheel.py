@@ -87,3 +87,6 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
         The wheel will take the shorter path. If upward or downward are equivalent, the wheel take the upward path.
         """
         res = self._write("pos={}".format(int(value)))
+
+        # check in doc if there is an error code returned (res). this is needed for the new interface.
+

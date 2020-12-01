@@ -686,13 +686,13 @@ class RoiLogic(GenericLogic):
         return roi_list.to_dict()
     
     
-    
+    ################### mosaic tools
     
     # def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
     #     """
     #     Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
     #
-    #     Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified if needed ..
+    #     Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified ..
     #     """
     #     try:
     #         self.reset_roi_list() # create a new list

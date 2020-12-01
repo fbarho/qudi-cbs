@@ -27,11 +27,13 @@ class DAQaoLogic(GenericLogic):
 
     # declare connectors
     daq = Connector(interface='DaqInterface')
+
+    # signals
+    sigIntensityChanged = QtCore.Signal() # if intensity dict is changed programatically, this updates the GUI
     
     # private attributes
     _intensity_dict = {}
     _laser_dict = {}
-
 
 
     def __init__(self, config, **kwargs):
@@ -39,7 +41,6 @@ class DAQaoLogic(GenericLogic):
 
         # this might be necessary..
         self.threadlock = Mutex()
-
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -67,6 +68,8 @@ class DAQaoLogic(GenericLogic):
     def init_intensity_dict(self, value=0):
         """ creates a dictionary with the same keys as the laser dict and set an initial value for the output voltage
 
+        example: {'laser1': 30, 'laser2': 50, 'laser3': 10, 'laser4': 0}
+
         returns: dict: intensity_dict
         """
         intensity_dict = {}
@@ -75,21 +78,23 @@ class DAQaoLogic(GenericLogic):
 
         return intensity_dict
 
+    def reset_intensity_dict(self):
+        """ resets all values of the intensity_dict to zero
 
-    @QtCore.Slot()
+        """
+        # function is called from filterwheel logic before setting a new filter
+        for key in self._intensity_dict:
+            self._intensity_dict[key] = 0
+        self.sigIntensityChanged.emit()
+
     def apply_voltage(self):
-        
         self.enabled = True
-        # test:
-        # self._daq.apply_voltage(1, '/Dev1/AO0')
-
         for key in self._laser_dict:
             self._daq.apply_voltage(self._intensity_dict[key] * self._laser_dict[key]['ao_voltage_range'][1] / 100, self._laser_dict[key]['channel'])
             # conversion factor: user indicates values in percent of max voltage
 
-        # does the delay due to iteration matter ? (laser 4 switched on slightly after laser 1 ..)
+        # does the delay due to iteration matter ? (laser 4 switched on slightly after laser 1 ? ..)
 
-    @QtCore.Slot()
     def voltage_off(self):
         self.enabled = False
         for key in self._laser_dict:
@@ -97,8 +102,7 @@ class DAQaoLogic(GenericLogic):
         # it could be useful to reset also the intensity dict .. to keep in mind
       
 
-
-    @QtCore.Slot(str, int)
+    @QtCore.Slot(str, int) # should the decorator be removed when this function is called in a task ???
     def update_intensity_dict(self, key, value):
         self._intensity_dict[key] = value
 

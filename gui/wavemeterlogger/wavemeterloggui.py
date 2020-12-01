@@ -36,7 +36,6 @@ from qtpy import QtWidgets
 from qtpy import QtCore
 from qtpy import uic
 
-
 class WavemeterLogWindow(QtWidgets.QMainWindow):
     def __init__(self):
         """ Create the laser scanner window.

@@ -28,18 +28,10 @@ class FilterwheelLogic(GenericLogic):
     wheel = Connector(interface='FilterwheelInterface')
     lasercontrol = Connector(interface='DAQaoLogic')
     
-    
-
-
     # signals
     sigNewFilterSetting = QtCore.Signal(int) # if position changed using the iPython console, use this signal to update GUI
     sigDeactivateLaserControl = QtCore.Signal()
     
-    
-    
-    # for now i create this manually with some arbitrary values. it should later be read from a config
-    # specify the allowed lasers for a given filter 
-    allowed_laser_dic = {'filter1': [True, True, True, True], 'filter2': [True, True, True, True], 'filter3': [True, True, True, True], 'filter4': [True, True, True, True], 'filter5': [True, True, True, False], 'filter6': [True, False, True, True]}
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -48,7 +40,8 @@ class FilterwheelLogic(GenericLogic):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        pass
+        #pass
+        self.filter_dict = self.wheel().get_filter_dict()
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -57,10 +50,12 @@ class FilterwheelLogic(GenericLogic):
 
     @QtCore.Slot(int)
     def set_position(self, position):
-        if not self.lasercontrol().enabled: # do not allow changing filter while lasers are on # radio buttons on gui are also disabled but this also prevents setting filter via iPython console
-            self.wheel().set_position(position)
-            self.log.info('Set filter {}'.format(position))
-            self.sigNewFilterSetting.emit(position)
+        if not self.lasercontrol().enabled: # do not allow changing filter while lasers are on # Combobox on gui is also disabled but this here is an additional security to prevent setting filter via iPython console
+            self.lasercontrol().reset_intensity_dict()
+            err = self.wheel().set_position(position)
+            if err == 0:
+                self.log.info('Set filter {}'.format(position))
+                self.sigNewFilterSetting.emit(position)
         else:
             self.log.warn('Laser is on. Can not change filter')
 
