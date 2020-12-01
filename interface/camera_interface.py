@@ -93,7 +93,7 @@ class CameraInterface(metaclass=InterfaceMetaclass):
 
         @param float exposure: desired new exposure time
 
-        @return float: setted new exposure time
+        @return float: set new exposure time
         """
         pass
 
@@ -122,6 +122,7 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @return float: exposure gain
         """
         pass
+
 
     @abstract_interface_method
     def get_ready_state(self):

@@ -21,6 +21,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 """
 
 import numpy as np
+from time import sleep
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -32,6 +33,26 @@ import matplotlib as mpl
 
 import datetime
 from collections import OrderedDict
+
+class WorkerSignals(QtCore.QObject):
+    """ Defines the signals available from a running worker thread """
+
+    sigFinished = QtCore.Signal()
+
+class Worker(QtCore.QRunnable):
+    """ Worker thread to monitor the camera temperature every 5 seconds
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature display"""
+
+    def __init__(self, *args, **kwargs):
+        super(Worker, self).__init__()
+        self.signals = WorkerSignals()
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(5)
+        self.signals.sigFinished.emit()
 
 
 class CameraLogic(GenericLogic):
@@ -48,13 +69,20 @@ class CameraLogic(GenericLogic):
     sigUpdateDisplay = QtCore.Signal()
     sigAcquisitionFinished = QtCore.Signal()
     sigVideoFinished = QtCore.Signal()
+
+    sigExposureChanged = QtCore.Signal(float)
+    sigGainChanged = QtCore.Signal(float)
+    sigTemperatureChanged = QtCore.Signal(float)
+
     timer = None
 
     enabled = False
+
     has_temp = False
 
     _exposure = 1.
     _gain = 1.
+    _temperature = 25 # use any initial value..
     _last_image = None
 
     
@@ -69,7 +97,10 @@ class CameraLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        self.threadlock = Mutex()
+        self.threadpool = QtCore.QThreadPool()
+
+        # uncomment if needed:
+        # self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -78,9 +109,14 @@ class CameraLogic(GenericLogic):
 
         self.enabled = False
         self.has_temp = self._hardware.has_temp()
+        if self.has_temp:
+            self.temperature_order = self._hardware.get_temperature() # to initialize
 
+        # update the private variables _exposure, _gain, _temperature and has_temp
         self.get_exposure()
         self.get_gain()
+        self.get_temperature()
+
 
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
@@ -93,7 +129,10 @@ class CameraLogic(GenericLogic):
     def set_exposure(self, time):
         """ Set exposure of hardware """
         self._hardware.set_exposure(time)
-        self.get_exposure()
+        self.get_exposure()  # needed to update the attribute self._exposure
+        # prepare signal sent to indicator on GUI:
+        exp = self.get_exposure()
+        self.sigExposureChanged.emit(exp)
 
     def get_exposure(self):
         """ Get exposure of hardware """
@@ -102,16 +141,64 @@ class CameraLogic(GenericLogic):
         return self._exposure
 
     def set_gain(self, gain):
+        """ Set gain of hardware """
         self._hardware.set_gain(gain)
+        self.get_gain()  # called to update the attribute self._gain
+        # prepare signal sent to indicator on GUI:
+        value = self.get_gain()
+        self.sigGainChanged.emit(value)
 
     def get_gain(self):
+        """ Get gain of hardware """
         gain = self._hardware.get_gain()
         self._gain = gain
         return gain
 
-    def start_single_acquistion(self):
-        """
 
+    def set_temperature(self, temp):
+        """ Set temperature of hardware, if accessible """
+        if self.has_temp == False:
+            pass
+        else:
+            # version doing as if new temperature was immediately reached
+            # self._hardware.set_temperature(temp)
+            # self.get_temperature() # update self._temperature attribute
+            # value = self.get_temperature()
+            # self.sigTemperatureChanged.emit(value)
+
+            # handle the new temperature value over to the camera hardware module
+            self.temperature_order = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
+            self._hardware.set_temperature(temp)
+
+            # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
+            worker = Worker()
+            worker.signals.sigFinished.connect(self.update_temperature)
+            self.threadpool.start(worker)
+
+    def get_temperature(self):
+        """ Get gain of hardware, if accessible """
+        if self.has_temp == False:
+            self.log.warn('Sensor temperature control not available')
+        else:
+            temp = self._hardware.get_temperature()
+            self._temperature = temp
+            return temp
+
+    @QtCore.Slot()
+    def update_temperature(self):
+        """ helper function to update the display on GUI after a waiting time defined in the Worker class"""
+
+        value = self.get_temperature()  # get the current temperature from the hardware
+        self.sigTemperatureChanged.emit(value)
+
+        if value > self.temperature_order:
+            # enter in a loop until ordered temperature reached # to decide if comparison using > or better !=
+            worker = Worker()
+            worker.signals.sigFinished.connect(self.update_temperature)
+            self.threadpool.start(worker)
+
+    def start_single_acquistion(self): # watch out for the typo !!
+        """ Take a single camera image
         """
         self._hardware.start_single_acquisition()
         self._last_image = self._hardware.get_acquired_data()
@@ -137,7 +224,6 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()
         self.sigVideoFinished.emit()
 
-
     def loop(self):
         """ Execute step in the data recording loop: save one of each control and process values
         """
@@ -151,8 +237,3 @@ class CameraLogic(GenericLogic):
     def get_last_image(self):
         """ Return last acquired image """
         return self._last_image
-
-
-
-
-
