@@ -81,7 +81,7 @@ class RoiMarker(pg.RectROI):
 
         size = (width, width)
         super().__init__(pos=self._position, size=size, pen=self.default_pen, **kwargs)
-        # self.aspectLocked = True
+        self.aspectLocked = True
         self.label = pg.TextItem(text=self._roi_name,
                                  anchor=(0, 1),
                                  color=self.default_pen['color'])
@@ -187,6 +187,92 @@ class RoiMarker(pg.RectROI):
 
 
 
+# class representing the marker for the current stage position
+class StageMarker(pg.RectROI):
+    """
+    Creates a square as marker.
+
+    @param float[2] pos: The (x, y) position of the stage center.
+    @param **args: All extra keyword arguments are passed to ROI()
+
+    Have a look at:
+    http://www.pyqtgraph.org/documentation/graphicsItems/roi.html
+    """
+    default_pen = {'color': '0FF', 'width': 2} # color settings
+
+    def __init__(self, position, width, view_widget=None, **kwargs):
+        """
+        @param position:
+        @param width:
+        @param view_widget:
+        @param kwargs:
+        """
+        self._view_widget = view_widget
+        self._position = np.array(position, dtype=float)
+        size = (width, width)
+        super().__init__(pos=self._position, size=size, pen=self.default_pen, **kwargs)
+        self.aspectLocked = True
+        self.label = pg.TextItem(text='Stage',
+                                 anchor=(0, 1),
+                                 color=self.default_pen['color'])
+        self.setAcceptedMouseButtons(QtCore.Qt.LeftButton)
+        self.set_position(self._position)
+        return
+
+    @property
+    def width(self):
+        return self.size()[0]
+
+    @property
+    def position(self):
+        return self._position
+
+    def add_to_view_widget(self, view_widget=None):
+        if view_widget is not None:
+            self._view_widget = view_widget
+        self._view_widget.addItem(self)
+        self._view_widget.addItem(self.label)
+        return
+
+    def delete_from_view_widget(self, view_widget=None):
+        if view_widget is not None:
+            self._view_widget = view_widget
+        self._view_widget.removeItem(self.label)
+        self._view_widget.removeItem(self)
+        return
+
+    def set_position(self, position):
+        """
+        Sets the position and centers the marker on that position.
+        Also positions the label accordingly.
+
+        @param float[2] position: The (x,y) center position of the stage marker
+        """
+        self._position = np.array(position, dtype=float)
+        width = self.width
+        label_offset = width/2
+        self.setPos(self._position[0] - width/2, self._position[1] - width/2) # draw the marker from the lower left corner of the square
+        self.label.setPos(self._position[0] + label_offset, self._position[1] + label_offset)
+        return
+
+    def set_width(self, width):
+        """
+        Set the size of the marker and reposition itself and the label to center it again.
+
+        @param float width: Width of the square
+        """
+        label_offset = width/2
+        self.setSize((width, width))
+        self.setPos(self.position[0] - width/2, self.position[1] - width/2)
+        self.label.setPos(self.position[0] + label_offset, self.position[1] + label_offset)
+        return
+
+
+
+
+
+
+
 class MosaicSettingDialog(QtWidgets.QDialog):
     """ Create the SettingsDialog window, based on the corresponding *.ui file."""
 
@@ -226,7 +312,6 @@ class RoiGUI(GUIBase):
     # declare signals
     sigRoiWidthChanged = QtCore.Signal(float)
     sigRoiListNameChanged = QtCore.Signal(str)
-    #sigAddRoiByClick = QtCore.Signal(np.ndarray)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -238,7 +323,6 @@ class RoiGUI(GUIBase):
 
         self._mouse_moved_proxy = None  # Signal proxy to limit mousMoved event rate
 
-        #self.__roi_selector_active = False  # Flag indicating if the roi selector is active # for selection on click
         return None
 
     def on_activate(self):
@@ -270,6 +354,12 @@ class RoiGUI(GUIBase):
         # Initialize ROI width
         self._update_roi_width(self.roi_logic().roi_width)
 
+        # add the stage marker
+        self.stagemarker = None
+        stage_pos = self.roi_logic().stage_position[:2]
+        self._add_stage_marker(stage_pos)
+
+
         
         # Distance Measurement: # to be added later
         # Introducing a SignalProxy will limit the rate of signals that get fired.
@@ -289,7 +379,6 @@ class RoiGUI(GUIBase):
         """
         De-initialisation performed during deactivation of the module.
         """
-        #self.toggle_roi_selector(False)
         self.__disconnect_control_signals_to_logic()
         self.__disconnect_update_signals_from_logic()
         self.__disconnect_internal_signals()
@@ -317,7 +406,7 @@ class RoiGUI(GUIBase):
         self.roi_logic().sigActiveRoiUpdated.connect(self.update_active_roi, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigRoiListUpdated.connect(self.update_roi_list, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigWidthUpdated.connect(self._update_roi_width, QtCore.Qt.QueuedConnection)
-
+        self.roi_logic().sigStageMoved.connect(self.update_stage_position, QtCore.Qt.QueuedConnection)
         return None
 
     def __disconnect_update_signals_from_logic(self):
@@ -325,6 +414,8 @@ class RoiGUI(GUIBase):
         self.roi_logic().sigRoiUpdated.disconnect()
         self.roi_logic().sigActiveRoiUpdated.disconnect()
         self.roi_logic().sigRoiListUpdated.disconnect()
+        self.roi_logic().sigWidthUpdated.disconnect()
+        self.roi_logic().sigStageMoved.disconnect()
         return None
 
     def __connect_control_signals_to_logic(self):
@@ -332,6 +423,7 @@ class RoiGUI(GUIBase):
         self._mw.new_roi_Action.triggered.connect(self.roi_logic().add_roi, QtCore.Qt.QueuedConnection)        
         self._mw.go_to_roi_Action.triggered.connect(self.roi_logic().go_to_roi, QtCore.Qt.QueuedConnection)
         self._mw.delete_roi_Action.triggered.connect(self.roi_logic().delete_roi, QtCore.Qt.QueuedConnection)
+        self._mw.add_interpolation_Action.triggered.connect(self.roi_logic().add_interpolation, QtCore.Qt.QueuedConnection)
         
         # roi list toolbar actions
         self._mw.new_list_Action.triggered.connect(self.roi_logic().reset_roi_list, QtCore.Qt.QueuedConnection)
@@ -340,17 +432,19 @@ class RoiGUI(GUIBase):
         # signals
         self.sigRoiWidthChanged.connect(self.roi_logic().set_roi_width)
         self.sigRoiListNameChanged.connect(self.roi_logic().rename_roi_list, QtCore.Qt.QueuedConnection)
-        #self.sigAddRoiByClick.connect(self.roi_logic().add_roi, QtCore.Qt.QueuedConnection)
         self._mw.active_roi_ComboBox.activated[str].connect(self.roi_logic().set_active_roi, QtCore.Qt.QueuedConnection)
         
 
-        # something similar will be needed : to add !!!!
+        # something similar will be needed : to add later !!!!
         #self._mw.get_confocal_image_PushButton.clicked.connect(self.poimanagerlogic().set_scan_image, QtCore.Qt.QueuedConnection)
         return None
 
     def __disconnect_control_signals_to_logic(self):
         self._mw.new_roi_Action.triggered.disconnect()
         self._mw.go_to_roi_Action.triggered.disconnect()
+        self._mw.delete_roi_Action.triggered.disconnect()
+        self._mw.add_interpolation_Action.triggered.disconnect()
+
         self._mw.new_list_Action.triggered.disconnect()
         self._mw.active_roi_ComboBox.activated[str].disconnect()
         
@@ -358,14 +452,12 @@ class RoiGUI(GUIBase):
 
         self.sigRoiWidthChanged.disconnect()
         self.sigRoiListNameChanged.disconnect()
-        #self.sigAddRoiByClick.disconnect()
         for marker in self._markers.values():
             marker.sigRoiSelected.disconnect()
         return None
 
     def __connect_internal_signals(self):
         self._mw.roi_width_doubleSpinBox.editingFinished.connect(self.roi_width_changed) # just emit one signal when finished and not at each modification of the value (valueChanged)
-        #self._mw.roi_selector_Action.toggled.connect(self.toggle_roi_selector)
         self._mw.save_list_Action.triggered.connect(self.save_roi_list)
         self._mw.load_list_Action.triggered.connect(self.load_roi_list)    
         
@@ -375,7 +467,6 @@ class RoiGUI(GUIBase):
 
     def __disconnect_internal_signals(self):
         self._mw.roi_width_doubleSpinBox.editingFinished.disconnect()
-        #self._mw.roi_selector_Action.toggled.disconnect()
         self._mw.save_list_Action.triggered.disconnect()
         self._mw.load_list_Action.triggered.disconnect()
         self._mw.mosaic_scan_MenuAction.triggered.disconnect()
@@ -496,68 +587,7 @@ class RoiGUI(GUIBase):
 #         else:
 #             self._mw.roi_distance_Label.setText('? (?, ?)')
 #         pass
-    
-    
 
-
-##########################################
-# add roi on click tool ... to be continued 
-#    @QtCore.Slot(bool)
-#    def toggle_roi_selector(self, is_active):
-#        if is_active != self._mw.roi_selector_Action.isChecked():
-#            self._mw.roi_selector_Action.blockSignals(True)
-#            self._mw.roi_selector_Action.setChecked(is_active)
-#            self._mw.roi_selector_Action.blockSignals(False)
-#        if is_active != self.__roi_selector_active:
-#            if is_active:
-#                # here is the problemn: neither SigMouseClicked is emitted nor the Cursor is modified. need to find out why..
-#                print('before sig mouse clicked')
-#                self.roi_image.sigMouseClicked.connect(self.say_hello) #self.create_roi_from_click
-#                print('after sig mouse clicked')
-#                self.roi_image.setCursor(QtCore.Qt.CrossCursor)
-#            else:
-#                #self.roi_image.sigMouseClicked.disconnect()
-#                self.roi_image.setCursor(QtCore.Qt.ArrowCursor)
-#        self.__roi_selector_active = is_active
-##        print('Roi selector active')
-##        print('is active:')
-##        print(is_active)
-##        print('roi selector active')
-##        print(self.__roi_selector_active)
-#        return None
-#
-#    
-#    @QtCore.Slot()
-#    def say_hello(self):
-#        print('Say hello called')
-#
-#    @QtCore.Slot(object, QtCore.QPointF)
-#    def create_roi_from_click(self, button, pos):
-#        print('create_roi_from_click called')
-##        # Only create new ROI if the mouse click event has not been accepted by some other means
-##        # In our case this is most likely the ROI marker to select the active ROI from.
-#        if button != QtCore.Qt.LeftButton:
-#            return None
-##        # X and Y positions from click event
-#        new_pos = self.roi_logic().roi_list_origin ## attention this calls the pos_history. If the history is discarded remember changing this here as well !!
-#        new_pos[0] = 10 # pos.x()
-#        new_pos[1] = 20 # pos.y()
-#        print(new_pos)
-#        self.sigAddRoiByClick.emit(new_pos)
-#        return None
-#    
-### for tests    
-#    def create_roi_from_position(self, pos):
-#        new_pos = self.roi_logic().roi_list_origin
-#        new_pos[0] = 5
-#        new_pos[1] = 20
-#        print(new_pos)
-#        print('Hi')
-#        self.sigAddRoiByClick.emit(new_pos)
-#        print('Bye')
-#        return None
-#    
-#    ###################################"
 
     @QtCore.Slot(dict)
     def update_roi_list(self, roi_dict):
@@ -787,6 +817,7 @@ class RoiGUI(GUIBase):
             self._markers[name] = marker
         return None
 
+
     def _remove_roi_marker(self, name):
         """ Remove the ROI marker for a ROI that was deleted. """
         if name in self._markers:
@@ -795,3 +826,31 @@ class RoiGUI(GUIBase):
             del self._markers[name]
         return None
 
+
+    def _add_stage_marker(self, position=(0,0)):
+        """ Add a square marker for the current stage position to the roi overview image """
+        try:
+            stagemarker = StageMarker(position=position,
+                                      view_widget=self._mw.roi_map_ViewWidget,
+                                      width=5, # to be defined
+                                      movable=False)
+            # add the marker to the roi overview image
+            stagemarker.add_to_view_widget()
+            self.stagemarker = stagemarker
+        except:
+            self.log.warn('Unable to add stage marker to image')
+        return None
+
+
+
+    @QtCore.Slot(np.ndarray)
+    def update_stage_position(self, position):
+        """ updates the textlabel with the current stage position and moves the stage marker """
+        self._mw.stage_position_Label.setText('x={0}, y={1}'.format(position[0], position[1]))
+        self.stagemarker.set_position(position)
+
+
+    # the stage marker is in this version not yet following the hardware movement. indeed the signal sigStageMoved in the logic module
+    # not yet emitted as it has to be in a future version. At the moment it is only emitted when the private method _move_stage is called
+    # this must be corrected to keep track of the physical stage movement using the joystick or programmatically
+    # i have to figure out a good solution for this

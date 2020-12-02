@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>850</width>
-    <height>600</height>
+    <height>689</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -103,13 +103,13 @@
      </item>
     </layout>
    </widget>
-   <widget class="QWidget" name="layoutWidget">
+   <widget class="QWidget" name="">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>470</y>
-      <width>471</width>
-      <height>42</height>
+      <x>41</x>
+      <y>471</y>
+      <width>411</width>
+      <height>65</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
@@ -136,6 +136,20 @@
      </item>
      <item row="1" column="1">
       <widget class="QLabel" name="roi_distance_Label">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="label_7">
+       <property name="text">
+        <string>Stage position:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLabel" name="stage_position_Label">
        <property name="text">
         <string/>
        </property>
@@ -179,9 +193,9 @@
     <bool>false</bool>
    </attribute>
    <addaction name="new_roi_Action"/>
-   <addaction name="roi_selector_Action"/>
    <addaction name="go_to_roi_Action"/>
    <addaction name="delete_roi_Action"/>
+   <addaction name="add_interpolation_Action"/>
   </widget>
   <widget class="QToolBar" name="toolBar_2">
    <property name="windowTitle">
@@ -240,17 +254,6 @@
     <string>Deletes the active ROI</string>
    </property>
   </action>
-  <action name="roi_selector_Action">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Add ROI</string>
-   </property>
-   <property name="toolTip">
-    <string>Adds a ROI on mouseclick</string>
-   </property>
-  </action>
   <action name="new_list_Action">
    <property name="text">
     <string>Start new ROI list</string>
@@ -262,6 +265,14 @@
    </property>
    <property name="toolTip">
     <string>Define a mosaic scan</string>
+   </property>
+  </action>
+  <action name="add_interpolation_Action">
+   <property name="text">
+    <string>Add interpolation</string>
+   </property>
+   <property name="toolTip">
+    <string>Adds an interpolation between at least 2 already defined ROIs</string>
    </property>
   </action>
  </widget>

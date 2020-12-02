@@ -24,6 +24,7 @@ import numpy as np
 import time
 import json
 from itertools import product
+from math import ceil
 
 #from collections import OrderedDict
 from core.connector import Connector
@@ -165,7 +166,7 @@ class RegionOfInterestList:
 #        return None
 
        
-# to be modified: remove kwarg name in calls to this function
+# to be modified: remove kwarg name in calls to this function -> better solution: leave it as it for compatibility and just make sure that a generic name always overwrites a name given by user
     def add_roi(self, position, name=None):
         if isinstance(position, RegionOfInterest):
             roi_inst = position
@@ -181,28 +182,7 @@ class RegionOfInterestList:
         self._rois[roi_inst.name] = roi_inst
         return None
                                         
-                                        
-                                        
-#    # redefine this method without allowing a name to be given # this works but could probably be simplified
-#    def add_roi(self, position, name=None):
-#        if isinstance(position, RegionOfInterest):
-#            roi_inst = position
-#        else:
-#            position = position - self.origin
-#            # Create a generic name 
-#            index = len(self._rois)
-#            while True:
-#                index += 1
-#                str_index = str(index).zfill(3) # zero padding 
-#                name = 'ROI_'+str_index
-#                if name not in self._rois:
-#                    break
-#            roi_inst = RegionOfInterest(position=position, name=name)
-#        if roi_inst.name in self._rois:
-#            raise ValueError('ROI with name "{0}" already present in ROIlist "{1}".\n'
-#                             'Could not add ROI to ROIlist'.format(roi_inst.name, self.name))
-#        self._rois[roi_inst.name] = roi_inst
-#        return None
+
 
     def delete_roi(self, name):
         if not isinstance(name, str):
@@ -310,6 +290,8 @@ class RegionOfInterest:
         return cls(**dict_repr)
 
 
+
+
 class RoiLogic(GenericLogic):
     """
     This is the Logic class for selecting regions of interest.
@@ -322,16 +304,15 @@ class RoiLogic(GenericLogic):
     _roi_list = StatusVar(default=dict())  # Notice constructor and representer further below
     _active_roi = StatusVar(default=None)
     _roi_width = StatusVar(default=20) # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
-    #_roi_width = 10 # check if varying size problem is handled using not a StatusVar # maybe it is rather needed to store the roi width in the RegionOfInterest object. To discuss how this should be handled
 
-    # Signals for connecting modules
+    # Signals
     sigRoiUpdated = QtCore.Signal(str, str, np.ndarray)  # old_name, new_name, current_position
     sigActiveRoiUpdated = QtCore.Signal(str)
     sigRoiListUpdated = QtCore.Signal(dict)  # Dict containing ROI parameters to update
     sigWidthUpdated = QtCore.Signal(float)
-    
-    
-    
+
+    sigStageMoved = QtCore.Signal(np.ndarray) # current_position
+
     
     # variables from mosaic settings dialog and default values
     _mosaic_x_start = 0
@@ -394,7 +375,6 @@ class RoiLogic(GenericLogic):
     def roi_list_name(self, name):
         self.rename_roi_list(new_name=name)
 
-
     @property
     def roi_list_origin(self):
         return self._roi_list.origin
@@ -423,12 +403,12 @@ class RoiLogic(GenericLogic):
     def roi_width(self, new_width):
         self.set_roi_width(new_width)
         return None
-  
+
+    # formerly returned as list instead of tuple. in case error appears .. it worked correctly with a list
     @property
     def stage_position(self):
         pos = self.stage().get_pos() # this returns a dictionary of the format {'x': pos_x, 'y': pos_y} 
-        return list(pos.values())[:3] # get only the dictionary values as a list. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
-
+        return tuple(pos.values())[:3] # get only the dictionary values as a list. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
 
 # even if called with a name not None, a generic name is set. The specified one is not taken into account. This is handled in the add_roi method of RegionOfInterestList class
     @QtCore.Slot()
@@ -505,7 +485,6 @@ class RoiLogic(GenericLogic):
         return None
 
 
-
     @QtCore.Slot(str)
     def set_active_roi(self, name=None):
         """
@@ -575,7 +554,8 @@ class RoiLogic(GenericLogic):
             return None
         axis_label = ('x', 'y', 'z')
         pos_dict = dict([*zip(axis_label, position)])
-        self.stage().move_abs(pos_dict) 
+        self.stage().move_abs(pos_dict)
+        self.sigStageMoved.emit(position)
         return None
 
 #    @QtCore.Slot()
@@ -587,12 +567,6 @@ class RoiLogic(GenericLogic):
 #            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_scan_image,
 #                                     'scan_image_extent': self.roi_scan_image_extent})
 #        return None
-    
-
-        
-    
-    
-    
 
 
     @QtCore.Slot()
@@ -618,7 +592,6 @@ class RoiLogic(GenericLogic):
     #                                  'scan_image_extent': self.roi_cam_image_extent})
     #     return None
     
-
 
 
     @QtCore.Slot(float)
@@ -647,8 +620,7 @@ class RoiLogic(GenericLogic):
             json.dump(roi_list_dict, file)
             
         return None
-        
-    
+
     
     # to solve: problem with marker size when loading a new list 
     def load_roi_list(self, complete_path=None):
@@ -672,10 +644,7 @@ class RoiLogic(GenericLogic):
                                  })     
         self.set_active_roi(None if len(self.roi_names) == 0 else self.roi_names[0])
         return None
-        
-        
-            
-        
+
 
     @_roi_list.constructor
     def dict_to_roi(self, roi_dict):
@@ -708,6 +677,12 @@ class RoiLogic(GenericLogic):
     def add_mosaic(self, x_center_pos=0, y_center_pos=0, roi_width=1, width=3, height=3):
         """
         Defines a new list containing a serpentine scan. Parameters can be specified in the settings dialog on GUI option menu.
+
+        @param x_center_pos:
+        @param y_center_pos:
+        @param roi_width: (better distance)
+        @param width: number of tiles in x direction
+        @param height: number of tiles in y direction
 
         @returns: None
         """
@@ -751,6 +726,59 @@ class RoiLogic(GenericLogic):
         @returns: the second element of value (in the context here, value is a 3dim tuple (x, y, z))
         """
         return val[1]
+
+    # with this overloading it is possible to call it from gui without specifying a roi_distance . the default value is taken
+    # but maybe modify to send the selected value with it..
+    @QtCore.Slot()
+    @QtCore.Slot(float)
+    def add_interpolation(self, roi_distance=2): # remember to correct the roi_distance parameter
+        """ Fills the space between the already defined rois (at least 2) with more rois using a center to center distance roi_distance.
+        The grid starts in the minimum x and y coordinates from the already defined rois and covers the maximum x and y coordinates
+
+        @params: roi_distance
+
+        @:returns: None
+        """
+
+        if len(self.roi_positions) < 2:
+            self.log.warning('Please specify at least 2 ROIs to perform an interpolation')
+        else:
+            try:
+                # x_coords = [self.roi_positions[key][0] for key in self.roi_positions] # get the x coordonates for all the rois in the current roi list
+                # y_coords = [self.roi_positions[key][1] for key in self.roi_positions] # get the y coordonates for all the rois in the current roi list
+
+                # find the minimal and maximal x and y coordonates from the current roi_list
+                xmin = min([self.roi_positions[key][0] for key in self.roi_positions])
+                xmax = max([self.roi_positions[key][0] for key in self.roi_positions])
+                ymin = min([self.roi_positions[key][1] for key in self.roi_positions])
+                ymax = max([self.roi_positions[key][1] for key in self.roi_positions])
+                print(xmin, xmax, ymin, ymax)
+
+                # calculate the number of tiles needed
+                width = abs(xmax - xmin)
+                height = abs(ymax - ymin)
+                print(width, height)
+                num_x = ceil(width / roi_distance) + 1 # number of tiles in x direction
+                num_y =  ceil(height / roi_distance) + 1 # number of tiles in y direction
+                print(num_x, num_y)
+
+                # create a grid of the central points
+                grid = self.make_serpentine_grid(int(num_x), int(num_y)) # type conversion necessary because xmin etc are numpy floats
+                # type conversion from list to np array for making linear, elementwise operations
+                grid_array = np.array(grid)
+                # stretch the grid and shift it so that the first center point is in (x_min, y_min)
+                roi_centers = grid_array * roi_distance + [xmin, ymin, 0]
+                print(roi_centers)
+
+                # list is not reset before adding new rois. we might end up having some overlapping exactly the initial ones.
+                # to discuss if the initial ones shall be kept
+                # or think of a method how to get rid of the twice defined positions
+                for item in roi_centers:
+                    self.add_roi(item)
+
+            except Exception:
+                self.log.error('Could not create interpolation')
+
 
 
 
