@@ -139,3 +139,11 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @return bool: has temperature ?
         """
         pass
+
+    @abstract_interface_method
+    def has_shutter(self):
+        """ Is the camera equipped with a shutter?
+
+        @return bool: has shutter ?
+        """
+        pass

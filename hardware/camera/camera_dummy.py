@@ -51,6 +51,8 @@ class CameraDummy(Base, CameraInterface):
     _gain = ConfigOption('gain', 1.)
     _has_temp = True
     temperature = 27.0
+    _has_shutter = False
+    _shutter = 'open'
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -182,6 +184,13 @@ class CameraDummy(Base, CameraInterface):
         @return bool: has temperature ?
         """
         return self._has_temp
+
+    def has_shutter(self):
+        """ Is the camera equipped with a shutter?
+
+        @return bool: has shutter ?
+        """
+        return self._has_shutter
 
 
 

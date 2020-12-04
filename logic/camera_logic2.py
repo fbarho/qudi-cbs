@@ -22,6 +22,8 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 import numpy as np
 from time import sleep
+import os
+from PIL import Image
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -73,17 +75,23 @@ class CameraLogic(GenericLogic):
     sigExposureChanged = QtCore.Signal(float)
     sigGainChanged = QtCore.Signal(float)
     sigTemperatureChanged = QtCore.Signal(float)
+    sigReadyStateChanged = QtCore.Signal(bool)
+    sigShutterStateChanged = QtCore.Signal(str)
 
     timer = None
 
     enabled = False
+    saving = False
 
     has_temp = False
+    has_shutter = True
 
     _exposure = 1.
     _gain = 1.
     _temperature = 25 # use any initial value..
     _last_image = None
+
+
 
     
     
@@ -108,9 +116,11 @@ class CameraLogic(GenericLogic):
         self._hardware = self.hardware()
 
         self.enabled = False
+        self.saving = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
             self.temperature_order = self._hardware.get_temperature() # to initialize
+        self.has_shutter = self._hardware.has_shutter()
 
         # update the private variables _exposure, _gain, _temperature and has_temp
         self.get_exposure()
@@ -237,3 +247,64 @@ class CameraLogic(GenericLogic):
     def get_last_image(self):
         """ Return last acquired image """
         return self._last_image
+
+
+    def save_last_image(self, path, filename, fileformat='tiff'):
+
+        if self._last_image is None:
+            self.log.warning('No image available to save')
+            return
+        image_data = self._last_image  # alternatively it could use self._hardware.get_acquired_data() .. to check which option is better
+
+        # check if the path exists
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path)  # recursive creation of all directories on the path
+            except Exception as e:
+                print('Could not create folder {}'.format(e))
+                return None
+
+        # discuss if a do not overwrite procedure should be implemented.. but this should not happen with the above generation of a number suffix
+        # count the files in the directory (non recursive !) to generate an incremental suffix
+        file_list = [name for name in os.listdir(path) if os.path.isfile(os.path.join(path, name))] # and name - 4 last caracters (use regex) == filename
+        number_files = len(file_list)
+        suffix = str(number_files).zfill(4)
+        complete_filename = filename + suffix + '.' + fileformat
+        # attention: if the filename is changed then it might be better to restart indexing from 0. We should define the filename generic format ..
+
+        # create the full path name by joining the filename to the folder path
+        p = os.path.join(path, complete_filename)
+
+        # create the PIL.Image object and save it to tiff
+        im = Image.fromarray(image_data)
+        try:
+            # conversion to 16 bit tiff im.convert('I;16').save(p, format='tiff')
+            im.save(p, format='tiff')
+            self.log.info('Saved image to file {}'.format(p))
+        except:
+            self.log.warning('File not saved')
+        return None
+
+
+
+    def get_ready_state(self):
+        """ Is the camera ready for an acquisition ?
+
+        @return bool: ready ?"""
+        # version with yes no display
+        # state = self._hardware.get_ready_state()
+        # if state == True:
+        #     return 'Yes'
+        # return 'No'
+        # version with true false display
+        return str(self._hardware.get_ready_state())
+
+    def get_shutter_state(self):
+        """ retrieves the status of the shutter if there is one
+
+        @returns str: shutter status """
+        if self.has_shutter == False:
+            pass
+        else:
+            return self._hardware._shutter
+

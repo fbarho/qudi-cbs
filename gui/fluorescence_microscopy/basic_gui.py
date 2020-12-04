@@ -71,20 +71,22 @@ class BasicGUI(GUIBase):
     
       
     # Signals
+    # signals to camera logic
     sigVideoStart = QtCore.Signal()
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
+    sigVideoStartSaving = QtCore.Signal()
+    sigVideoStopSaving = QtCore.Signal()
 
-    
+
+    # signals to daq logic
     sigLaserOn = QtCore.Signal()
     sigLaserOff = QtCore.Signal()
     
-    
+    # signals to filterwheel logic
     sigFilterChanged = QtCore.Signal(int)
     
-    
-    #_has_filterwheel = True # later: take this from config
 
 
     _image = []
@@ -121,7 +123,6 @@ class BasicGUI(GUIBase):
         # initialize the camera setting indicators on the GUI
         self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
-
         if self._camera_logic.has_temp == False:
             self._mw.temperature_LineEdit.setText('')
             self._mw.temperature_LineEdit.setEnabled(False)
@@ -129,10 +130,23 @@ class BasicGUI(GUIBase):
         else:
             self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
 
+        self._mw.camera_status_LineEdit.setText(self._camera_logic.get_ready_state())
+        if self._camera_logic.has_shutter == False:
+            self._mw.shutter_status_LineEdit.setText('')
+            self._mw.shutter_status_LineEdit.setEnabled(False)
+            self._mw.shutter_Label.setEnabled(False)
+        else:
+            self._mw.shutter_status_LineEdit.setText(self._camera_logic.get_shutter_state())
+
         # update the camera setting indicators when value changed (via settings window or iPython console for example)
         self._camera_logic.sigExposureChanged.connect(self.update_exposure)
         self._camera_logic.sigGainChanged.connect(self.update_gain)
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
+
+        self._camera_logic.sigReadyStateChanged.connect(self.update_ready_state) ## it needs to be defined at which step in the logic the signal shall be emitted or watch in permanence
+        self._camera_logic.sigShutterStateChanged.connect(self.update_shutter_state)  ## define where signal should be emitted
+
+
 
 
 
@@ -151,7 +165,8 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)
         self._camera_logic.sigVideoFinished.connect(self.enable_take_image_action)
         
-        #self._mw.save_last_image_Action.triggered.connect(self.save_last_image)
+        self._mw.save_last_image_Action.triggered.connect(self.save_last_image)
+        #self._mw.save_video_Action.triggered.connect(self.save_video)
 
         #starting the physical measurement
         self.sigVideoStart.connect(self._camera_logic.start_loop)
@@ -300,6 +315,15 @@ class BasicGUI(GUIBase):
     def update_temperature(self, temp):
         self._mw.temperature_LineEdit.setText(str(temp))
 
+    @QtCore.Slot(bool)
+    def update_ready_state(self, ready_state):
+        """ """
+        self._mw.camera_status_LineEdit.setText(str(ready_state))
+
+    @QtCore.Slot(str)
+    def update_shutter_state(self, shutter_state):
+        self._mw.shutter_status_LineEdit.setText(shutter_state)
+
 
 
     def take_image_clicked(self):
@@ -310,6 +334,7 @@ class BasicGUI(GUIBase):
         self._mw.take_image_Action.setDisabled(True)
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
+        self._mw.save_video_Action.setDisabled(True)
 
     def acquisition_finished(self):
         """ Callback from sigAcquisitionFinished. Resets all tool buttons to callable state
@@ -318,6 +343,7 @@ class BasicGUI(GUIBase):
         self._mw.take_image_Action.setDisabled(False)
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
+        self._mw.save_video_Action.setDisabled(False)
         
 
     def start_video_clicked(self):
@@ -346,9 +372,27 @@ class BasicGUI(GUIBase):
         image_data = self._camera_logic.get_last_image()
         self._mw.camera_ImageView.setImage(image_data)
         self._mw.camera_ImageView.ui.histogram.show()
-       
-  
-    
+
+    @QtCore.Slot()
+    def save_last_image(self):
+        """ saves the last image, using user specified filepath and filename (with a generated suffix)
+        """
+        filename = self._mw.filename_LineEdit.text()
+        path = self._mw.save_path_LineEdit.text()
+        self._camera_logic.save_last_image(path, filename)
+
+
+    # @QtCore.Slot()
+    # def save_video(self):
+    #     self._mw.take_image_Action.setDisabled(True)
+    #     self._mw.save_last_image_Action.setDisabled(True)
+    #     if self._camera_logic.saving:
+    #         self._mw.save_video_Action.setText('Save Video')
+    #         self.sigVideoStopSaving.emit()
+    #     else:
+    #         self._mw.save_video_Action.setText('Stop Saving')
+    #         self.sigVideoStartSaving.emit()
+
     
     # laser dockwidget
     def laser_on_clicked(self):
@@ -396,6 +440,11 @@ class BasicGUI(GUIBase):
         current_filter_position = self._filterwheel_logic.get_position()  # returns an int: position
         index = current_filter_position - 1 # zero indexing
         self._mw.filter_ComboBox.setCurrentIndex(index)
+
+        # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
+        key = 'filter'+str(current_filter_position) # create the key which allows to access the corresponding entry in the filter_dict
+        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers']) # get the corresponding bool list from the logic module
+
 
 
     def change_filter(self):
