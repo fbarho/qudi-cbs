@@ -65,7 +65,7 @@ class CameraLogic(GenericLogic):
     # declare connectors
     hardware = Connector(interface='CameraInterface')
     _max_fps = ConfigOption('default_exposure', 20)
-    _fps = _max_fps
+    _fps = 20
 
     # signals
     sigUpdateDisplay = QtCore.Signal()
@@ -84,7 +84,7 @@ class CameraLogic(GenericLogic):
     saving = False
 
     has_temp = False
-    has_shutter = True
+    has_shutter = False
 
     _exposure = 1.
     _gain = 1.
@@ -178,7 +178,7 @@ class CameraLogic(GenericLogic):
 
             # handle the new temperature value over to the camera hardware module
             self.temperature_order = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
-            self._hardware.set_temperature(temp)
+            self._hardware._set_temperature(temp)
 
             # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
             worker = Worker()
@@ -240,7 +240,7 @@ class CameraLogic(GenericLogic):
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
         if self.enabled:
-            self.timer.start(1000 * 1 / self._fps)
+            self.timer.start(1000 * 1 / self._fps) 
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
 

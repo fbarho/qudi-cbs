@@ -140,7 +140,7 @@ class BasicGUI(GUIBase):
 
         # update the camera setting indicators when value changed (via settings window or iPython console for example)
         self._camera_logic.sigExposureChanged.connect(self.update_exposure)
-        self._camera_logic.sigGainChanged.connect(self.update_gain)
+        #self._camera_logic.sigGainChanged.connect(self.update_gain)
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
 
         self._camera_logic.sigReadyStateChanged.connect(self.update_ready_state) ## it needs to be defined at which step in the logic the signal shall be emitted or watch in permanence
@@ -281,15 +281,16 @@ class BasicGUI(GUIBase):
         """ Write new settings from the gui to the file. 
         """
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
-        self._camera_logic.set_gain(self._cam_sd.gain_doubleSpinBox.value())
-        self._camera_logic.set_temperature(self._cam_sd.temp_doubleSpinBox.value())
+        #self._camera_logic.set_gain(self._cam_sd.gain_doubleSpinBox.value())
+        self._camera_logic.set_temperature(int(self._cam_sd.temp_doubleSpinBox.value()))
+        # modify camera spinbox to be integer and not float !!! to do .. 
      
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
         """
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
-        self._cam_sd.gain_doubleSpinBox.setValue(self._camera_logic._gain)
+        #self._cam_sd.gain_doubleSpinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_doubleSpinBox.setValue(self._camera_logic._temperature)
         
 

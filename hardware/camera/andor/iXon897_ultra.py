@@ -210,18 +210,43 @@ class IxonUltra(Base, CameraInterface):
 
         @return bool: True if supported, False if not
         """
-        return False
+        return True
+        # modified for tests
+        #return False
 
     def start_live_acquisition(self):
         """ Start a continuous acquisition
 
         @return bool: Success ?
         """
-        if self._support_live:
+        # version from original qudi
+#        if self._support_live:
+#            self._live = True
+#            self._acquiring = False
+#
+#        return False
+        
+        # new version fb
+        # handle the variables indicating the status 
+        if self.support_live_acquisition():
             self._live = True
             self._acquiring = False
 
-        return False
+        # make sure shutter is opened
+        if self._shutter == 'closed':
+            msg = self._set_shutter(0, 1, 0.1, 0.1)
+            if msg == 'DRV_SUCCESS':
+                self._shutter = 'open'
+            else: 
+                self.log.error('shutter did non open. {}'.format(msg))
+
+        self._set_acquisition_mode('RUN_TILL_ABORT')
+        msg = self._start_acquisition()
+        if msg != "DRV_SUCCESS":
+            return False
+        
+        return True
+        
 
     def start_single_acquisition(self):
         """ Start a single acquisition
@@ -252,6 +277,7 @@ class IxonUltra(Base, CameraInterface):
         @return bool: Success ?
         """
         msg = self._abort_acquisition()
+        self._set_acquisition_mode(self._default_acquisition_mode) # reset to default (single scan typically)
         if msg == "DRV_SUCCESS":
             self._live = False
             self._acquiring = False
@@ -331,36 +357,55 @@ class IxonUltra(Base, CameraInterface):
         """
         self._get_acquisition_timings()
         return self._exposure
+    
+    
+    # new version using the em gain 
+    def set_gain(self, gain):
+        msg = self._set_emccd_gain(gain)
+        if msg == "DRV_SUCCESS":
+            self._gain = gain
+            return True
+        else:
+            return False
+        
+    def get_gain(self):
+        self._gain = self._get_emccd_gain()
+        return self._gain
+    
+    # add also setter and getter functions for preamp gain
+
+        
+    
 
     # not sure if the distinguishing between gain setting and gain value will be problematic for
     # this camera model. Just keeping it in mind for now.
     #TODO: Not really funcitonal right now.
-    def set_gain(self, gain):
-        """ Set the gain
-
-        @param float gain: desired new gain
-
-        @return float: new exposure gain
-        """
-        n_pre_amps = self._get_number_preamp_gains()
-        msg = ''
-        if (gain >= 0) & (gain < n_pre_amps):
-            msg = self._set_preamp_gain(gain)
-        else:
-            self.log.warning('Choose gain value between 0 and {0}'.format(n_pre_amps-1))
-        if msg == 'DRV_SUCCESS':
-            self._gain = gain
-        else:
-            self.log.warning('The gain wasn\'t set. {0}'.format(msg))
-        return self._gain
-
-    def get_gain(self):
-        """ Get the gain
-
-        @return float: exposure gain
-        """
-        _, self._gain = self._get_preamp_gain()
-        return self._gain
+#    def set_gain(self, gain):
+#        """ Set the gain
+#
+#        @param float gain: desired new gain
+#
+#        @return float: new exposure gain
+#        """
+#        n_pre_amps = self._get_number_preamp_gains()
+#        msg = ''
+#        if (gain >= 0) & (gain < n_pre_amps):
+#            msg = self._set_preamp_gain(gain)
+#        else:
+#            self.log.warning('Choose gain value between 0 and {0}'.format(n_pre_amps-1))
+#        if msg == 'DRV_SUCCESS':
+#            self._gain = gain
+#        else:
+#            self.log.warning('The gain wasn\'t set. {0}'.format(msg))
+#        return self._gain
+#
+#    def get_gain(self):
+#        """ Get the gain
+#
+#        @return float: exposure gain
+#        """
+#        _, self._gain = self._get_preamp_gain()
+#        return self._gain
 
     def get_ready_state(self):
         """ Is the camera ready for an acquisition ?
@@ -496,6 +541,7 @@ class IxonUltra(Base, CameraInterface):
         error_code = self.dll.SetExposureTime(c_float(time))
         return ERROR_DICT[error_code]
 
+# there might be an error in this function .. 
     def _set_read_mode(self, mode):
         """
         @param string mode: string corresponding to certain ReadMode
@@ -512,11 +558,11 @@ class IxonUltra(Base, CameraInterface):
                 msg = self._set_image(1, 1, 1, self._width, 1, self._height)
                 if msg != 'DRV_SUCCESS':
                     self.log.warning('{0}'.format(ERROR_DICT[error_code]))
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
-            self.log.warning('Readmode was not set: {0}'.format(ERROR_DICT[error_code]))
-            check_val = -1
-        else:
-            self._read_mode = mode
+            if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+                self.log.warning('Readmode was not set: {0}'.format(ERROR_DICT[error_code]))
+                check_val = -1
+            else:
+                self._read_mode = mode
 
         return check_val
 
@@ -540,6 +586,7 @@ class IxonUltra(Base, CameraInterface):
 
         return check_val
 
+    # set a subimage (ROI on camera sensor)
     def _set_image(self, hbin, vbin, hstart, hend, vstart, vend):
         """
         This function will set the horizontal and vertical binning to be used when taking a full resolution image.
@@ -829,4 +876,74 @@ class IxonUltra(Base, CameraInterface):
         self._cur_image = image_array
         return image_array
 # non interface functions regarding setpoint interface
+        
+    
+    
+### modifications fb ###  
+# new functions concerning gain settings
+    def _get_em_gain_range(self):
+        low = c_int()
+        high = c_int()
+        error_code = self.dll.GetEMGainRange(byref(low), byref(high))
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Could not retrieve EM gain range. {}'.format(ERROR_DICT[error_code]))
+            return
+        return low.value, high.value
+    
+    def _get_emccd_gain(self):
+        gain = c_int()
+        error_code = self.dll.GetEMCCDGain(byref(gain))
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Could not retrieve EM gain. {}'.format(ERROR_DICT[error_code]))
+            return
+        return gain.value
+    
+    def _set_em_gain_mode(self, mode):
+        """ possible settings: 
+            mode = 0: the em gain is controlled by DAQ settings in the range 0-255. Default mode
+            mode = 1: the em gain is controlled by DAQ settings in the range 0-4095.
+            mode = 2: Linear mode.
+            mode = 3: Real EM gain.
+        """
+        mode = c_int(mode)
+        error_code = self.dll.SetEMGainMode(mode)
+        return ERROR_DICT[error_code]
+    
+
+    def _set_emccd_gain(self, gain):
+        gain = c_int(gain)
+        error_code = self.dll.SetEMCCDGain(gain)
+        return ERROR_DICT[error_code] 
+    
+    
+    
+    
+# spooling 
+    def _set_spool(self, active, method, name, framebuffersize):
+        """
+        @params: int active: 0: disable spooling, 1: enable spooling
+        @params: int method: indicates the format of the files written to disk. 
+                             0: sequence of 32-bit integers
+                             1: 32-bit integer if data is being accumulated each scan, otherwise 16-bit integers
+                             2: sequence of 16-bit integers
+                             3: multiple directory structure with multiple images per file and multiple files per directory
+                             4: spool to RAM disk
+                             5: spool to 16-bit fits file
+                             6: spool to andor sif format
+                             7: spool to 16-bit tiff file
+                             8: similar to method 3 but with data compression
+                str name: filename stem (can include path) such as 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
+                int framebuffersize: size of the internal circular buffer used as temporary storage (number of images). 
+                                     typical value = 10
+        """
+        active, method, framebuffersize = c_int(active), c_int(method), c_int(framebuffersize)
+        name = c_char_p(name.encode('utf-8'))
+        error_code = self.dll.SetSpool(active, method, name, framebuffersize)
+        return ERROR_DICT[error_code]
+    
+    
+            
+        
+
+
 
