@@ -36,7 +36,6 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
     def startTask(self):
         """ """
         self._load_user_parameters()
-        self.log.info('loaded user parameters')
 
         # load a specified list in the ROI module
         self.ref['roi'].load_roi_list(self.roi_path)
@@ -67,10 +66,9 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
         # switch the laser on
         self.ref['daq'].apply_voltage()
 
-        # save an image - here: replaced by take image. save image needs to be implemented
-        # remember also to specify the save path in startTask method
+        # take an image and save it -> it is needed to first call start_single_acquisition otherwise no data is available
         self.ref['camera'].start_single_acquistion() # mind the typo !!
-        self.log.info('Saved an image into folder {}'.format(self.save_path)) # ... lets say we did ..
+        self.ref['camera'].save_last_image(self.save_path, 'testimg', fileformat='tiff')
 
         # switch laser off
         self.ref['daq'].voltage_off()
@@ -116,6 +114,8 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
             self.lightsource = self.user_param_dict['lightsource']
             self.intensity = self.user_param_dict['intensity']
             self.filter_pos = self.user_param_dict['filter_pos']
+            
+            self.log.info('loaded user parameters')
 
         except:
             self.log.warning('Could not load user parameters for task {}'.format(self.name))

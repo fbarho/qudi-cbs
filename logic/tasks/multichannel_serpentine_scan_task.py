@@ -36,8 +36,7 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
     def startTask(self):
         """ """
         self._load_user_parameters()
-        self.log.info('loaded user parameters')
-
+        
         # load a specified list in the ROI module
         self.ref['roi'].load_roi_list(self.roi_path)
         self.log.info('loaded roi list')
@@ -59,12 +58,12 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
 
         # iterate over the imaging sequence specified by the user
         for key in self.imaging_sequence:
+
             # set the filter to the specified position
             self.ref['filter'].set_position(self.imaging_sequence[key]['filter_pos'])
 
             # indicate the intensity value to be applied to the lightsource
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[key]['lightsource'], self.imaging_sequence[key]['intensity'])
-
             # the following part has to be reworked when the synchronization between daq and camera is established
             # and when saving functionality of camera is available
 
@@ -72,9 +71,8 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
             self.ref['daq'].apply_voltage()
             # take an image
             self.ref['camera'].start_single_acquistion() # mind the typo !!
-            # time.sleep(0.1)
             # save an image # also think about the generic filename .. it must include the roi it belongs to, the channel, ..
-            self.log.info('Saved an image from channel {0} into folder {1}'.format(self.imaging_sequence[key]['lightsource'], self.save_path)) # ... lets say we did ..
+            self.ref['camera'].save_last_image(self.save_path, 'testimg', fileformat='tiff')
             # switch laser off
             self.ref['daq'].voltage_off()
 
@@ -111,10 +109,14 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
         try:
             with open(self.user_config_path, 'r') as file:
                 self.user_param_dict = json.load(file)
-
+            
             self.roi_path = self.user_param_dict['roilist_path']
             self.save_path = self.user_param_dict['save_path']
             self.imaging_sequence = self.user_param_dict['imaging_sequence'] # which itself is a dictionary
+            
+            self.log.info('loaded user parameters')
+            
+            
 
         except:
             self.log.warning('Could not load user parameters for task {}'.format(self.name))
