@@ -98,7 +98,7 @@ ERROR_DICT = {
     20053: "DRV_FLEXERROR",
     20054: "DRV_GPIBERROR", #
     20064: "DRV_DATATYPE", #
-    20065: "DRV_DRIVER_ERRORS"
+    20065: "DRV_DRIVER_ERRORS",
     20066: "DRV_P1INVALID",
     20067: "DRV_P2INVALID",
     20068: "DRV_P3INVALID",
@@ -730,10 +730,10 @@ class IxonUltra(Base, CameraInterface):
         return index.value, gain.value
 
         # test: new version of _get_temperature
-    def _get_temperature(self):
+    def get_temperature(self):
         temp = c_int()
         error_code = self.dll.GetTemperature(byref(temp))
-        pass_returns = ['DRV_TEMP_STABILIZED', 'DRV_TEMP_NOT_REACHED', 'DRV_TEMP_DRIFT']
+        pass_returns = ['DRV_TEMP_STABILIZED', 'DRV_TEMP_NOT_REACHED', 'DRV_TEMP_DRIFT', 'DRV_TEMP_NOT_STABILIZED']
         if ERROR_DICT[error_code] not in pass_returns:
             self.log.warning('Can not retrieve temperature: {}'.format(ERROR_DICT[error_code]))
         return temp.value

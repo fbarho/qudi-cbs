@@ -26,16 +26,16 @@ class NIDAQMSeries(Base, DaqInterface):
     
     Example config for copy-paste:
         nidaq_6259:
-            module.Class: 'national_instruments_m_series.NIDAQMSeries'
+            module.Class: 'daq.national_instruments_m_series.NIDAQMSeries'
             wavelengths:
                 - '405 nm'
-                - '561 nm'
                 - '488 nm'
+                - '561 nm'
                 - '641 nm'
             ao_channels:
                 - '/Dev1/AO0'
-                - '/Dev1/AO1'
                 - '/Dev1/AO2'
+                - '/Dev1/AO1'
                 - '/Dev1/AO3'
             ao_voltage_ranges: 
                 - [0, 10]
@@ -45,6 +45,7 @@ class NIDAQMSeries(Base, DaqInterface):
             read_write_timeout: 10
             
             # please indicate belonging elements in the same order in each category ao_channels, voltage_ranges, wavelengths
+            # order preferentially by increasing wavelength (this will result in an ordered gui)
     """
     
     # config

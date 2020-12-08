@@ -32,6 +32,30 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
     thorlabs_wheel:
         module.Class: 'wheels.thorlabs_motorized_filter_wheel.ThorlabsMotorizedFilterWheel'
         interface: 'COM6'
+        num_filters: 6
+        filterpositions:
+            - 1
+            - 2
+            - 3
+            - 4
+            - 5
+            - 6
+        filters:
+            - '700 +/- 37 nm'
+            - '600 +/- 25 nm'
+            - '488 - 491 / 561 nm'
+            - '525 +/- 22.5 nm'
+            - '617 +/- 36 nm'
+            - '460 +/- 25 nm'
+        allowed_lasers:
+            - [True, True, True, True]
+            - [True, True, True, True]
+            - [True, True, True, True]
+            - [True, True, True, True]
+            - [True, True, True, False]
+            - [True, False, True, True]
+
+            # please specify for all elements corresponding information in the same order
 
     Description of the hardware provided by Thorlabs:
         These stepper-motor-driven filter wheels are designed for use in a host of automated applications including
@@ -42,6 +66,11 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
     """
 
     interface = ConfigOption('interface', 'COM3', missing='error')
+    
+    _num_filters = ConfigOption('num_filters', 6)
+    _filternames = ConfigOption('filters', missing='error')
+    _positions = ConfigOption('filterpositions', missing='error')
+    _allowed_lasers = ConfigOption('allowed_lasers', missing='error')
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -85,8 +114,43 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
         """ Set the position to a given value
 
         The wheel will take the shorter path. If upward or downward are equivalent, the wheel take the upward path.
-        """
-        res = self._write("pos={}".format(int(value)))
+        
+        @ params: int: value: new position
 
-        # check in doc if there is an error code returned (res). this is needed for the new interface.
+        @ returns: int: error code: ok = 0
+        """
+        if value in range(self._num_filters + 1):
+            res = self._write("pos={}".format(int(value)))
+            err = 0
+        else:
+            self.log.error('Can not go to filter {0}. Filterwheel has only {1} positions'.format(value, self._num_filters))
+            err = -1
+        return err 
+            
+        
+    def get_filter_dict(self):
+        """ Retrieves a dictionary with the following entries:
+                    {'filter1': {'name': str(name), 'position': 1, 'lasers': bool list},
+                     'filter2': {'name': str(name), 'position': 2, 'lasers': bool list},
+                    ...
+                    }
+
+                    # to be modified: using position as label suffix can lead to problems when not all positions are used and gives some constraints
+
+        @returns: laser_dict
+        """
+        filter_dict = {}
+
+        for i, item in enumerate(
+                self._filternames):  # use any of the lists retrieved as config option, just to have an index variable
+            label = 'filter{}'.format(i + 1)  # create a label for the i's element in the list starting from 'filter1'
+
+            dic_entry = {'label': label,
+                         'name': self._filternames[i],
+                         'position': self._positions[i],
+                         'lasers': self._allowed_lasers[i]}
+
+            filter_dict[dic_entry['label']] = dic_entry
+
+        return filter_dict
 
