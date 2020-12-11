@@ -48,6 +48,9 @@
     </item>
     <item row="0" column="1">
      <widget class="QDoubleSpinBox" name="exposure_doubleSpinBox">
+      <property name="singleStep">
+       <double>0.100000000000000</double>
+      </property>
       <property name="value">
        <double>0.100000000000000</double>
       </property>
@@ -60,9 +63,6 @@
       </property>
      </widget>
     </item>
-    <item row="1" column="1">
-     <widget class="QDoubleSpinBox" name="gain_doubleSpinBox"/>
-    </item>
     <item row="2" column="0">
      <widget class="QLabel" name="label_3">
       <property name="text">
@@ -70,16 +70,13 @@
       </property>
      </widget>
     </item>
+    <item row="1" column="1">
+     <widget class="QSpinBox" name="gain_spinBox"/>
+    </item>
     <item row="2" column="1">
-     <widget class="QDoubleSpinBox" name="temp_doubleSpinBox">
+     <widget class="QSpinBox" name="temp_spinBox">
       <property name="enabled">
        <bool>true</bool>
-      </property>
-      <property name="minimum">
-       <double>-100.000000000000000</double>
-      </property>
-      <property name="maximum">
-       <double>30.000000000000000</double>
       </property>
      </widget>
     </item>

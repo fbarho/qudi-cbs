@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1122</width>
+    <width>1109</width>
     <height>800</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1122</width>
+     <width>1109</width>
      <height>22</height>
     </rect>
    </property>
@@ -63,8 +63,15 @@
    <addaction name="save_video_Action"/>
    <addaction name="take_image_Action"/>
    <addaction name="save_last_image_Action"/>
+   <addaction name="spooling_Action"/>
   </widget>
   <widget class="QDockWidget" name="laser_control_DockWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="minimumSize">
     <size>
      <width>350</width>
@@ -181,6 +188,12 @@
    <addaction name="laser_zero_Action"/>
   </widget>
   <widget class="QDockWidget" name="camera_DockWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="minimumSize">
     <size>
      <width>662</width>
@@ -200,18 +213,18 @@
     <widget class="ImageView" name="camera_ImageView">
      <property name="geometry">
       <rect>
-       <x>20</x>
+       <x>280</x>
        <y>40</y>
-       <width>601</width>
-       <height>400</height>
+       <width>441</width>
+       <height>491</height>
       </rect>
      </property>
     </widget>
     <widget class="QLabel" name="label_3">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>460</y>
+       <x>10</x>
+       <y>60</y>
        <width>141</width>
        <height>17</height>
       </rect>
@@ -223,15 +236,15 @@
     <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>490</y>
+       <x>10</x>
+       <y>80</y>
        <width>265</width>
        <height>89</height>
       </rect>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
       <item row="0" column="0">
-       <widget class="QLabel" name="label_2">
+       <widget class="QLabel" name="exposure_Label">
         <property name="text">
          <string>Exposure time (s)</string>
         </property>
@@ -274,51 +287,11 @@
       </item>
      </layout>
     </widget>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>630</y>
-       <width>254</width>
-       <height>58</height>
-      </rect>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_3">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_5">
-        <property name="text">
-         <string>Camera ready ?</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLineEdit" name="camera_status_LineEdit">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="shutter_Label">
-        <property name="text">
-         <string>Shutter state</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="shutter_status_LineEdit">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-    <widget class="QWidget" name="">
-     <property name="geometry">
-      <rect>
-       <x>360</x>
-       <y>470</y>
+       <x>10</x>
+       <y>200</y>
        <width>251</width>
        <height>104</height>
       </rect>
@@ -368,6 +341,12 @@
    </attribute>
   </widget>
   <widget class="QDockWidget" name="filterwheel_DockWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="minimumSize">
     <size>
      <width>300</width>
@@ -400,6 +379,85 @@
        <height>25</height>
       </rect>
      </property>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="camera_status_DockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>58</width>
+     <height>160</height>
+    </size>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_4">
+    <widget class="QPushButton" name="cam_status_pushButton">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>110</y>
+       <width>121</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="focusPolicy">
+      <enum>Qt::NoFocus</enum>
+     </property>
+     <property name="text">
+      <string>Status Check</string>
+     </property>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>70</x>
+       <y>10</y>
+       <width>254</width>
+       <height>89</height>
+      </rect>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Camera ready ?</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="camera_status_LineEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="shutter_Label">
+        <property name="text">
+         <string>Shutter state</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="shutter_status_LineEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="cooler_Label">
+        <property name="text">
+         <string>Cooler on ?</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="cooler_status_LineEdit"/>
+      </item>
+     </layout>
     </widget>
    </widget>
   </widget>
@@ -473,6 +531,11 @@
   <action name="save_video_Action">
    <property name="text">
     <string>Save video</string>
+   </property>
+  </action>
+  <action name="spooling_Action">
+   <property name="text">
+    <string>Save long video</string>
    </property>
   </action>
  </widget>

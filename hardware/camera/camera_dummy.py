@@ -49,10 +49,8 @@ class CameraDummy(Base, CameraInterface):
     _acquiring = False
     _exposure = ConfigOption('exposure', .1) 
     _gain = ConfigOption('gain', 1.)
-    _has_temp = True
-    temperature = 27.0
+    _has_temp = False
     _has_shutter = False
-    _shutter = 'open'
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -124,7 +122,7 @@ class CameraDummy(Base, CameraInterface):
         Each pixel might be a float, integer or sub pixels
         """
         #data = np.random.random(self._resolution)*self._exposure*self._gain
-        data = np.random.normal(size=self._resolution)*self._exposure*self._gain
+        data = np.random.normal(size=self._resolution)  # *self._exposure*self._gain
         return data
         #return data.transpose()
 
@@ -144,7 +142,6 @@ class CameraDummy(Base, CameraInterface):
         @return float exposure time
         """
         return self._exposure
-
 
     def set_gain(self, gain):
         """ Set the gain

@@ -75,8 +75,8 @@ class CameraLogic(GenericLogic):
     sigExposureChanged = QtCore.Signal(float)
     sigGainChanged = QtCore.Signal(float)
     sigTemperatureChanged = QtCore.Signal(float)
-    sigReadyStateChanged = QtCore.Signal(bool)
-    sigShutterStateChanged = QtCore.Signal(str)
+
+    sigUpdateCamStatus = QtCore.Signal(str, str, str)
 
     timer = None
 
@@ -88,19 +88,10 @@ class CameraLogic(GenericLogic):
 
     _exposure = 1.
     _gain = 1.
-    _temperature = 25 # use any initial value..
+    _temperature = 25 # use any value it will be overwritten during on activate if sensor temperature is available
+    _temperature_setpoint = _temperature
     _last_image = None
-
-
-
-    
-    
-    # set a custom color map for the ImageView
-    colors = [
-            (0, 0, 0),
-            (30, 70, 55),
-            (255, 255, 255)
-            ]
+    _kinetic_time = None
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -119,7 +110,7 @@ class CameraLogic(GenericLogic):
         self.saving = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
-            self.temperature_order = self._hardware.get_temperature() # to initialize
+            self.temperature_setpoint = self._hardware.get_temperature() # to initialize
         self.has_shutter = self._hardware.has_shutter()
 
         # update the private variables _exposure, _gain, _temperature and has_temp
@@ -132,9 +123,17 @@ class CameraLogic(GenericLogic):
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.loop)
 
+        self.spool_timer = QtCore.QTimer()
+        self.spool_timer.setSingleShot(True)
+        self.spool_timer.timeout.connect(self.stop_spooling)
+
     def on_deactivate(self):
         """ Perform required deactivation. """
         pass
+
+    def get_name(self):
+        name = self._hardware.get_name()
+        return name
 
     def set_exposure(self, time):
         """ Set exposure of hardware """
@@ -149,6 +148,14 @@ class CameraLogic(GenericLogic):
         self._exposure = self._hardware.get_exposure()
         self._fps = min(1 / self._exposure, self._max_fps)
         return self._exposure
+
+    # this function is specific to andor camera
+    def get_kinetic_time(self):
+        if self._hardware.get_name() == 'iXon Ultra 897':
+            self._kinetic_time = self._hardware.get_kinetic_time()
+            return self._kinetic_time
+        else:
+            pass
 
     def set_gain(self, gain):
         """ Set gain of hardware """
@@ -177,7 +184,7 @@ class CameraLogic(GenericLogic):
             # self.sigTemperatureChanged.emit(value)
 
             # handle the new temperature value over to the camera hardware module
-            self.temperature_order = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
+            self.temperature_setpoint = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
             self._hardware._set_temperature(temp)
 
             # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
@@ -201,8 +208,8 @@ class CameraLogic(GenericLogic):
         value = self.get_temperature()  # get the current temperature from the hardware
         self.sigTemperatureChanged.emit(value)
 
-        if value > self.temperature_order:
-            # enter in a loop until ordered temperature reached # to decide if comparison using > or better !=
+        if abs(value - self.temperature_setpoint) > 3:  # the tolerance of the camera itself is 3 degree
+            # enter in a loop until temperature setpoint reached
             worker = Worker()
             worker.signals.sigFinished.connect(self.update_temperature)
             self.threadpool.start(worker)
@@ -215,6 +222,8 @@ class CameraLogic(GenericLogic):
         self.sigUpdateDisplay.emit()
         self.sigAcquisitionFinished.emit()
 
+
+# these functions concern the live display # might be modified when the save video methods are validated
     def start_loop(self):
         """ Start the data recording loop.
         """
@@ -243,6 +252,8 @@ class CameraLogic(GenericLogic):
             self.timer.start(1000 * 1 / self._fps) 
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
+##########################################################3
+
 
     def get_last_image(self):
         """ Return last acquired image """
@@ -278,12 +289,30 @@ class CameraLogic(GenericLogic):
         # create the PIL.Image object and save it to tiff
         im = Image.fromarray(image_data)
         try:
-            # conversion to 16 bit tiff im.convert('I;16').save(p, format='tiff')
-            im.save(p, format='tiff')
+            # conversion to 16 bit tiff
+            im.convert('I;16').save(p, format='tiff')
+            # unconverted version (32 bit) im.save(p, format='tiff')
             self.log.info('Saved image to file {}'.format(p))
         except:
             self.log.warning('File not saved')
         return None
+
+
+    ####### methods concerning the saving of a video
+    # to define which acquisition mode to be used
+    def start_video(self):
+        pass
+
+    def stop_video(self):
+        pass
+
+    def save_video(self):
+        pass
+
+
+    ##################################################
+
+
 
 
 
@@ -307,4 +336,46 @@ class CameraLogic(GenericLogic):
             pass
         else:
             return self._hardware._shutter
+
+    def get_cooler_state(self):
+        """ retrieves the status of the cooler if there is one (only if has_temp is True)
+
+        @returns str: cooler on, cooler of """
+        if self.has_temp == False:
+            pass
+        else:
+            cooler_status = self._hardware.is_cooler_on()
+            if cooler_status == 0:
+                return 'Off'
+            if cooler_status.value == 1:
+                return 'On'
+
+    def update_camera_status(self):
+        ready_state = self.get_ready_state()
+        shutter_state = self.get_shutter_state()
+        cooler_state = self.get_cooler_state()
+        self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state)
+
+
+    def start_spooling(self, filenamestem, time_film):
+        self._enabled = True
+        self._hardware._set_spool(1, 7, filenamestem, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
+        err = self._hardware.start_live_acquisition()  # use this custon function instead of simply calling hardware._start_acquisition() to set also the related attributes. read_mode is set to run till abort therein
+        self.spool_timer.start(time_film)
+        if not err:
+            self.log.warning('Spooling did not start correctly')
+
+
+    def stop_spooling(self):
+        err = self._hardware.stop_aquisition()
+        if not err:
+            self.log.warning('Spooling did not terminate correctly')
+        self._enabled = False
+        # do we need this : self._hardware._set_spool(0) all other params
+        self.sigSpoolingFinished.emit()  # to be connected if needed ..
+
+
+
+
+
 

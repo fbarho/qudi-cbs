@@ -23,12 +23,9 @@ import pyqtgraph as pg
 from gui.guibase import GUIBase
 from core.connector import Connector
 
-import numpy as np
-
 
 class CameraSettingDialog(QtWidgets.QDialog):
     """ Create the SettingsDialog window, based on the corresponding *.ui file."""
-
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
@@ -38,10 +35,7 @@ class CameraSettingDialog(QtWidgets.QDialog):
         super(CameraSettingDialog, self).__init__()
         uic.loadUi(ui_file, self)
         
-        
 
-        
-        
 class BasicWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
 
@@ -56,10 +50,8 @@ class BasicWindow(QtWidgets.QMainWindow):
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
-        
-        
-        
-        
+
+
 class BasicGUI(GUIBase):
     """ Main window containing the basic tools for the fluorescence microscopy setup
     """
@@ -68,8 +60,7 @@ class BasicGUI(GUIBase):
     camera_logic = Connector(interface='CameraLogic')
     daq_ao_logic = Connector(interface='DAQaoLogic')
     filterwheel_logic = Connector(interface='FilterwheelLogic')
-    
-      
+
     # Signals
     # signals to camera logic
     sigVideoStart = QtCore.Signal()
@@ -79,18 +70,14 @@ class BasicGUI(GUIBase):
     sigVideoStartSaving = QtCore.Signal()
     sigVideoStopSaving = QtCore.Signal()
 
-
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
     sigLaserOff = QtCore.Signal()
     
     # signals to filterwheel logic
     sigFilterChanged = QtCore.Signal(int)
-    
-
 
     _image = []
-
     _camera_logic = None
     _daq_ao_logic = None
     _filterwheel_logic = None
@@ -111,8 +98,8 @@ class BasicGUI(GUIBase):
 
         # Windows
         self._mw = BasicWindow()
-        self._mw.centralwidget.hide() # everything is in dockwidgets
-        #self._mw.setDockNestingEnabled(True)
+        self._mw.centralwidget.hide()  # everything is in dockwidgets
+        # self._mw.setDockNestingEnabled(True)
         self.initCameraSettingsUI()
 
         # Menu bar actions
@@ -121,36 +108,26 @@ class BasicGUI(GUIBase):
         
         # camera dockwidget
         # initialize the camera setting indicators on the GUI
-        self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
+        # use the kinetic time for andor camera, exposure time for all others
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+            self._mw.exposure_Label.setText('Kinetic time (s)')
+        else:
+            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
+            self._mw.exposure_Label.setText('Exposure time (s)')
+
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
-        if self._camera_logic.has_temp == False:
+        if not self._camera_logic.has_temp:
             self._mw.temperature_LineEdit.setText('')
             self._mw.temperature_LineEdit.setEnabled(False)
             self._mw.temperature_Label.setEnabled(False)
         else:
             self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
 
-        self._mw.camera_status_LineEdit.setText(self._camera_logic.get_ready_state())
-        if self._camera_logic.has_shutter == False:
-            self._mw.shutter_status_LineEdit.setText('')
-            self._mw.shutter_status_LineEdit.setEnabled(False)
-            self._mw.shutter_Label.setEnabled(False)
-        else:
-            self._mw.shutter_status_LineEdit.setText(self._camera_logic.get_shutter_state())
-
         # update the camera setting indicators when value changed (via settings window or iPython console for example)
         self._camera_logic.sigExposureChanged.connect(self.update_exposure)
-        #self._camera_logic.sigGainChanged.connect(self.update_gain)
+        self._camera_logic.sigGainChanged.connect(self.update_gain)
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
-
-        self._camera_logic.sigReadyStateChanged.connect(self.update_ready_state) ## it needs to be defined at which step in the logic the signal shall be emitted or watch in permanence
-        self._camera_logic.sigShutterStateChanged.connect(self.update_shutter_state)  ## define where signal should be emitted
-
-
-
-
-
-
 
         # configure the toolbar action buttons and connect signals
         self._mw.start_video_Action.setEnabled(True)
@@ -165,10 +142,16 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)
         self._camera_logic.sigVideoFinished.connect(self.enable_take_image_action)
         
-        self._mw.save_last_image_Action.triggered.connect(self.save_last_image)
-        #self._mw.save_video_Action.triggered.connect(self.save_video)
+        self._mw.save_last_image_Action.triggered.connect(self.save_last_image_clicked)
+        # self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
 
-        #starting the physical measurement
+        # spooling action only available for andor iXon Ultra camera
+        if not self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._mw.spooling_Action.setEnabled(False)
+        self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
+
+
+        # starting the physical measurement
         self.sigVideoStart.connect(self._camera_logic.start_loop)
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigImageStart.connect(self._camera_logic.start_single_acquistion)
@@ -181,17 +164,29 @@ class BasicGUI(GUIBase):
         self._mw.camera_ImageView.ui.roiBtn.hide()
         self._mw.camera_ImageView.ui.menuBtn.hide()
         self._mw.camera_ImageView.ui.histogram.hide()
-        
-        #cmap = pg.ColorMap(pos = np.linspace(0.0, 1.0, 3), color = self._camera_logic.colors)
-        #self._mw.camera_ImageView.setColorMap(cmap)
-        
-             
-        
-        
-        
-        
-        
-        
+
+        # camera status dockwidget
+        # initialize the camera status indicators on the GUI
+        self._mw.camera_status_LineEdit.setText(self._camera_logic.get_ready_state())
+        if not self._camera_logic.has_shutter:
+            self._mw.shutter_status_LineEdit.setText('')
+            self._mw.shutter_status_LineEdit.setEnabled(False)
+            self._mw.shutter_Label.setEnabled(False)
+        else:
+            self._mw.shutter_status_LineEdit.setText(self._camera_logic.get_shutter_state())
+        if not self._camera_logic.has_temp:
+            self._mw.cooler_status_LineEdit.setText('')
+            self._mw.cooler_status_LineEdit.setEnabled(False)
+            self._mw.cooler_Label.setEnabled(False)
+        else:
+            self._mw.cooler_status_LineEdit.setText(self._camera_logic.get_cooler_state())
+
+        # update the indicators when pushbutton is clicked
+        self._mw.cam_status_pushButton.clicked.connect(self._camera_logic.update_camera_status)
+
+        # connect signal from logic
+        self._camera_logic.sigUpdateCamStatus.connect(self.update_camera_status_display)
+
         # laser dockwidget
         # set the labels of the laser control spinboxes according to specified wavelengths from config
         self._mw.laser1_Label.setText(self._daq_ao_logic._laser_dict['laser1']['wavelength'])
@@ -210,10 +205,10 @@ class BasicGUI(GUIBase):
         # starting the analog output - interact with logic module
         self.sigLaserOn.connect(self._daq_ao_logic.apply_voltage)
         self.sigLaserOff.connect(self._daq_ao_logic.voltage_off)
-        
 
         # actions on changing laser spinbox values
-        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox, self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
+        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox,
+                             self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
 
         # actualize the laser intensity dictionary
         self._mw.laser1_control_SpinBox.valueChanged.connect(lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser1']['label'], self._mw.laser1_control_SpinBox.value()))
@@ -226,7 +221,6 @@ class BasicGUI(GUIBase):
 
         # update GUI when intensity is changed programatically
         self._daq_ao_logic.sigIntensityChanged.connect(self.update_laser_spinbox)
-
 
         # filter dockwidget
         # initialize the combobox displaying the available filters
@@ -241,12 +235,10 @@ class BasicGUI(GUIBase):
         # control signal from logic to update GUI when filter was manually changed
         self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
 
-
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
         """
         self._mw.close()
-
 
     def show(self):
         """Make window visible and put it above all other windows.
@@ -254,8 +246,7 @@ class BasicGUI(GUIBase):
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
-        
-        
+
     # Initialisation of the camera settings windows in the options menu    
     def initCameraSettingsUI(self):
         """ Definition, configuration and initialisation of the camera settings GUI.
@@ -264,49 +255,47 @@ class BasicGUI(GUIBase):
         # Create the Camera settings window
         self._cam_sd = CameraSettingDialog()
         # Connect the action of the settings window with the code:
-        self._cam_sd.accepted.connect(self.cam_update_settings) # ok button
-        self._cam_sd.rejected.connect(self.cam_keep_former_settings) # cancel buttons
-        #self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
+        self._cam_sd.accepted.connect(self.cam_update_settings)  # ok button
+        self._cam_sd.rejected.connect(self.cam_keep_former_settings)  # cancel buttons
+        # self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
         
-        if self._camera_logic.has_temp == False:
-            self._cam_sd.temp_doubleSpinBox.setEnabled(False)
+        if not self._camera_logic.has_temp:
+            self._cam_sd.temp_spinBox.setEnabled(False)
             self._cam_sd.label_3.setEnabled(False)
 
         # write the configuration to the settings window of the GUI.
         self.cam_keep_former_settings()
-        
-        
+
     # slots of the camerasettingswindow
     def cam_update_settings(self):
         """ Write new settings from the gui to the file. 
         """
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
-        #self._camera_logic.set_gain(self._cam_sd.gain_doubleSpinBox.value())
-        self._camera_logic.set_temperature(int(self._cam_sd.temp_doubleSpinBox.value()))
-        # modify camera spinbox to be integer and not float !!! to do .. 
-     
+        self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
+        self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
         """
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
-        #self._cam_sd.gain_doubleSpinBox.setValue(self._camera_logic._gain)
-        self._cam_sd.temp_doubleSpinBox.setValue(self._camera_logic._temperature)
-        
+        self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
+        self._cam_sd.temp_spinBox.setValue(self._camera_logic._temperature_setpoint)
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
         """ Opens the settings menu. 
         """
         self._cam_sd.exec_()
-        
-
 
     # definition of the slots
     # camera dockwidget
     @QtCore.Slot(float)
     def update_exposure(self, exposure):
-        self._mw.exposure_LineEdit.setText(str(exposure))
+        # indicate the kinetic time instead of the exposure time for andor ixon camera
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+        else:
+            self._mw.exposure_LineEdit.setText(str(exposure))
 
     @QtCore.Slot(float)
     def update_gain(self, gain):
@@ -315,17 +304,6 @@ class BasicGUI(GUIBase):
     @QtCore.Slot(float)
     def update_temperature(self, temp):
         self._mw.temperature_LineEdit.setText(str(temp))
-
-    @QtCore.Slot(bool)
-    def update_ready_state(self, ready_state):
-        """ """
-        self._mw.camera_status_LineEdit.setText(str(ready_state))
-
-    @QtCore.Slot(str)
-    def update_shutter_state(self, shutter_state):
-        self._mw.shutter_status_LineEdit.setText(shutter_state)
-
-
 
     def take_image_clicked(self):
         """ Callback from take_image_Action. Emits a signal that is connected to the logic module 
@@ -345,7 +323,6 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
-        
 
     def start_video_clicked(self):
         """ Callback from start_video_Action. 
@@ -358,13 +335,11 @@ class BasicGUI(GUIBase):
         else:
             self._mw.start_video_Action.setText('Stop Video')
             self.sigVideoStart.emit()
-            
 
     def enable_take_image_action(self):
         """ Callback from SigVideoFinished. Resets the state of the take_image_Action tool button
         """
         self._mw.take_image_Action.setEnabled(True)
-        
 
     def update_data(self):
         """ Callback from sigUpdateDisplay in the camera_logic module. 
@@ -375,7 +350,7 @@ class BasicGUI(GUIBase):
         self._mw.camera_ImageView.ui.histogram.show()
 
     @QtCore.Slot()
-    def save_last_image(self):
+    def save_last_image_clicked(self):
         """ saves the last image, using user specified filepath and filename (with a generated suffix)
         """
         filename = self._mw.filename_LineEdit.text()
@@ -383,8 +358,9 @@ class BasicGUI(GUIBase):
         self._camera_logic.save_last_image(path, filename)
 
 
+
     # @QtCore.Slot()
-    # def save_video(self):
+    # def save_video_clicked(self):
     #     self._mw.take_image_Action.setDisabled(True)
     #     self._mw.save_last_image_Action.setDisabled(True)
     #     if self._camera_logic.saving:
@@ -394,7 +370,21 @@ class BasicGUI(GUIBase):
     #         self._mw.save_video_Action.setText('Stop Saving')
     #         self.sigVideoStartSaving.emit()
 
-    
+
+    def set_spooling_clicked(self):
+        # add here disableing of the other tool buttons # or use sleep in the start spooling method then everything should be unavailable
+        # use a dialog window to get filename and time of film or number of images ?
+        filenamestem = '/home/barho/testfolder/testimage' # set this programatically # 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
+        time_film = 5  # in seconds
+        self._camera_logic.start_spooling(filenamestem, time_film)
+
+    # camera status dockwidget
+    @QtCore.Slot(str, str, str)
+    def update_camera_status_display(self, ready_state, shutter_state='', cooler_state=''):
+        self._mw.camera_status_LineEdit.setText(ready_state)
+        self._mw.shutter_status_LineEdit.setText(shutter_state)
+        self._mw.cooler_status_LineEdit.setText(cooler_state)
+
     # laser dockwidget
     def laser_on_clicked(self):
         """
@@ -415,7 +405,6 @@ class BasicGUI(GUIBase):
             # do not change filters while laser is on
             self._mw.filter_ComboBox.setEnabled(False)
 
-        
     def laser_set_to_zero(self):
         """
         """
@@ -427,8 +416,7 @@ class BasicGUI(GUIBase):
         for index, item in enumerate(self.spinbox_list):
             label = 'laser'+str(index + 1) # create the label to address the corresponding laser
             item.setValue(self._daq_ao_logic._intensity_dict[label])
-            
-            
+
     # filter dockwidget
     def init_filter_selection(self):
         """ Initializes the filter selection combobox with the available filters"""
@@ -439,14 +427,12 @@ class BasicGUI(GUIBase):
 
         # set the active filter position in the list
         current_filter_position = self._filterwheel_logic.get_position()  # returns an int: position
-        index = current_filter_position - 1 # zero indexing
+        index = current_filter_position - 1  # zero indexing
         self._mw.filter_ComboBox.setCurrentIndex(index)
 
         # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
-        key = 'filter'+str(current_filter_position) # create the key which allows to access the corresponding entry in the filter_dict
-        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers']) # get the corresponding bool list from the logic module
-
-
+        key = 'filter'+str(current_filter_position)  # create the key which allows to access the corresponding entry in the filter_dict
+        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers'])  # get the corresponding bool list from the logic module
 
     def change_filter(self):
         """ Slot connected to the filter selection combobox. It sends the (int) number of the selected filter to the filterwheel logic.
@@ -457,24 +443,22 @@ class BasicGUI(GUIBase):
         """
         # get current index of the filter selection combobox
         index = self._mw.filter_ComboBox.currentIndex()
-        filter_pos = index + 1 # zero indexing
+        filter_pos = index + 1  # zero indexing
         self.sigFilterChanged.emit(filter_pos)
         # to keep in mind: is this the good way to address the filters in case they are not given in an ordered way (filter1 on position 1 etc?) or is this always
         # covered by using the position as suffix of the label anyway ? but when position starts at > 1 if filterwheel is not completely filled this will not work ..
 
         # disable the laser control spinboxes of lasers that are not allowed to be used with the selected filter
-        key = 'filter'+str(filter_pos) # create the key which allows to access the corresponding entry in the filter_dict
-        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers']) # get the corresponding bool list from the logic module
-    
+        key = 'filter'+str(filter_pos)  # create the key which allows to access the corresponding entry in the filter_dict
+        self._disable_laser_control(self._filterwheel_logic.filter_dict[key]['lasers'])  # get the corresponding bool list from the logic module
 
     def update_filter_display(self, position):
         """ refresh the checked state of the radio buttons to ensure that after manually modifying the filter (for example using the iPython console)
         the GUI displays the correct filter
         """
-        index = position - 1 # zero indexing
+        index = position - 1  # zero indexing
         self._mw.filter_ComboBox.setCurrentIndex(index)
-        
-    
+
     def _disable_laser_control(self, bool_list):        
         """ disables the control spinboxes of the lasers which are not allowed for a given filter
         
@@ -486,22 +470,12 @@ class BasicGUI(GUIBase):
         self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
         self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
+
+
+
             
-   
-    
-        
-        
-        
-
-
-        
-        
-
-
-
-
-## for testing      
-#if __name__ == '__main__':
+# for testing
+# if __name__ == '__main__':
 #    app = QtWidgets.QApplication(sys.argv)
 #    # it's required to save a reference to MainWindow.
 #    # if it goes out of scope, it will be destroyed.
