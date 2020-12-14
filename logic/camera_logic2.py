@@ -118,14 +118,9 @@ class CameraLogic(GenericLogic):
         self.get_gain()
         self.get_temperature()
 
-
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.loop)
-
-        self.spool_timer = QtCore.QTimer()
-        self.spool_timer.setSingleShot(True)
-        self.spool_timer.timeout.connect(self.stop_spooling)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -298,22 +293,6 @@ class CameraLogic(GenericLogic):
         return None
 
 
-    ####### methods concerning the saving of a video
-    # to define which acquisition mode to be used
-    def start_video(self):
-        pass
-
-    def stop_video(self):
-        pass
-
-    def save_video(self):
-        pass
-
-
-    ##################################################
-
-
-
 
 
     def get_ready_state(self):
@@ -347,7 +326,7 @@ class CameraLogic(GenericLogic):
             cooler_status = self._hardware.is_cooler_on()
             if cooler_status == 0:
                 return 'Off'
-            if cooler_status.value == 1:
+            if cooler_status == 1:
                 return 'On'
 
     def update_camera_status(self):
@@ -356,25 +335,40 @@ class CameraLogic(GenericLogic):
         cooler_state = self.get_cooler_state()
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state)
 
-
-    def start_spooling(self, filenamestem, time_film):
-        self._enabled = True
+      
+    def do_spooling(self, filenamestem, n_frames):
+        self.enabled = True # this attribute is used to disable all the other controls which should not be used in parallel. define if instead here saving should be used 
         self._hardware._set_spool(1, 7, filenamestem, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
-        err = self._hardware.start_live_acquisition()  # use this custon function instead of simply calling hardware._start_acquisition() to set also the related attributes. read_mode is set to run till abort therein
-        self.spool_timer.start(time_film)
+        err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
-            self.log.warning('Spooling did not start correctly')
+            self.log.warning('Spooling did not start')
+            
 
-
-    def stop_spooling(self):
-        err = self._hardware.stop_aquisition()
+    def save_video(self, filenamestem, n_frames):
+        self.enabled = True # see comment above in do_spooling
+        # self._hardware._set_spool(0)  # as security deactivate spooling. 
+        err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
-            self.log.warning('Spooling did not terminate correctly')
-        self._enabled = False
-        # do we need this : self._hardware._set_spool(0) all other params
-        self.sigSpoolingFinished.emit()  # to be connected if needed ..
+            self.log.warning('Video acquisition did not start')
+        self._hardware.wait_until_finished()
+        image_data = self._hardware.get_acquired_data()   # to do: check if correct dimension - make sure to set _scans
+        # add here the filename handling; path etc
 
 
+        # create the PIL.Image object and save it to tiff
+        imlist = []
+        for i in range(n_frames):
+            im = Image.fromarray(image_data[i])
+            imlist.append(im)
+        try:
+            # conversion to 16 bit tiff
+            # im.convert('I;16').save(filenamestem, format='tiff')
+            # unconverted version (32 bit) 
+            imlist[0].save(filenamestem, format='tiff', save_all=True, append_images=imlist[1:])
+            self.log.info('Saved image to file {}'.format(filenamestem))
+        except:
+            self.log.warning('File not saved')
+        return None
 
 
 

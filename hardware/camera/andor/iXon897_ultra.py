@@ -168,12 +168,6 @@ class IxonUltra(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
          """
-        # self.cam.SetAcquisitionMode(1)  # single
-        # self.cam.SetTriggerMode(0)  # internal
-        # self.cam.SetCoolerMode(0)  # Returns to ambient temperature on ShutDown
-        # self.set_cooler_on_state(self._cooler_on)
-        # self.set_exposure(self._exposure)
-        # self.set_setpoint_temperature(self._temperature)
         self.dll = cdll.LoadLibrary(self._dll_location)
         self.dll.Initialize()
         nx_px, ny_px = c_int(), c_int()
@@ -185,6 +179,8 @@ class IxonUltra(Base, CameraInterface):
         self._set_acquisition_mode(self._acquisition_mode)
         # start cooler if specified in config (otherwise it must be done via the console)
         self._set_cooler(self._cooler_on)
+        # set the preamp gain (it is not accessible by the user interface)
+        # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -216,8 +212,10 @@ class IxonUltra(Base, CameraInterface):
         """
         return True
 
+# this function should probably only be used for the live display.
+# define new ones and put them on the interface for saving a video
     def start_live_acquisition(self):
-        """ Start a continuous acquisition
+        """ Start a continuous acquisition 
 
         @return bool: Success ?
         """
@@ -277,6 +275,37 @@ class IxonUltra(Base, CameraInterface):
 
             self._acquiring = False
             return True
+        
+    # new function used instead of start_live_acquisition for saving a video     
+    def start_movie_acquisition(self, n_frames):  
+        """ set the conditions to save a movie and start the acquisition
+        
+        use kinetics acquisition mode
+
+        @return bool: Success ?
+        """
+        # handle the variables indicating the status
+        if self.support_live_acquisition():
+            self._live = True   # allow the user to select if image should be shown or not; set self._live accordingly 
+            self._acquiring = True
+
+        # make sure shutter is opened
+        if self._shutter == 'closed':
+            msg = self._set_shutter(0, 1, 0.1, 0.1)
+            if msg == 'DRV_SUCCESS':
+                self._shutter = 'open'
+            else: 
+                self.log.error('shutter did non open. {}'.format(msg))
+
+        self._set_acquisition_mode('KINETICS')
+        self.set_exposure(self._exposure)  # make sure this is taken into account
+        self._set_number_kinetics(n_frames)
+        self._scans = n_frames  # set this attribute to get the right dimension out of get_acquired_data
+        msg = self._start_acquisition()
+        if msg != "DRV_SUCCESS":
+            return False
+        
+        return True
 
 # to do: check if the following function is adapted
     def get_acquired_data(self):
@@ -323,8 +352,11 @@ class IxonUltra(Base, CameraInterface):
             for i in range(len(cimage)):
                 # could be problematic for 'FVB' or 'SINGLE_TRACK' readmode
                 image_array[i] = cimage[i]
-
-        image_array = np.reshape(image_array, (self._width, self._height))
+                
+        if self._scans > 1:  # not sure if it matters if we add artifically a 3rd dim, so use if else for the moment
+            image_array = np.reshape(image_array, (self._scans, self._width, self._height))
+        else: 
+            image_array = np.reshape(image_array, (self._width, self._height))
 
         self._cur_image = image_array
         return image_array
@@ -351,7 +383,8 @@ class IxonUltra(Base, CameraInterface):
         self._get_acquisition_timings()
         return self._exposure
 
-    # not on interface, this is quite specific for andor camera
+    # not on interface, this is quite specific for andor camera 
+    # listed here because it is called from camera logic module when camera = camera_andor
     def get_kinetic_time(self):
         """ Get the kinetic time in seconds
 
@@ -413,17 +446,18 @@ class IxonUltra(Base, CameraInterface):
 #        _, self._gain = self._get_preamp_gain()
 #        return self._gain
 
-    def get_ready_state(self):
+    def get_ready_state(self): # back to the old version .. 
         """ Is the camera ready for an acquisition ?
 
         @return bool: ready ?
         """
         status = c_int()
-        self._get_status()
+        self._get_status(status)
         if ERROR_DICT[status.value] == 'DRV_IDLE':
             return True
         else:
             return False
+        
 
     def has_temp(self):
         """ Does the camera support setting of the temperature?
@@ -475,6 +509,19 @@ class IxonUltra(Base, CameraInterface):
         @return bool: has shutter ?
         """
         return True
+    
+    def wait_until_finished(self):
+        """ waits until the end of an acquisition. 
+        
+        to be used with kinetic acquisition mode 
+        """
+        status = c_int()
+        self._get_status(status)
+        while ERROR_DICT[status.value] != 'DRV_IDLE':
+            status = c_int()
+            self._get_status(status)
+        return 
+        
 
 # not relevant here
 # soon to be interface functions for using
@@ -574,7 +621,7 @@ class IxonUltra(Base, CameraInterface):
         error_code = self.dll.SetExposureTime(c_float(time))
         return ERROR_DICT[error_code]
 
-# there might be an error in this function .. 
+       
     def _set_read_mode(self, mode):
         """
         @param string mode: string corresponding to certain ReadMode
@@ -590,17 +637,19 @@ class IxonUltra(Base, CameraInterface):
                 msg = self._set_image(1, 1, 1, self._width, 1, self._height)
                 if msg != 'DRV_SUCCESS':
                     self.log.warning('{0}'.format(ERROR_DICT[error_code]))
+            # put the condition on error_code here 
+            if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+                self.log.warning('Readmode was not set: {0}'.format(ERROR_DICT[error_code]))
+                check_val = -1
+            else:
+                self._read_mode = mode        
         else:
             self.log.warning('{} readmode is not supported'.format(mode))
             check_val = -1
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
-            self.log.warning('Readmode was not set: {0}'.format(ERROR_DICT[error_code]))
-            check_val = -1
-        else:
-            self._read_mode = mode
 
         return check_val
-
+ 
+       
     def _set_trigger_mode(self, mode):
         """
         @param string mode: string corresponding to certain TriggerMode
@@ -611,14 +660,15 @@ class IxonUltra(Base, CameraInterface):
             n_mode = c_int(getattr(TriggerMode, mode).value)
             self.log.debug('Input to function: {0}'.format(n_mode))
             error_code = self.dll.SetTriggerMode(n_mode)
+        
+            if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+                check_val = -1
+            else:
+                self._trigger_mode = mode
         else:
             self.log.warning('{0} mode is not supported'.format(mode))
             check_val = -1
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
-            check_val = -1
-        else:
-            self._trigger_mode = mode
-
+    
         return check_val
 
     # set a subimage (ROI on camera sensor)
@@ -682,13 +732,13 @@ class IxonUltra(Base, CameraInterface):
         if hasattr(AcquisitionMode, mode):
             n_mode = c_int(getattr(AcquisitionMode, mode).value)
             error_code = self.dll.SetAcquisitionMode(n_mode)
+            if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+                check_val = -1
+            else:
+                self._acquisition_mode = mode 
         else:
             self.log.warning('{0} mode is not supported'.format(mode))
             check_val = -1
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
-            check_val = -1
-        else:
-            self._acquisition_mode = mode
 
         return check_val
 
@@ -717,8 +767,7 @@ class IxonUltra(Base, CameraInterface):
             return -1
 
 # getter functions
-    def _get_status(self):
-        status = c_int()
+    def _get_status(self, status):
         error_code = self.dll.GetStatus(byref(status))
         return ERROR_DICT[error_code]
 
@@ -726,7 +775,7 @@ class IxonUltra(Base, CameraInterface):
         error_code = self.dll.GetDetector(byref(nx_px), byref(ny_px))
         return ERROR_DICT[error_code]
 
-    def _get_camera_serialnumber(self):
+    def _get_camera_serialnumber(self):  # maybe reset also the old version here or add a variable to access the actual value not the errorcode
         """
         Gives serial number
         Parameters
@@ -937,5 +986,14 @@ class IxonUltra(Base, CameraInterface):
         name = c_char_p(name.encode('utf-8'))
         error_code = self.dll.SetSpool(active, method, name, framebuffersize)
         return ERROR_DICT[error_code]
-# to do: test module again with hardware, especially the set readmode acquisition mode trigger mode functions
+# to do: 
 # data retrieval methods
+        
+    def _set_number_kinetics(self, number):
+        """ set the number of scans for a kinetic series acquisition 
+        
+        @params: int number: number of scans
+        """
+        number = c_int(number)
+        error_code = self.dll.SetNumberKinetics(number)
+        return ERROR_DICT[error_code]
