@@ -46,7 +46,7 @@ class DAQaoLogic(GenericLogic):
         """ Initialisation performed during activation of the module.
         """
         self._daq = self.daq()
-        
+
         self.enabled = False # attribute to handle the on-off switching of the laser-on button
 
         self._laser_dict = self.get_laser_dict()
@@ -68,7 +68,7 @@ class DAQaoLogic(GenericLogic):
     def init_intensity_dict(self, value=0):
         """ creates a dictionary with the same keys as the laser dict and set an initial value for the output voltage
 
-        example: {'laser1': 30, 'laser2': 50, 'laser3': 10, 'laser4': 0}
+        example: {'laser1': 0, 'laser2': 0, 'laser3': 0, 'laser4': 0}
 
         returns: dict: intensity_dict
         """
@@ -105,11 +105,6 @@ class DAQaoLogic(GenericLogic):
     @QtCore.Slot(str, int) # should the decorator be removed when this function is called in a task ???
     def update_intensity_dict(self, key, value):
         self._intensity_dict[key] = value
-
-
-
-
- 
 
 
 
