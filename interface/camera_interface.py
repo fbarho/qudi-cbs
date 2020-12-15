@@ -131,10 +131,14 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @return bool: ready ?
         """
         pass
-    
+
+    #### new interface functions not in the original qudi version
     @abstract_interface_method
     def has_temp(self):
         """ Does the camera support setting of the temperature?
+
+        if this function returns true, make sure that get_temperature, set_temperature, is_cooler_on and _set_cooler are implemented
+        the attribute _default_temperature should be also be set in the hardware module
         
         @return bool: has temperature ?
         """
@@ -142,8 +146,37 @@ class CameraInterface(metaclass=InterfaceMetaclass):
 
     @abstract_interface_method
     def has_shutter(self):
-        """ Is the camera equipped with a shutter?
+        """ Is the camera equipped with a mechanical shutter?
+
+        if this function returns true, the attribute _shutter should also be defined in the hardware module
 
         @return bool: has shutter ?
+        """
+        pass
+
+
+    @abstract_interface_method
+    def start_movie_acquisition(self, n_frames):
+        """ set the conditions to save a movie and start the acquisition
+
+        @param int n_frames: number of frames
+
+        @return bool: Success ?
+        """
+        pass
+
+    @abstract_interface_method
+    def finish_movie_acquisition(self):
+        """ resets the conditions used to save a movie to default
+
+        @return bool: Success ?
+        """
+        pass
+
+    @abstract_interface_method
+    def wait_until_finished(self):
+        """ waits until an acquisition is finished
+
+        @return None
         """
         pass

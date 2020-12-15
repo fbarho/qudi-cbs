@@ -67,8 +67,8 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoStartSaving = QtCore.Signal()
-    sigVideoStopSaving = QtCore.Signal()
+    sigVideoSavingStart = QtCore.Signal(str, int)
+    sigSpoolingStart = QtCore.Signal(str, int)
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -130,25 +130,39 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
 
         # configure the toolbar action buttons and connect signals
-        self._mw.start_video_Action.setEnabled(True)
-        self._mw.start_video_Action.setChecked(self._camera_logic.enabled)
-        self._mw.start_video_Action.triggered.connect(self.start_video_clicked)
-
         self._mw.take_image_Action.setEnabled(True)
         self._mw.take_image_Action.setChecked(self._camera_logic.enabled)
         self._mw.take_image_Action.triggered.connect(self.take_image_clicked)
+
+        self._mw.start_video_Action.setEnabled(True)
+        self._mw.start_video_Action.setChecked(self._camera_logic.enabled)
+        self._mw.start_video_Action.triggered.connect(self.start_video_clicked)
 
         self._camera_logic.sigUpdateDisplay.connect(self.update_data)
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)
         self._camera_logic.sigVideoFinished.connect(self.enable_take_image_action)
         
         self._mw.save_last_image_Action.triggered.connect(self.save_last_image_clicked)
-        # self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
+
+        self._mw.save_video_Action.setEnabled(True)
+        self._mw.save_video_Action.setChecked(self._camera_logic.enabled)  # maybe replace by saving attribute instead
+        self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
+
+        self.sigVideoSavingStart.connect(self._camera_logic.save_video)
+
+        self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
 
         # spooling action only available for andor iXon Ultra camera
         if not self._camera_logic.get_name() == 'iXon Ultra 897':
             self._mw.spooling_Action.setEnabled(False)
+        else:
+            self._mw.spooling_Action.setEnabled(True)
+            self._mw.spooling_Action.setChecked(self._camera_logic.enabled)
         self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
+
+        self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
+
+        self._camera_logic.sigSpoolingFinished.connect(self.spooling_finished)
 
 
         # starting the physical measurement
@@ -268,7 +282,7 @@ class BasicGUI(GUIBase):
 
     # slots of the camerasettingswindow
     def cam_update_settings(self):
-        """ Write new settings from the gui to the file. 
+        """ Write new settings from the gui to the logic module
         """
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
@@ -279,7 +293,7 @@ class BasicGUI(GUIBase):
         """
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
-        self._cam_sd.temp_spinBox.setValue(self._camera_logic._temperature_setpoint)
+        self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
@@ -314,6 +328,7 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
+        self._mw.spooling_Action.setDisabled(True)
 
     def acquisition_finished(self):
         """ Callback from sigAcquisitionFinished. Resets all tool buttons to callable state
@@ -323,12 +338,17 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
+        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
+            self._mw.spooling_Action.setDisabled(False)
 
     def start_video_clicked(self):
         """ Callback from start_video_Action. 
         Handling the Start button to stop and restart the counter.
         """
         self._mw.take_image_Action.setDisabled(True)
+        self._mw.save_last_image_Action.setDisabled(True)
+        self._mw.save_video_Action.setDisabled(True)
+        self._mw.spooling_Action.setDisabled(True)
         if self._camera_logic.enabled:
             self._mw.start_video_Action.setText('Start Video')
             self.sigVideoStop.emit()
@@ -338,8 +358,14 @@ class BasicGUI(GUIBase):
 
     def enable_take_image_action(self):
         """ Callback from SigVideoFinished. Resets the state of the take_image_Action tool button
+
+        and of all other camera toolbuttons which were added afterwards
         """
         self._mw.take_image_Action.setEnabled(True)
+        self._mw.save_last_image_Action.setEnabled(True)
+        self._mw.save_video_Action.setEnabled(True)
+        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
+            self._mw.spooling_Action.setEnabled(True)
 
     def update_data(self):
         """ Callback from sigUpdateDisplay in the camera_logic module. 
@@ -357,26 +383,53 @@ class BasicGUI(GUIBase):
         path = self._mw.save_path_LineEdit.text()
         self._camera_logic.save_last_image(path, filename)
 
+    @QtCore.Slot()
+    def save_video_clicked(self):
+        # disable camera related toolbuttons
+        self._mw.save_video_Action.setDisabled(True)
+        self._mw.take_image_Action.setDisabled(True)
+        self._mw.start_video_Action.setDisabled(True)
+        self._mw.save_last_image_Action.setDisabled(True)
+        self._mw.spooling_Action.setDisabled(True)
+
+        path = '/home/barho/images/testmovie.tiff'
+        n_frames = 1
+        self.sigVideoSavingStart.emit(path, n_frames)
+        #self._camera_logic.save_video(path, n_frames)
 
 
-    # @QtCore.Slot()
-    # def save_video_clicked(self):
-    #     self._mw.take_image_Action.setDisabled(True)
-    #     self._mw.save_last_image_Action.setDisabled(True)
-    #     if self._camera_logic.saving:
-    #         self._mw.save_video_Action.setText('Save Video')
-    #         self.sigVideoStopSaving.emit()
-    #     else:
-    #         self._mw.save_video_Action.setText('Stop Saving')
-    #         self.sigVideoStartSaving.emit()
+    def video_saving_finished(self):
+        self._mw.save_video_Action.setDisabled(False)
+        self._mw.save_video_Action.setChecked(False)
+        # enable the toolbuttons
+        self._mw.take_image_Action.setDisabled(False)
+        self._mw.start_video_Action.setDisabled(False)
+        self._mw.save_last_image_Action.setDisabled(False)
+        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
+            self._mw.spooling_Action.setDisabled(False)
 
 
     def set_spooling_clicked(self):
-        # add here disableing of the other tool buttons # or use sleep in the start spooling method then everything should be unavailable
-        # use a dialog window to get filename and time of film or number of images ?
-        filenamestem = '/home/barho/testfolder/testimage' # set this programatically # 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
-        time_film = 5  # in seconds
-        self._camera_logic.start_spooling(filenamestem, time_film)
+        # disable camera related toolbuttons
+        self._mw.spooling_Action.setDisabled(True)
+        self._mw.take_image_Action.setDisabled(True)
+        self._mw.start_video_Action.setDisabled(True)
+        self._mw.save_last_image_Action.setDisabled(True)
+        self._mw.save_video_Action.setDisabled(True)
+
+        path = '/home/barho/testfolder/testimage' # set this programatically # 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
+        n_frames = 1
+        self.sigSpoolingStart.emit(path, n_frames)
+        # self._camera_logic.start_spooling(path, n_frames)
+
+    def spooling_finished(self):
+        self._mw.spooling_Action.setDisabled(False)
+        self._mw.spooling_Action.setChecked(False)
+        # enable the toolbuttons
+        self._mw.take_image_Action.setDisabled(False)
+        self._mw.start_video_Action.setDisabled(False)
+        self._mw.save_last_image_Action.setDisabled(False)
+        self._mw.save_video_Action.setDisabled(False)
 
     # camera status dockwidget
     @QtCore.Slot(str, str, str)

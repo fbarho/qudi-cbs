@@ -42,7 +42,7 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'Dummy camera')
+    _camera_name = ConfigOption('camera_name', 'Dummy camera')  #  iXon Ultra 897
     _resolution = ConfigOption('resolution', (1280, 720))  # High-definition !
 
     _live = False
@@ -122,7 +122,7 @@ class CameraDummy(Base, CameraInterface):
         Each pixel might be a float, integer or sub pixels
         """
         #data = np.random.random(self._resolution)*self._exposure*self._gain
-        data = np.random.normal(size=self._resolution)  # *self._exposure*self._gain
+        data = np.random.normal(size=self._resolution) * self._exposure * self._gain
         return data
         #return data.transpose()
 
@@ -160,14 +160,6 @@ class CameraDummy(Base, CameraInterface):
         """
         return self._gain
 
-    # for tests do as if temperature available..
-    def set_temperature(self, temp):
-        self.temperature = temp
-
-    def get_temperature(self):
-        return self.temperature
-
-
     def get_ready_state(self):
         """ Is the camera ready for an acquisition ?
 
@@ -182,12 +174,57 @@ class CameraDummy(Base, CameraInterface):
         """
         return self._has_temp
 
+    # for tests do as if temperature available..
+    # def set_temperature(self, temp):
+    #     self.temperature = temp
+    #
+    # def get_temperature(self):
+    #     return self.temperature
+
     def has_shutter(self):
         """ Is the camera equipped with a shutter?
 
         @return bool: has shutter ?
         """
         return self._has_shutter
+
+    def start_movie_acquisition(self, n_frames):
+        """ set the conditions to save a movie and start the acquisition
+
+        @param int n_frames: number of frames
+
+        @return bool: Success ?
+        """
+        # handle the variables indicating the status
+        if self.support_live_acquisition():
+            self._live = True   # allow the user to select if image should be shown or not; set self._live accordingly
+            self._acquiring = True
+        self.log.info('started movie acquisition')
+        return True
+
+    def finish_movie_acquisition(self):
+        """ resets the conditions used to save a movie to default
+
+        @return bool: Success ?
+        """
+        self._live = False
+        self._acquiring = False
+        self.log.info('movie acquisition finished')
+        return True
+
+    def wait_until_finished(self):
+        """ waits until an acquisition is finished
+
+        @return None
+        """
+        time.sleep(1)
+
+       # just for tests of the gui
+    def _set_spool(self, active, mode, filenamestem, framebuffer):
+        pass
+
+    def get_kinetic_time(self):
+        return 0.765421
 
 
 

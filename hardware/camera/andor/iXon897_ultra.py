@@ -307,6 +307,19 @@ class IxonUltra(Base, CameraInterface):
         
         return True
 
+    def finish_movie_acqisition(self):
+        """ resets the conditions used to save a movie to default
+
+        @return bool: Success ?
+        """
+        # no abort_acquisition needed because acquisition finishes when the number of frames is reached
+        self._set_acquisition_mode(self._default_acquisition_mode)  # reset to default (single scan typically)
+        self._live = False
+        self._acquiring = False
+        return True
+        # or return True only if _set_aquisition_mode terminates without error ? to test which is the better option
+
+
 # to do: check if the following function is adapted
     def get_acquired_data(self):
         """ Return an array of last acquired image.
@@ -353,7 +366,7 @@ class IxonUltra(Base, CameraInterface):
                 # could be problematic for 'FVB' or 'SINGLE_TRACK' readmode
                 image_array[i] = cimage[i]
                 
-        if self._scans > 1:  # not sure if it matters if we add artifically a 3rd dim, so use if else for the moment
+        if self._scans > 1:  # not sure if it matters if we add artifically a 3rd dim, so use if-else structure for the moment
             image_array = np.reshape(image_array, (self._scans, self._width, self._height))
         else: 
             image_array = np.reshape(image_array, (self._width, self._height))

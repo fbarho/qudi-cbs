@@ -71,6 +71,8 @@ class CameraLogic(GenericLogic):
     sigUpdateDisplay = QtCore.Signal()
     sigAcquisitionFinished = QtCore.Signal()
     sigVideoFinished = QtCore.Signal()
+    sigVideoSavingFinished = QtCore.Signal()
+    sigSpoolingFinished = QtCore.Signal()
 
     sigExposureChanged = QtCore.Signal(float)
     sigGainChanged = QtCore.Signal(float)
@@ -89,7 +91,7 @@ class CameraLogic(GenericLogic):
     _exposure = 1.
     _gain = 1.
     _temperature = 25 # use any value it will be overwritten during on activate if sensor temperature is available
-    _temperature_setpoint = _temperature
+    temperature_setpoint = _temperature
     _last_image = None
     _kinetic_time = None
 
@@ -110,7 +112,8 @@ class CameraLogic(GenericLogic):
         self.saving = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
-            self.temperature_setpoint = self._hardware.get_temperature() # to initialize
+            # self.temperature_setpoint = self._hardware.get_temperature() # to initialize
+            self.temperature_setpoint = self._hardware._default_temperature  # to test. it may be more convenient.
         self.has_shutter = self._hardware.has_shutter()
 
         # update the private variables _exposure, _gain, _temperature and has_temp
@@ -178,9 +181,13 @@ class CameraLogic(GenericLogic):
             # value = self.get_temperature()
             # self.sigTemperatureChanged.emit(value)
 
+            # make sure the cooler is on  # to be tested. or is it preferable to have a cooler on off button on the GUI ?
+            if self._hardware.is_cooler_on() == 0:
+                self._hardware._set_cooler(True)
+
             # handle the new temperature value over to the camera hardware module
             self.temperature_setpoint = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
-            self._hardware._set_temperature(temp)
+            self._hardware.set_temperature(temp)
 
             # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
             worker = Worker()
@@ -342,6 +349,10 @@ class CameraLogic(GenericLogic):
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
+        self._hardware.wait_until_finished()
+        self._hardware.finish_movie_acquisition()
+        self.enabled = False
+        self.sigSpoolingFinished.emit()
             
 
     def save_video(self, filenamestem, n_frames):
@@ -351,24 +362,40 @@ class CameraLogic(GenericLogic):
         if not err:
             self.log.warning('Video acquisition did not start')
         self._hardware.wait_until_finished()
-        image_data = self._hardware.get_acquired_data()   # to do: check if correct dimension - make sure to set _scans
+        self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
+        self.enabled = False
+        self.sigVideoSavingFinished.emit()
+
+        image_data = self._hardware.get_acquired_data()
         # add here the filename handling; path etc
 
-
         # create the PIL.Image object and save it to tiff
-        imlist = []
-        for i in range(n_frames):
-            im = Image.fromarray(image_data[i])
-            imlist.append(im)
-        try:
-            # conversion to 16 bit tiff
-            # im.convert('I;16').save(filenamestem, format='tiff')
-            # unconverted version (32 bit) 
-            imlist[0].save(filenamestem, format='tiff', save_all=True, append_images=imlist[1:])
-            self.log.info('Saved image to file {}'.format(filenamestem))
-        except:
-            self.log.warning('File not saved')
-        return None
+        if n_frames == 1:  # formatting of this case needs special treatment .. remove later if not needed
+            im = Image.fromarray(image_data)
+            try:
+                # conversion to 16 bit tiff
+                im.convert('I;16').save(filenamestem, format='tiff')
+                # unconverted version (32 bit) im.save(p, format='tiff')
+                self.log.info('Saved movie to file {}'.format(filenamestem))
+            except:
+                self.log.warning('Movie not saved')
+            return None
+
+        else:
+            # create the PIL.Image object and save it to tiff
+            imlist = []
+            for i in range(n_frames):
+                im = Image.fromarray(image_data[i])
+                imlist.append(im)
+            try:
+                # conversion to 16 bit tiff
+                # im.convert('I;16').save(filenamestem, format='tiff')
+                # unconverted version (32 bit)
+                imlist[0].save(filenamestem, format='tiff', save_all=True, append_images=imlist[1:])
+                self.log.info('Saved movie to file {}'.format(filenamestem))
+            except:
+                self.log.warning('Movie not saved')
+            return None
 
 
 

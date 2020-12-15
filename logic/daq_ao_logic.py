@@ -105,6 +105,9 @@ class DAQaoLogic(GenericLogic):
     @QtCore.Slot(str, int) # should the decorator be removed when this function is called in a task ???
     def update_intensity_dict(self, key, value):
         self._intensity_dict[key] = value
+        # if laser is already on, the new value must be written to the daq output
+        if self.enabled:
+            self.apply_voltage()
 
 
 
