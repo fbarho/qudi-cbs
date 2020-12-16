@@ -389,6 +389,7 @@ class BasicGUI(GUIBase):
         self._save_sd.foldername_LineEdit.setText('')
         self._save_sd.complete_path_Label.setText('Save to:')
         self._save_sd.n_frames_SpinBox.setValue(1)
+        # self.update_acquisition_time()
         self._save_sd.enable_display_CheckBox.setChecked(False)
 
     def update_path_label(self):
@@ -496,11 +497,28 @@ class BasicGUI(GUIBase):
 
     @QtCore.Slot()
     def save_last_image_clicked(self):
-        """ saves the last image, using user specified filepath and filename (with a generated suffix)
+        """ saves the last image, using a format adalogously to video saving procedures
+
+        filenamestem/000_type/file.tiff
+        example: /home/barho/images/2020-12-16/samplename/000_Image/image.tiff
+        filenamestem is generated below ex. /home/barho/images/2020-12-16/foldername
+
+        folder_name is taken from the field on GUI. to decide : put it in a dialog as for the save settings dialog ??
         """
-        filename = self._mw.filename_LineEdit.text()
-        path = self._mw.save_path_LineEdit.text()
-        self._camera_logic.save_last_image(path, filename)
+        # save data
+        default_path = self._mw.save_path_LineEdit.text()
+        today = datetime.today().strftime('%Y-%m-%d')
+        folder_name = self._mw.samplename_LineEdit.text()
+        filenamestem = os.path.join(default_path, today, folder_name)
+        self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
+        self._camera_logic.save_last_image(filenamestem)
+        # save metadata
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', '.txt',
+                                                                    addfile=True)
+        metadata = self._create_metadata_dict()
+        with open(complete_path, 'w') as file:
+            file.write(str(metadata))
+        self.log.info('saved metadata to {}'.format(complete_path))
 
     @QtCore.Slot()
     def save_video_clicked(self):

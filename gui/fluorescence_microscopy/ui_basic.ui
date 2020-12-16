@@ -324,7 +324,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="filename_LineEdit">
+       <widget class="QLineEdit" name="samplename_LineEdit">
         <property name="text">
          <string>sample1</string>
         </property>
