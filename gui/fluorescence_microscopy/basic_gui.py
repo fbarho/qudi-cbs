@@ -13,6 +13,7 @@ Camera image, laser and filter settings.
 """
 import os
 import sys
+from datetime import datetime
 
 from qtpy import QtCore
 from qtpy import QtGui
@@ -22,6 +23,7 @@ import pyqtgraph as pg
 
 from gui.guibase import GUIBase
 from core.connector import Connector
+from core.configoption import ConfigOption
 
 
 class CameraSettingDialog(QtWidgets.QDialog):
@@ -34,7 +36,19 @@ class CameraSettingDialog(QtWidgets.QDialog):
         # Load it
         super(CameraSettingDialog, self).__init__()
         uic.loadUi(ui_file, self)
-        
+
+class SaveSettingDialog(QtWidgets.QDialog):
+    """ Create the SaveDialog window, based on the corresponding *.ui file.
+
+    This dialog pops up on click of the save video toolbuttons"""
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_save_settings.ui')
+
+        # Load it
+        super(SaveSettingDialog, self).__init__()
+        uic.loadUi(ui_file, self)
 
 class BasicWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
@@ -54,12 +68,25 @@ class BasicWindow(QtWidgets.QMainWindow):
 
 class BasicGUI(GUIBase):
     """ Main window containing the basic tools for the fluorescence microscopy setup
+
+    Example config for copy-paste:
+
+    basic_gui:
+        module.Class: 'fluorescence_microscopy.basic_gui.BasicGUI'
+        default_path: '/home/barho/images'
+        connect:
+            camera_logic: 'camera_logic'
+            daq_ao_logic: 'daq_logic'
+            filterwheel_logic: 'filterwheel_logic'
     """
     
     # Define connectors to logic modules
     camera_logic = Connector(interface='CameraLogic')
     daq_ao_logic = Connector(interface='DAQaoLogic')
     filterwheel_logic = Connector(interface='FilterwheelLogic')
+
+    # set the default save path (stem) from config
+    default_path = ConfigOption('default_path', missing='warn')
 
     # Signals
     # signals to camera logic
@@ -82,6 +109,11 @@ class BasicGUI(GUIBase):
     _daq_ao_logic = None
     _filterwheel_logic = None
     _mw = None
+    _last_path = None
+
+    # flags that enable to reuse the save settings dialog for both save video and save long video (=spooling)
+    _video = False
+    _spooling = False
 
     def __init__(self, config, **kwargs):
 
@@ -101,6 +133,10 @@ class BasicGUI(GUIBase):
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
         self.initCameraSettingsUI()
+        self.initSaveSettingsUI()
+
+        # set the default path
+        self._mw.save_path_LineEdit.setText(self.default_path)
 
         # Menu bar actions
         # Options menu
@@ -301,6 +337,89 @@ class BasicGUI(GUIBase):
         """
         self._cam_sd.exec_()
 
+    # Initialisation of the save settings windows
+    def initSaveSettingsUI(self):
+        """ Definition, configuration and initialisation of the dialog window which allows to configure the video saving
+        """
+        # Create the Camera settings window
+        self._save_sd = SaveSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._save_sd.accepted.connect(self.save_video_accepted)  # ok button
+        self._save_sd.rejected.connect(self.cancel_save)  # cancel buttons
+
+        # set default values on start
+        self.set_default_values()
+
+        # connect the lineedit with the path label
+        self._save_sd.foldername_LineEdit.textChanged.connect(self.update_path_label)
+        # link the number of frames to the acquisition time
+        self._save_sd.n_frames_SpinBox.valueChanged.connect(self.update_acquisition_time)
+        # link the acquisition time to the number of frames
+        self._save_sd.acquisition_time_DoubleSpinBox.valueChanged.connect(self.update_n_frames)
+
+    # slots of the save settings window
+    def save_video_accepted(self):
+        """
+        """
+        folder_name = self._save_sd.foldername_LineEdit.text()
+        default_path = self._mw.save_path_LineEdit.text()
+        today = datetime.today().strftime('%Y-%m-%d')
+        path = os.path.join(default_path, today, folder_name)
+        # self.log.info('created path: {}'.format(path))
+
+        n_frames = self._save_sd.n_frames_SpinBox.value()
+        self._last_path = path  # maintain this variable to make it accessible for metadata saving
+
+        # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
+        # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
+        if self._video:
+            self.sigVideoSavingStart.emit(path, n_frames)
+        elif self._spooling:
+            self.sigSpoolingStart.emit(path, n_frames)
+        else:  # to do: write an error message or something like this ???
+            pass
+
+    def cancel_save(self):
+        self.set_default_values()
+        self.reset_toolbuttons()  # this resets the toolbar buttons to callable state
+        self._video = False
+        self._spooling = False
+
+    def set_default_values(self):
+        self._save_sd.foldername_LineEdit.setText('')
+        self._save_sd.complete_path_Label.setText('Save to:')
+        self._save_sd.n_frames_SpinBox.setValue(1)
+        self._save_sd.enable_display_CheckBox.setChecked(False)
+
+    def update_path_label(self):
+        folder_name = self._save_sd.foldername_LineEdit.text()
+        default_path = self._mw.save_path_LineEdit.text()
+        today = datetime.today().strftime('%Y-%m-%d')
+        path = os.path.join(default_path, today, folder_name)
+        self._save_sd.complete_path_Label.setText('Save to: {}'.format(path))
+
+    def update_acquisition_time(self):
+        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor camera is used, the kinetic_time is retrieved here
+        n_frames = self._save_sd.n_frames_SpinBox.value()
+        acq_time = exp_time * n_frames
+        self._save_sd.acquisition_time_DoubleSpinBox.setValue(acq_time)
+
+    def update_n_frames(self):
+        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor camera is used, the kinetic_time is retrieved here
+        acq_time = self._save_sd.acquisition_time_DoubleSpinBox.value()
+        n_frames = int(round(acq_time / exp_time))
+        self._save_sd.n_frames_SpinBox.setValue(n_frames)
+        self.update_acquisition_time()  # call this to adapt the acquisition time to the nearest possible value according to n_frames
+
+
+
+
+    # slot to open the save settings window
+    def open_save_settings(self):
+        """ Opens the settings menu.
+        """
+        self._save_sd.exec_()
+
     # definition of the slots
     # camera dockwidget
     @QtCore.Slot(float)
@@ -391,17 +510,27 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
-
-        path = '/home/barho/images/testmovie.tiff'
-        n_frames = 1
-        self.sigVideoSavingStart.emit(path, n_frames)
-        #self._camera_logic.save_video(path, n_frames)
-
+        # set the flag to True so that the dialog nows that is was called from save video button
+        self._video = True
+        # open the save settings window
+        self.open_save_settings()
 
     def video_saving_finished(self):
+        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
+        # save metadata to additional txt file in the same folder as the experiment
+        # this needs to be done by the gui because this is where all the parameters are available.
+        # The camera logic has not access to all needed parameters
+        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_RTMovie', 'parameters', '.txt', addfile=True)
+        metadata = self._create_metadata_dict()
+        with open(complete_path, 'w') as file:
+            file.write(str(metadata))
+        self.log.info('saved metadata to {}'.format(complete_path))
+        # reset the flag
+        self._video = False
+        # toolbuttons
         self._mw.save_video_Action.setDisabled(False)
         self._mw.save_video_Action.setChecked(False)
-        # enable the toolbuttons
         self._mw.take_image_Action.setDisabled(False)
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
@@ -416,20 +545,69 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
+        # set the flag to True so that the dialog nows that is was called from save video button
+        self._spooling = True
+        # open the save settings dialog
+        self.open_save_settings()
 
-        path = '/home/barho/testfolder/testimage' # set this programatically # 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
-        n_frames = 1
-        self.sigSpoolingStart.emit(path, n_frames)
-        # self._camera_logic.start_spooling(path, n_frames)
+        # path = '/home/barho/testfolder/testimage' # set this programatically # 'C:\\Users\\admin\\qudi-cbs-testdata\\images\\testimg'
+        # n_frames = 1
+        # self.sigSpoolingStart.emit(path, n_frames)
 
     def spooling_finished(self):
+        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
+        # save metadata to additional txt file in the same folder as the experiment
+        # this needs to be done by the gui because this is where all the parameters are available.
+        # The camera logic has not access to all needed parameters
+        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_RTMovie', 'parameters', '.txt', addfile=True)
+        metadata = self._create_metadata_dict()
+        with open(complete_path, 'w') as file:
+            file.write(str(metadata))
+        self.log.info('saved metadata to {}'.format(complete_path))
+        # reset the flag
+        self._spooling = False
+        # enable the toolbuttons
         self._mw.spooling_Action.setDisabled(False)
         self._mw.spooling_Action.setChecked(False)
-        # enable the toolbuttons
         self._mw.take_image_Action.setDisabled(False)
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
+
+    def reset_toolbuttons(self):
+        """ this slot is called when save dialog is canceled
+
+        Sets the camera toolbuttons to callable state"""
+        self._mw.take_image_Action.setDisabled(False)
+        self._mw.start_video_Action.setDisabled(False)
+        self._mw.save_last_image_Action.setDisabled(False)
+        self._mw.save_video_Action.setDisabled(False)
+        self._mw.save_video_Action.setChecked(False)
+        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
+            self._mw.spooling_Action.setDisabled(False)
+            self._mw.spooling_Action.setChecked(False)
+
+    def _create_metadata_dict(self):
+        """ create a dictionary containing the metadata"""
+        metadata = {}
+        metadata['timestamp'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        filterpos = self._filterwheel_logic.get_position()
+        filterdict = self._filterwheel_logic.get_filter_dict()
+        label = 'filter{}'.format(filterpos)
+        metadata['filter'] = filterdict[label]['name']
+        metadata['gain'] = self._camera_logic.get_gain()
+        metadata['exposuretime (s)'] = self._camera_logic.get_exposure()
+        intensity_dict = self._daq_ao_logic._intensity_dict
+        keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
+        laser_dict = self._daq_ao_logic.get_laser_dict()
+        metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
+        metadata['intensity (%)'] = [intensity_dict[key] for key in keylist]
+        if self._camera_logic.has_temp == True:
+            metadata['sensor temperature'] = self._camera_logic.get_temperature()
+        else:
+            metadata['sensor temperature'] = 'Not available'
+        return metadata
 
     # camera status dockwidget
     @QtCore.Slot(str, str, str)

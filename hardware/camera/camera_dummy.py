@@ -42,7 +42,7 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'Dummy camera')  #  iXon Ultra 897
+    _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  #   Dummy camera
     _resolution = ConfigOption('resolution', (1280, 720))  # High-definition !
 
     _live = False
@@ -122,7 +122,7 @@ class CameraDummy(Base, CameraInterface):
         Each pixel might be a float, integer or sub pixels
         """
         #data = np.random.random(self._resolution)*self._exposure*self._gain
-        data = np.random.normal(size=self._resolution) * self._exposure * self._gain
+        data = np.random.normal(size=self._resolution) # * self._exposure * self._gain
         return data
         #return data.transpose()
 
@@ -221,10 +221,10 @@ class CameraDummy(Base, CameraInterface):
 
        # just for tests of the gui
     def _set_spool(self, active, mode, filenamestem, framebuffer):
-        pass
+        self.log.info('camera dummy: started spooling')
 
     def get_kinetic_time(self):
-        return 0.765421
+        return self._exposure + 0.765421
 
 
 

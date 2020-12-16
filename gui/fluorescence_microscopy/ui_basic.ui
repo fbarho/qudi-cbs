@@ -305,21 +305,21 @@
       <item>
        <widget class="QLabel" name="label_6">
         <property name="text">
-         <string>Save path:</string>
+         <string>Default path:</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QLineEdit" name="save_path_LineEdit">
         <property name="text">
-         <string>/home/barho/images</string>
+         <string/>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QLabel" name="label_7">
         <property name="text">
-         <string>Filename:</string>
+         <string>Samplename:</string>
         </property>
        </widget>
       </item>
