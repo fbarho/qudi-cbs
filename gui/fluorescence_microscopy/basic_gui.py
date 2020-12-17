@@ -94,7 +94,7 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoSavingStart = QtCore.Signal(str, int)
+    sigVideoSavingStart = QtCore.Signal(str, int, bool)
     sigSpoolingStart = QtCore.Signal(str, int)
 
     # signals to daq logic
@@ -370,10 +370,12 @@ class BasicGUI(GUIBase):
         n_frames = self._save_sd.n_frames_SpinBox.value()
         self._last_path = path  # maintain this variable to make it accessible for metadata saving
 
+        display = self._save_sd.enable_display_CheckBox.isChecked()
+
         # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
         # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
         if self._video:
-            self.sigVideoSavingStart.emit(path, n_frames)
+            self.sigVideoSavingStart.emit(path, n_frames, display)
         elif self._spooling:
             self.sigSpoolingStart.emit(path, n_frames)
         else:  # to do: write an error message or something like this ???
@@ -513,8 +515,7 @@ class BasicGUI(GUIBase):
         self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
         self._camera_logic.save_last_image(filenamestem)
         # save metadata
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', '.txt',
-                                                                    addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', '.txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))

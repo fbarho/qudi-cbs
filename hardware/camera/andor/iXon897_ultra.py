@@ -319,8 +319,29 @@ class IxonUltra(Base, CameraInterface):
         return True
         # or return True only if _set_aquisition_mode terminates without error ? to test which is the better option
 
+    # not yet on the interface # needs testing
+    def get_most_recent_image(self):
+        width = self._width
+        height = self._height
+        dim = width * height
 
-# to do: check if the following function is adapted
+        dim = int(dim)
+        image_array = np.zeros(dim)
+        cimage_array = c_int * dim
+        cimage = cimage_array()
+
+        error_code = self.dll.GetMostRecentImage(byref(cimage), dim)
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Couldn\'t retrieve an image. {0}'.format(ERROR_DICT[error_code]))
+        else:
+            for i in range(len(cimage)):
+                image_array[i] = cimage[i]
+
+        image_array = np.reshape(image_array, (self._width, self._height))
+
+        return image_array
+
+    # to do: check if the following function is adapted
     def get_acquired_data(self):
         """ Return an array of last acquired image.
 

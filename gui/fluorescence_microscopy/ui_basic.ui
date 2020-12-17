@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1109</width>
+    <width>1116</width>
     <height>800</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1109</width>
+     <width>1116</width>
      <height>22</height>
     </rect>
    </property>
@@ -79,7 +79,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>350</width>
+     <width>270</width>
      <height>350</height>
     </size>
    </property>
@@ -201,8 +201,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>662</width>
-     <height>447</height>
+     <width>850</width>
+     <height>550</height>
     </size>
    </property>
    <attribute name="dockWidgetArea">
@@ -219,10 +219,16 @@
      <property name="geometry">
       <rect>
        <x>280</x>
-       <y>40</y>
-       <width>441</width>
-       <height>491</height>
+       <y>10</y>
+       <width>550</width>
+       <height>500</height>
       </rect>
+     </property>
+     <property name="minimumSize">
+      <size>
+       <width>550</width>
+       <height>500</height>
+      </size>
      </property>
     </widget>
     <widget class="QLabel" name="label_3">
@@ -354,7 +360,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>300</width>
+     <width>270</width>
      <height>350</height>
     </size>
    </property>
@@ -378,7 +384,7 @@
     <widget class="QComboBox" name="filter_ComboBox">
      <property name="geometry">
       <rect>
-       <x>40</x>
+       <x>30</x>
        <y>50</y>
        <width>221</width>
        <height>25</height>

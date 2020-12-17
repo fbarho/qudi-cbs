@@ -364,12 +364,20 @@ class CameraLogic(GenericLogic):
         self.sigSpoolingFinished.emit()
             
 
-    def save_video(self, filenamestem, n_frames):
+    def save_video(self, filenamestem, n_frames, display):
         self.enabled = True # see comment above in do_spooling
         # self._hardware._set_spool(0)  # as security deactivate spooling. 
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
+        ## add here the display functionality  ### to be tested with real camera that acquires n_frames images
+        if display:
+            self.log.info('display activated')
+            # in this first version this might be specific to andor camera
+            # put this in a while loop ? test with real hardware
+            self._last_image = self._hardware.get_most_recent_image()
+            self.sigUpdateDisplay.emit()
+        ########
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.enabled = False

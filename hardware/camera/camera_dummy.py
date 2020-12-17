@@ -226,6 +226,11 @@ class CameraDummy(Base, CameraInterface):
     def get_kinetic_time(self):
         return self._exposure + 0.765421
 
+    def get_most_recent_image(self):
+        data = np.random.normal(size=self._resolution) #* self._exposure * self._gain
+        return data
+        ## for test purpose do the same data generation as for
+
 
 
 
