@@ -179,6 +179,8 @@ class IxonUltra(Base, CameraInterface):
         self._set_acquisition_mode(self._acquisition_mode)
         # start cooler if specified in config (otherwise it must be done via the console)
         self._set_cooler(self._cooler_on)
+        # to test: does this launch the cooling directly ? 
+        self.set_temperature(self._default_temperature)
         # set the preamp gain (it is not accessible by the user interface)
         # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
 
@@ -307,13 +309,14 @@ class IxonUltra(Base, CameraInterface):
         
         return True
 
-    def finish_movie_acqisition(self):
+    def finish_movie_acquisition(self):
         """ resets the conditions used to save a movie to default
 
         @return bool: Success ?
         """
         # no abort_acquisition needed because acquisition finishes when the number of frames is reached
         self._set_acquisition_mode(self._default_acquisition_mode)  # reset to default (single scan typically)
+        self._scans = 1  # reset to default number of scans. this is important so that the other acquisition modes run correctly
         self._live = False
         self._acquiring = False
         return True
@@ -376,7 +379,9 @@ class IxonUltra(Base, CameraInterface):
 
         # this will be a bit hacky
         if self._acquisition_mode == 'RUN_TILL_ABORT':
-            error_code = self.dll.GetOldestImage(pointer(cimage), dim)
+            # error_code = self.dll.GetOldestImage(pointer(cimage), dim)
+            # new version for tests 
+            error_code = self.dll.GetMostRecentImage(pointer(cimage), dim)
         else:
             error_code = self.dll.GetAcquiredData(pointer(cimage), dim)
         if ERROR_DICT[error_code] != 'DRV_SUCCESS':
@@ -388,7 +393,7 @@ class IxonUltra(Base, CameraInterface):
                 image_array[i] = cimage[i]
                 
         if self._scans > 1:  # not sure if it matters if we add artifically a 3rd dim, so use if-else structure for the moment
-            image_array = np.reshape(image_array, (self._scans, self._width, self._height))
+            image_array = np.reshape(image_array, (self._scans, self._width, self._height))  #  self._scans, self._width, self._height
         else: 
             image_array = np.reshape(image_array, (self._width, self._height))
 
@@ -555,6 +560,25 @@ class IxonUltra(Base, CameraInterface):
             status = c_int()
             self._get_status(status)
         return 
+    
+    # to be added to the camera interface 
+    def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
+        """
+        This function allows to select a subimage on the sensor.
+        Parameters
+        @param int hbin: number of pixels to bin horizontally
+        @param int vbin: number of pixels to bin vertically. 
+        @param int hstart: Start column (inclusive)
+        @param int hend: End column (inclusive)
+        @param int vstart: Start row (inclusive)
+        @param int vend: End row (inclusive).
+        
+        @returns: int error code: 0: ok
+        """
+        msg = self._set_image(hbin, vbin, hstart, hend, vstart, vend)
+        if msg != 'DRV_SUCCESS':
+            return -1
+        return 0
         
 
 # not relevant here
@@ -703,8 +727,9 @@ class IxonUltra(Base, CameraInterface):
             self.log.warning('{0} mode is not supported'.format(mode))
             check_val = -1
     
-        return check_val
-
+        return check_val 
+    
+    
     # set a subimage (ROI on camera sensor)
     def _set_image(self, hbin, vbin, hstart, hend, vstart, vend):
         """
@@ -1020,6 +1045,24 @@ class IxonUltra(Base, CameraInterface):
         name = c_char_p(name.encode('utf-8'))
         error_code = self.dll.SetSpool(active, method, name, framebuffersize)
         return ERROR_DICT[error_code]
+    
+    def _get_spool_progress(self):
+        index = c_long()
+        error_code = self.dll.GetSpoolProgress(byref(index))
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Could not get spool progress: {}'.format(ERROR_DICT[error_code]))
+            return
+        return index.value
+    
+    def _get_total_number_images_acquired(self):
+        index = c_long()
+        error_code = self.dll.GetTotalNumberImagesAcquired(byref(index))
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Could not get number of images acquired: {}'.format(ERROR_DICT[error_code]))
+            return
+        return index.value
+               
+      
 # to do: 
 # data retrieval methods
         

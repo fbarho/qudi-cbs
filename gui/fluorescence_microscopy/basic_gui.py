@@ -165,6 +165,7 @@ class BasicGUI(GUIBase):
     _filterwheel_logic = None
     _mw = None
     _last_path = None
+    region_selector_enabled = False
 
     # flags that enable to reuse the save settings dialog for both save video and save long video (=spooling)
     _video = False
@@ -258,6 +259,10 @@ class BasicGUI(GUIBase):
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
 
         self._camera_logic.sigSpoolingFinished.connect(self.spooling_finished)
+        
+        self._mw.set_sensor_Action.setEnabled(True)
+        self._mw.set_sensor_Action.setChecked(self.region_selector_enabled)  # on start this is false  # better: link it to an attribute
+        self._mw.set_sensor_Action.triggered.connect(self.select_sensor_region)
 
 
         # starting the physical measurement
@@ -269,6 +274,7 @@ class BasicGUI(GUIBase):
         self.imageitem = pg.ImageItem()  # image=data can be set here ..
         self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
         self._mw.camera_ScanPlotWidget.setAspectLocked(True)
+        self._mw.camera_ScanPlotWidget.sigMouseAreaSelected.connect(self.mouse_area_selected)
 
         # histogram
         self._mw.histogram_Widget.setImageItem(self.imageitem)
@@ -802,7 +808,20 @@ class BasicGUI(GUIBase):
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
 
 
+    def select_sensor_region(self):
+        # to be completed with the deactivation of the selector tool
+        self._mw.camera_ScanPlotWidget.toggle_selection(True)
+        self._region_selector_enabled = True
 
+    def mouse_area_selected(self, rect):
+        self.log.info('selected an area')
+        self.log.info(rect.getCoords())
+        hstart, vstart, hend, vend = rect.getCoords()
+        hstart = round(hstart)
+        vstart = round(vstart)
+        hend = round(hend)
+        vend = round(vend)
+        self.log.info('hstart={}, vstart={}, hend={}, vend={}'.format(hstart, vstart, hend, vend))
             
 # for testing
 # if __name__ == '__main__':

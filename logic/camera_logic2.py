@@ -351,40 +351,61 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-      
-    def do_spooling(self, filenamestem, n_frames):
+    
+    
+    # this function is specific for andor ixon ultra camera
+    def do_spooling(self, filenamestem, n_frames, display):
         self.enabled = True # this attribute is used to disable all the other controls which should not be used in parallel. define if instead here saving should be used 
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
         self._hardware._set_spool(1, 7, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
+        if display:
+            self.log.info('display activated')
+            # in this first version this might be specific to andor camera
+            for i in range(n_frames):
+                i += 1
+                self.log.info('image {}'.format(i))
+                self._last_image = self._hardware.get_most_recent_image()
+                self.sigUpdateDisplay.emit()
+                sleep(0.01)  # this is used to force enough time for a signal to be transmitted. To be modified using a proper method
+            # self.log.info('display loop finished')
+            
+#        while not self._hardware.get_ready_state():   
+#            spoolprogress = self._hardware._get_spool_progress()             
+#            self.log.info('progress: {}'.format(spoolprogress))
+#            #self.sigSpoolProgress.emit(self.spoolprogress)
+            
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
+        self._hardware._set_spool(0, 7, path, 10)   # deactivate spooling
         self.enabled = False
         self.sigSpoolingFinished.emit()
             
 
     def save_video(self, filenamestem, n_frames, display):
         self.enabled = True # see comment above in do_spooling
-        # self._hardware._set_spool(0)  # as security deactivate spooling. 
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
-        ## add here the display functionality  ### to be tested with real camera that acquires n_frames images
         if display:
             self.log.info('display activated')
             # in this first version this might be specific to andor camera
-            # put this in a while loop ? test with real hardware
-            self._last_image = self._hardware.get_most_recent_image()
-            self.sigUpdateDisplay.emit()
+            for i in range(n_frames):
+                i += 1
+                # self.log.info('image {}'.format(i))
+                self._last_image = self._hardware.get_most_recent_image()
+                self.sigUpdateDisplay.emit()
+                sleep(0.01)  # this is used to force enough time for a signal to be transmitted. To be modified using a proper method
+            # self.log.info('display loop finished')
         ########
         self._hardware.wait_until_finished()
+        image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.enabled = False
 
         # data handling
-        image_data = self._hardware.get_acquired_data()
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '.tiff', addfile=False)
         # create the PIL.Image object and save it to tiff
         self._save_to_tiff(n_frames, complete_path, image_data)
@@ -469,4 +490,24 @@ class CameraLogic(GenericLogic):
             except:
                 self.log.warning('Data not saved')
             return None
+        
+    def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
+
+        err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
+        if err < 0:
+            self.log.warn('Sensor region not set')
+        else:
+            self.log.info('Sensor region set to {} x {}'.format(hend-hstart+1, vend-vstart+1))
+        
+        
+    def reset_sensor_region(self):
+        """ reset to full sensor size """
+        width = 512  # this should be read from the camera  (but ._width is overwritten when image is set)
+        height = 512  
+        err = self._hardware.set_image(1, 1, 1, width, 1, height)
+        if err < 0:
+            self.log.warn('Sensor region not reset to default')
+        else:
+            self.log.info('Sensor region reset to default: {} x {}'.format(width, height))
+
 
