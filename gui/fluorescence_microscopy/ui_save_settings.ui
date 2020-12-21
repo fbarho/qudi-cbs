@@ -84,7 +84,11 @@
      </widget>
     </item>
     <item row="3" column="2">
-     <widget class="QDoubleSpinBox" name="acquisition_time_DoubleSpinBox"/>
+     <widget class="QDoubleSpinBox" name="acquisition_time_DoubleSpinBox">
+      <property name="decimals">
+       <number>3</number>
+      </property>
+     </widget>
     </item>
     <item row="2" column="2">
      <widget class="QSpinBox" name="n_frames_SpinBox">

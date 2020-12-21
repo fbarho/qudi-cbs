@@ -14,6 +14,7 @@ Camera image, laser and filter settings.
 import os
 import sys
 from datetime import datetime
+import re
 
 from qtpy import QtCore
 from qtpy import QtGui
@@ -24,6 +25,58 @@ import pyqtgraph as pg
 from gui.guibase import GUIBase
 from core.connector import Connector
 from core.configoption import ConfigOption
+
+
+# copied this validator from poimangui.py
+class NameValidator(QtGui.QValidator):
+    """
+    This is a validator for strings that should be compatible with filenames.
+    So no special characters (except '_') and blanks are allowed.
+    """
+
+    name_re = re.compile(r'([\w]+)')
+
+    def __init__(self, *args, empty_allowed=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._empty_allowed = bool(empty_allowed)
+
+    def validate(self, string, position):
+        """
+        This is the actual validator. It checks whether the current user input is a valid string
+        every time the user types a character. There are 3 states that are possible.
+        1) Invalid: The current input string is invalid. The user input will not accept the last
+                    typed character.
+        2) Acceptable: The user input in conform with the regular expression and will be accepted.
+        3) Intermediate: The user input is not a valid string yet but on the right track. Use this
+                         return value to allow the user to type fill-characters needed in order to
+                         complete an expression.
+        @param string: The current input string (from a QLineEdit for example)
+        @param position: The current position of the text cursor
+        @return: enum QValidator::State: the returned validator state,
+                 str: the input string, int: the cursor position
+        """
+        # Return intermediate status when empty string is passed
+        if not string:
+            if self._empty_allowed:
+                return self.Acceptable, '', position
+            else:
+                return self.Intermediate, string, position
+
+        match = self.name_re.match(string)
+        if not match:
+            return self.Invalid, '', position
+
+        matched = match.group()
+        if matched == string:
+            return self.Acceptable, string, position
+
+        return self.Invalid, matched, position
+
+    def fixup(self, text):
+        match = self.name_re.search(text)
+        if match:
+            return match.group()
+        return ''
 
 
 class CameraSettingDialog(QtWidgets.QDialog):
@@ -133,10 +186,14 @@ class BasicGUI(GUIBase):
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
         self.initCameraSettingsUI()
-        self.initSaveSettingsUI()
+
 
         # set the default path
         self._mw.save_path_LineEdit.setText(self.default_path)
+
+        # add validators to the sample name and the default path lineedits
+        #self._mw.save_path_LineEdit.setValidator(NameValidator()) here another validator is needed which allows /
+        self._mw.samplename_LineEdit.setValidator(NameValidator(empty_allowed=True))
 
         # Menu bar actions
         # Options menu
@@ -285,6 +342,9 @@ class BasicGUI(GUIBase):
         # control signal from logic to update GUI when filter was manually changed
         self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
 
+        # this needs to go to the end because the fields on the gui must first be initialized
+        self.initSaveSettingsUI()
+
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
         """
@@ -347,8 +407,8 @@ class BasicGUI(GUIBase):
         self._save_sd.accepted.connect(self.save_video_accepted)  # ok button
         self._save_sd.rejected.connect(self.cancel_save)  # cancel buttons
 
-        # set default values on start
-        self.set_default_values()
+        # add a validator to the folder name lineedit
+        self._save_sd.foldername_LineEdit.setValidator(NameValidator(empty_allowed=True))  # empty_allowed=True should be set or not ?
 
         # connect the lineedit with the path label
         self._save_sd.foldername_LineEdit.textChanged.connect(self.update_path_label)
@@ -356,6 +416,12 @@ class BasicGUI(GUIBase):
         self._save_sd.n_frames_SpinBox.valueChanged.connect(self.update_acquisition_time)
         # link the acquisition time to the number of frames
         self._save_sd.acquisition_time_DoubleSpinBox.valueChanged.connect(self.update_n_frames)
+
+        # set default values on start
+        self.set_default_values()
+
+
+
 
     # slots of the save settings window
     def save_video_accepted(self):
@@ -388,17 +454,17 @@ class BasicGUI(GUIBase):
         self._spooling = False
 
     def set_default_values(self):
-        self._save_sd.foldername_LineEdit.setText('')
-        self._save_sd.complete_path_Label.setText('Save to:')
+        self._save_sd.foldername_LineEdit.setText(self._mw.samplename_LineEdit.text())
+        self.update_path_label()
         self._save_sd.n_frames_SpinBox.setValue(1)
-        # self.update_acquisition_time()
-        self._save_sd.enable_display_CheckBox.setChecked(False)
+        self.update_acquisition_time()
+        self._save_sd.enable_display_CheckBox.setChecked(False)  # set True later when the procedure works
 
     def update_path_label(self):
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
-        path = os.path.join(default_path, today, folder_name)
+        path = os.path.join(default_path, today, folder_name)  #
         self._save_sd.complete_path_Label.setText('Save to: {}'.format(path))
 
     def update_acquisition_time(self):
@@ -472,10 +538,10 @@ class BasicGUI(GUIBase):
         self._mw.save_video_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
         if self._camera_logic.enabled:
-            self._mw.start_video_Action.setText('Start Video')
+            self._mw.start_video_Action.setText('Live')
             self.sigVideoStop.emit()
         else:
-            self._mw.start_video_Action.setText('Stop Video')
+            self._mw.start_video_Action.setText('Stop Live')
             self.sigVideoStart.emit()
 
     def enable_take_image_action(self):
@@ -540,7 +606,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_RTMovie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -579,7 +645,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_RTMovie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -629,11 +695,12 @@ class BasicGUI(GUIBase):
         return metadata
 
     # camera status dockwidget
-    @QtCore.Slot(str, str, str)
-    def update_camera_status_display(self, ready_state, shutter_state='', cooler_state=''):
+    @QtCore.Slot(str, str, str, str)  # temperature already converted into str
+    def update_camera_status_display(self, ready_state, shutter_state='', cooler_state='', temperature=''):
         self._mw.camera_status_LineEdit.setText(ready_state)
         self._mw.shutter_status_LineEdit.setText(shutter_state)
         self._mw.cooler_status_LineEdit.setText(cooler_state)
+        self._mw.temperature_LineEdit.setText(temperature)
 
     # laser dockwidget
     def laser_on_clicked(self):

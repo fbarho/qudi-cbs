@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1116</width>
+    <width>1228</width>
     <height>800</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1116</width>
+     <width>1228</width>
      <height>22</height>
     </rect>
    </property>
@@ -79,7 +79,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>270</width>
+     <width>350</width>
      <height>350</height>
     </size>
    </property>
@@ -482,10 +482,10 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Start Video</string>
+    <string>Live</string>
    </property>
    <property name="toolTip">
-    <string>Start the acquisition</string>
+    <string>Start live video</string>
    </property>
   </action>
   <action name="take_image_Action">
@@ -493,7 +493,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Take Image</string>
+    <string>Snap</string>
    </property>
    <property name="toolTip">
     <string>Take an image</string>
