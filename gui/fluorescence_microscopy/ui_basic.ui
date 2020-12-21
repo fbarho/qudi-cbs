@@ -69,6 +69,8 @@
    <addaction name="save_last_image_Action"/>
    <addaction name="save_video_Action"/>
    <addaction name="spooling_Action"/>
+   <addaction name="separator"/>
+   <addaction name="set_sensor_Action"/>
   </widget>
   <widget class="QDockWidget" name="laser_control_DockWidget">
    <property name="sizePolicy">
@@ -607,6 +609,14 @@
    </property>
    <property name="text">
     <string>Filter selection dockwidget</string>
+   </property>
+  </action>
+  <action name="set_sensor_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Set sensor surface</string>
    </property>
   </action>
  </widget>
