@@ -15,6 +15,7 @@ import os
 import sys
 from datetime import datetime
 import re
+import numpy as np
 
 from qtpy import QtCore
 from qtpy import QtGui
@@ -25,6 +26,7 @@ import pyqtgraph as pg
 from gui.guibase import GUIBase
 from core.connector import Connector
 from core.configoption import ConfigOption
+from qtwidgets.scan_plotwidget import ScanImageItem, ScanViewBox
 
 
 # copied this validator from poimangui.py
@@ -263,14 +265,23 @@ class BasicGUI(GUIBase):
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigImageStart.connect(self._camera_logic.start_single_acquistion)
 
+        # imageitem
+        self.imageitem = pg.ImageItem()  # image=data can be set here ..
+        self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
+        self._mw.camera_ScanPlotWidget.setAspectLocked(True)
+
+        # histogram
+        self._mw.histogram_Widget.setImageItem(self.imageitem)
+
+        # old version. to be removed soon
         # prepare the image display. Data is added in the slot update_data
         # interpret image data as row-major instead of col-major
-        pg.setConfigOptions(imageAxisOrder='row-major') 
+        # pg.setConfigOptions(imageAxisOrder='row-major')
         
-        # hide ROI and menubutton, histogram is activated when data is added to the ImageView
-        self._mw.camera_ImageView.ui.roiBtn.hide()
-        self._mw.camera_ImageView.ui.menuBtn.hide()
-        self._mw.camera_ImageView.ui.histogram.hide()
+        # # hide ROI and menubutton, histogram is activated when data is added to the ImageView
+        # self._mw.camera_ImageView.ui.roiBtn.hide()
+        # self._mw.camera_ImageView.ui.menuBtn.hide()
+        # self._mw.camera_ImageView.ui.histogram.hide()
 
         # camera status dockwidget
         # initialize the camera status indicators on the GUI
@@ -560,8 +571,10 @@ class BasicGUI(GUIBase):
         Get the image data from the logic and print it on the window
         """
         image_data = self._camera_logic.get_last_image()
-        self._mw.camera_ImageView.setImage(image_data)
-        self._mw.camera_ImageView.ui.histogram.show()
+        self.imageitem.setImage(image_data)
+        ## old version. to be removed soon
+        # self._mw.camera_ImageView.setImage(image_data)
+        # self._mw.camera_ImageView.ui.histogram.show()
 
     @QtCore.Slot()
     def save_last_image_clicked(self):
