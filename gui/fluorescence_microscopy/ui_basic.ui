@@ -616,7 +616,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Set sensor surface</string>
+    <string>Set sensor region</string>
    </property>
   </action>
  </widget>
