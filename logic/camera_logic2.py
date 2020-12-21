@@ -366,7 +366,7 @@ class CameraLogic(GenericLogic):
             # in this first version this might be specific to andor camera
             for i in range(n_frames):
                 i += 1
-                self.log.info('image {}'.format(i))
+                # self.log.info('image {}'.format(i))
                 self._last_image = self._hardware.get_most_recent_image()
                 self.sigUpdateDisplay.emit()
                 sleep(0.01)  # this is used to force enough time for a signal to be transmitted. To be modified using a proper method

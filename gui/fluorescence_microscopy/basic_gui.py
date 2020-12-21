@@ -274,7 +274,7 @@ class BasicGUI(GUIBase):
         self.sigImageStart.connect(self._camera_logic.start_single_acquistion)
 
         # imageitem
-        self.imageitem = pg.ImageItem()  # image=data can be set here ..
+        self.imageitem = pg.ImageItem(axisOrder='row-major')  # image=data can be set here ..
         self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
         self._mw.camera_ScanPlotWidget.setAspectLocked(True)
         self._mw.camera_ScanPlotWidget.sigMouseAreaSelected.connect(self.mouse_area_selected)
@@ -811,12 +811,7 @@ class BasicGUI(GUIBase):
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
 
 
-<<<<<<< HEAD
-=======
 
-
-
->>>>>>> 72e2761639c164c800f536029adea1b254f124dd
     def select_sensor_region(self):
         # to be completed with the deactivation of the selector tool
         self._mw.camera_ScanPlotWidget.toggle_selection(True)
@@ -830,14 +825,14 @@ class BasicGUI(GUIBase):
         vstart = round(vstart)
         hend = round(hend)
         vend = round(vend)
-        self.log.info('hstart={}, vstart={}, hend={}, vend={}'.format(hstart, vstart, hend, vend))
-<<<<<<< HEAD
-            
-=======
+        hstart_ = min(hstart, hend)
+        hend_ = max(hstart, hend)
+        vstart_ =min(vstart, vend)
+        vend_ = max(vstart, vend)
+        self.log.info('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
+        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, vstart_, vend_)
 
 
-
->>>>>>> 72e2761639c164c800f536029adea1b254f124dd
 # for testing
 # if __name__ == '__main__':
 #    app = QtWidgets.QApplication(sys.argv)
