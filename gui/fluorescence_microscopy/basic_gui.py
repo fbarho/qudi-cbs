@@ -264,6 +264,9 @@ class BasicGUI(GUIBase):
         self._mw.set_sensor_Action.setChecked(self.region_selector_enabled)  # on start this is false  # better: link it to an attribute
         self._mw.set_sensor_Action.triggered.connect(self.select_sensor_region)
 
+        self._mw.set_sensor_Action.setEnabled(True)
+        self._mw.set_sensor_Action.setChecked(self.region_selector_enabled)  # on start this is false  # better: link it to an attribute
+        self._mw.set_sensor_Action.triggered.connect(self.select_sensor_region)
 
         # starting the physical measurement
         self.sigVideoStart.connect(self._camera_logic.start_loop)
@@ -808,6 +811,12 @@ class BasicGUI(GUIBase):
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
 
 
+<<<<<<< HEAD
+=======
+
+
+
+>>>>>>> 72e2761639c164c800f536029adea1b254f124dd
     def select_sensor_region(self):
         # to be completed with the deactivation of the selector tool
         self._mw.camera_ScanPlotWidget.toggle_selection(True)
@@ -822,7 +831,13 @@ class BasicGUI(GUIBase):
         hend = round(hend)
         vend = round(vend)
         self.log.info('hstart={}, vstart={}, hend={}, vend={}'.format(hstart, vstart, hend, vend))
+<<<<<<< HEAD
             
+=======
+
+
+
+>>>>>>> 72e2761639c164c800f536029adea1b254f124dd
 # for testing
 # if __name__ == '__main__':
 #    app = QtWidgets.QApplication(sys.argv)
