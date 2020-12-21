@@ -150,7 +150,7 @@ class BasicGUI(GUIBase):
     sigImageStart = QtCore.Signal()
 
     sigVideoSavingStart = QtCore.Signal(str, int, bool)
-    sigSpoolingStart = QtCore.Signal(str, int)
+    sigSpoolingStart = QtCore.Signal(str, int, bool)
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -454,7 +454,7 @@ class BasicGUI(GUIBase):
         if self._video:
             self.sigVideoSavingStart.emit(path, n_frames, display)
         elif self._spooling:
-            self.sigSpoolingStart.emit(path, n_frames)
+            self.sigSpoolingStart.emit(path, n_frames, display)
         else:  # to do: write an error message or something like this ???
             pass
 
