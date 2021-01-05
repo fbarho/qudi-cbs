@@ -18,21 +18,41 @@ types of samples. Moreover, it is planned to add a serpentine scan over a sample
 decide which ROI belongs to which object in the analysis step.
 """
 
-
 import os
 import numpy as np
-import time
+from time import sleep
 import json
 from itertools import product
 from math import ceil
 
-#from collections import OrderedDict
 from core.connector import Connector
 from core.statusvariable import StatusVar
 from datetime import datetime
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 from core.util.mutex import Mutex
+
+
+class WorkerSignals(QtCore.QObject):
+    """ Defines the signals available from a running worker thread """
+
+    sigFinished = QtCore.Signal()
+
+
+class Worker(QtCore.QRunnable):
+    """ Worker thread to monitor the stage position every x seconds when tracking mode is on
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update stage position """
+
+    def __init__(self, *args, **kwargs):
+        super(Worker, self).__init__()
+        self.signals = WorkerSignals()
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(1)  # 1 second as time constant but change it after tests
+        self.signals.sigFinished.emit()
 
 
 class RegionOfInterestList:
@@ -56,7 +76,7 @@ class RegionOfInterestList:
 
     def __init__(self, name=None, creation_time=None, cam_image=None,
                  cam_image_extent=None, rois=None):
-        
+
         # Save the creation time for metadata
         self._creation_time = None
         # Optional camera image associated with this ROI
@@ -70,7 +90,7 @@ class RegionOfInterestList:
 
         self.creation_time = creation_time
         self.name = name
-        #self.set_cam_image(cam_image, cam_image_extent)
+        # self.set_cam_image(cam_image, cam_image_extent)
         if rois is not None:
             for roi in rois:
                 self.add_roi(roi)
@@ -85,11 +105,9 @@ class RegionOfInterestList:
         if isinstance(new_name, str) and new_name:
             self._name = str(new_name)
         elif new_name is None or new_name == '':
-            self._name = self._creation_time.strftime('roilist_%Y%m%d_%H%M_%S_%f') ## modify the default roilist name ?
+            self._name = self._creation_time.strftime('roilist_%Y%m%d_%H%M_%S_%f')  # modify the default roilist name ?
         else:
             raise TypeError('ROIlist name to set must be None or of type str.')
-        return None
-          
 
     @property
     def creation_time(self):
@@ -111,7 +129,7 @@ class RegionOfInterestList:
 
     @property
     def origin(self):
-        return np.zeros(3) # no drift correction so origin is set to 0 and does not move over time
+        return np.zeros(3)  # no drift correction so origin is set to 0 and does not move over time
 
     @property
     def cam_image(self):
@@ -136,14 +154,12 @@ class RegionOfInterestList:
         origin = self.origin
         return {name: roi.position + origin for name, roi in self._rois.items()}
 
-
     def get_roi_position(self, name):
         if not isinstance(name, str):
             raise TypeError('ROI name must be of type str.')
         if name not in self._rois:
             raise KeyError('No ROI with name "{0}" found in ROI list.'.format(name))
         return self._rois[name].position + self.origin
-    
 
     def set_roi_position(self, name, new_pos):
         if name not in self._rois:
@@ -152,37 +168,34 @@ class RegionOfInterestList:
         self._rois[name].position = np.array(new_pos, dtype=float) - self.origin
         return None
 
+    ##### this method is made unavailable because only the generic name ROI_000 etc is allowed.
+    #    def rename_roi(self, name, new_name=None):
+    #        if new_name is not None and not isinstance(new_name, str):
+    #            raise TypeError('ROI name to set must be of type str or None.')
+    #        if name not in self._rois:
+    #            raise KeyError('Name "{0}" not found in ROI list.'.format(name))
+    #        if new_name in self._rois:
+    #            raise NameError('New ROI name "{0}" already present in current ROI list.')
+    #        self._rois[name].name = new_name
+    #        self._rois[new_name] = self._rois.pop(name)
+    #        return None
 
-##### this method is made unavailable because only the generic name ROI_000 etc is allowed.
-#    def rename_roi(self, name, new_name=None):
-#        if new_name is not None and not isinstance(new_name, str):
-#            raise TypeError('ROI name to set must be of type str or None.')
-#        if name not in self._rois:
-#            raise KeyError('Name "{0}" not found in ROI list.'.format(name))
-#        if new_name in self._rois:
-#            raise NameError('New ROI name "{0}" already present in current ROI list.')
-#        self._rois[name].name = new_name
-#        self._rois[new_name] = self._rois.pop(name)
-#        return None
+    # to be modified: remove kwarg name in calls to this function -> better solution: leave it as it for compatibility and just make sure that a generic name always overwrites a name given by user
 
-       
-# to be modified: remove kwarg name in calls to this function -> better solution: leave it as it for compatibility and just make sure that a generic name always overwrites a name given by user
     def add_roi(self, position, name=None):
         if isinstance(position, RegionOfInterest):
             roi_inst = position
         else:
             position = position - self.origin
-            
+
             # Create a generic name which cannot be accessed by the user
             index = len(self._rois) + 1
-            str_index = str(index).zfill(3) # zero padding
-            name = 'ROI_'+str_index
-            
+            str_index = str(index).zfill(3)  # zero padding
+            name = 'ROI_' + str_index
+
             roi_inst = RegionOfInterest(position=position, name=name)
         self._rois[roi_inst.name] = roi_inst
         return None
-                                        
-
 
     def delete_roi(self, name):
         if not isinstance(name, str):
@@ -192,25 +205,23 @@ class RegionOfInterestList:
         del self._rois[name]
         return None
 
-
-# can be activated and modified if camera image is added
-#     def set_cam_image(self, image_arr=None, image_extent=None):
-#         """
-#
-#         @param scalar[][] image_arr:
-#         @param float[2][2] image_extent:
-#         """
-#         if image_arr is None:
-#             self._cam_image = None
-#             self._cam_image_extent = None
-#         else:
-#             roi_x_pos, roi_y_pos, roi_z_pos = self.origin
-#             x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
-#             y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
-#             self._cam_image = np.array(image_arr)
-#             self._cam_image_extent = (x_extent, y_extent)
-#         return
-
+    # can be activated and modified if camera image is added
+    #     def set_cam_image(self, image_arr=None, image_extent=None):
+    #         """
+    #
+    #         @param scalar[][] image_arr:
+    #         @param float[2][2] image_extent:
+    #         """
+    #         if image_arr is None:
+    #             self._cam_image = None
+    #             self._cam_image_extent = None
+    #         else:
+    #             roi_x_pos, roi_y_pos, roi_z_pos = self.origin
+    #             x_extent = (image_extent[0][0] - roi_x_pos, image_extent[0][1] - roi_x_pos)
+    #             y_extent = (image_extent[1][0] - roi_y_pos, image_extent[1][1] - roi_y_pos)
+    #             self._cam_image = np.array(image_arr)
+    #             self._cam_image_extent = (x_extent, y_extent)
+    #         return
 
     def to_dict(self):
         return {'name': self.name,
@@ -228,14 +239,14 @@ class RegionOfInterestList:
             rois = [RegionOfInterest.from_dict(roi) for roi in dict_repr.get('rois')]
         else:
             rois = None
-            
+
         roi_list = cls(name=dict_repr.get('name'),
-                  creation_time=dict_repr.get('creation_time'),
-                  cam_image=dict_repr.get('cam_image'),
-                  cam_image_extent=dict_repr.get('cam_image_extent'),
-                  rois=rois,
-                  )
-        return roi_list 
+                       creation_time=dict_repr.get('creation_time'),
+                       cam_image=dict_repr.get('cam_image'),
+                       cam_image_extent=dict_repr.get('cam_image_extent'),
+                       rois=rois,
+                       )
+        return roi_list
 
 
 class RegionOfInterest:
@@ -264,13 +275,12 @@ class RegionOfInterest:
     def name(self, new_name):
         if new_name is not None and not isinstance(new_name, str):
             raise TypeError('Name to set must be either None or of type str.')
-        if not new_name: 
-            index = len(self._rois) + 1 
+        if not new_name:
+            index = len(self._rois) + 1
             str_index = str(index).zfill(3)
-            new_name = 'ROI_'+str_index
+            new_name = 'ROI_' + str_index
         self._name = new_name
-        return None
-        
+
     @property
     def position(self):
         return self._position
@@ -280,7 +290,6 @@ class RegionOfInterest:
         if len(pos) != 3:
             raise ValueError('ROI position to set must be iterable of length 3 (X, Y, Z).')
         self._position = np.array(pos, dtype=float)
-        return None
 
     def to_dict(self):
         return {'name': self.name, 'position': tuple(self.position)}
@@ -290,20 +299,19 @@ class RegionOfInterest:
         return cls(**dict_repr)
 
 
-
-
 class RoiLogic(GenericLogic):
     """
     This is the Logic class for selecting regions of interest.
     """
 
     # declare connectors
-    stage = Connector(interface='MotorInterface') 
-    
+    stage = Connector(interface='MotorInterface')
+
     # status vars
     _roi_list = StatusVar(default=dict())  # Notice constructor and representer further below
     _active_roi = StatusVar(default=None)
-    _roi_width = StatusVar(default=20) # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
+    _roi_width = StatusVar(
+        default=20)  # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
 
     # Signals
     sigRoiUpdated = QtCore.Signal(str, str, np.ndarray)  # old_name, new_name, current_position
@@ -311,24 +319,28 @@ class RoiLogic(GenericLogic):
     sigRoiListUpdated = QtCore.Signal(dict)  # Dict containing ROI parameters to update
     sigWidthUpdated = QtCore.Signal(float)
 
-    sigStageMoved = QtCore.Signal(np.ndarray) # current_position
+    sigStageMoved = QtCore.Signal(np.ndarray)  # current_position
+    sigUpdateStagePosition = QtCore.Signal(tuple)
 
-    
     # variables from mosaic settings dialog and default values
     _mosaic_x_start = 0
     _mosaic_y_start = 0
     _mosaic_roi_width = 0
     _mosaic_number = 0
 
+    tracking = False
+
+    timer = None
+    tracking_interval = 1
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
         # not needed in this version but remember to use it when starting to handle threads
         # threading
-        self._threadlock = Mutex()
-        
-        return None
+        # self._threadlock = Mutex()
+
+        self.threadpool = QtCore.QThreadPool()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -339,16 +351,14 @@ class RoiLogic(GenericLogic):
         #     self.set_cam_image(False)
 
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
-                                 'rois': self.roi_positions,
-                                 'cam_image': self.roi_list_cam_image,
-                                 'cam_image_extent': self.roi_list_cam_image_extent
-                                 })
+                                     'rois': self.roi_positions,
+                                     'cam_image': self.roi_list_cam_image,
+                                     'cam_image_extent': self.roi_list_cam_image_extent
+                                     })
         self.sigActiveRoiUpdated.emit('' if self.active_roi is None else self.active_roi)
-        return None
 
     def on_deactivate(self):
         pass
-
 
     @property
     def active_roi(self):
@@ -357,7 +367,6 @@ class RoiLogic(GenericLogic):
     @active_roi.setter
     def active_roi(self, name):
         self.set_active_roi(name)
-        return None
 
     @property
     def roi_names(self):
@@ -402,15 +411,15 @@ class RoiLogic(GenericLogic):
     @roi_width.setter
     def roi_width(self, new_width):
         self.set_roi_width(new_width)
-        return None
 
     # formerly returned as list instead of tuple. in case error appears .. it worked correctly with a list
     @property
     def stage_position(self):
-        pos = self.stage().get_pos() # this returns a dictionary of the format {'x': pos_x, 'y': pos_y} 
-        return tuple(pos.values())[:3] # get only the dictionary values as a list. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
+        pos = self.stage().get_pos()  # this returns a dictionary of the format {'x': pos_x, 'y': pos_y}
+        return tuple(pos.values())[
+               :3]  # get only the dictionary values as a list. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
 
-# even if called with a name not None, a generic name is set. The specified one is not taken into account. This is handled in the add_roi method of RegionOfInterestList class
+    # even if called with a name not None, a generic name is set. The specified one is not taken into account. This is handled in the add_roi method of RegionOfInterestList class
     @QtCore.Slot()
     @QtCore.Slot(np.ndarray)
     def add_roi(self, position=None, name=None, emit_change=True):
@@ -445,14 +454,13 @@ class RoiLogic(GenericLogic):
         self.set_active_roi(roi_name)
         return None
 
-# delete_roi can be called with a name present in the list (which will only be the generic names)
+    # delete_roi can be called with a name present in the list (which will only be the generic names)
     @QtCore.Slot()
     def delete_roi(self, name=None):
         """
         Deletes the given roi from the roi list.
 
         @param str name: Name of the roi to delete. If None (default) delete active roi.
-        @param bool emit_change: Flag indicating if the changed roi set should be signaled.
         """
         if len(self.roi_names) == 0:
             self.log.warning('Can not delete ROI. No ROI present in ROI list.')
@@ -464,7 +472,7 @@ class RoiLogic(GenericLogic):
             else:
                 name = self.active_roi
 
-        self._roi_list.delete_roi(name) # see method defined in RegionOfInterestList class
+        self._roi_list.delete_roi(name)  # see method defined in RegionOfInterestList class
 
         if self.active_roi == name:
             if len(self.roi_names) > 0:
@@ -483,7 +491,6 @@ class RoiLogic(GenericLogic):
             self._roi_list.delete_roi(name)
             self.sigRoiUpdated.emit(name, '', np.zeros(3))
         return None
-
 
     @QtCore.Slot(str)
     def set_active_roi(self, name=None):
@@ -515,7 +522,6 @@ class RoiLogic(GenericLogic):
             name = self.active_roi
         return self._roi_list.get_roi_position(name)
 
-
     @QtCore.Slot(str)
     def rename_roi_list(self, new_name):
         if not isinstance(new_name, str) or new_name == '':
@@ -524,7 +530,6 @@ class RoiLogic(GenericLogic):
         self._roi_list.name = new_name
         self.sigRoiListUpdated.emit({'name': self.roi_list_name})
         return None
-
 
     @QtCore.Slot()
     def go_to_roi(self, name=None):
@@ -549,7 +554,7 @@ class RoiLogic(GenericLogic):
         """
         # this functions accepts a tuple (x, y, z) as argument because it will be called with the roi position as argument. 
         # Hence, the input argument has to be converted into a dictionary of format {'x': x, 'y': y} to be passed to the translation stage function.
-        if len(position) != 3: # modify later to use only 2 coordinates but ask before ..
+        if len(position) != 3:  # modify later to use only 2 coordinates but ask before ..
             self.log.error('Stage position to set must be iterable of length 3.')
             return None
         axis_label = ('x', 'y', 'z')
@@ -558,29 +563,28 @@ class RoiLogic(GenericLogic):
         self.sigStageMoved.emit(position)
         return None
 
-#    @QtCore.Slot()
-#    def set_cam_image(self, emit_change=True):
-#        """ Get the current xy scan data and set as scan_image of ROI. """
-#        self._roi_list.set_scan_image() # add the camera logic as connector to get the image ?? or do not show image on ROI map ?
-#
-#        if emit_change:
-#            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_scan_image,
-#                                     'scan_image_extent': self.roi_scan_image_extent})
-#        return None
-
+    #    @QtCore.Slot()
+    #    def set_cam_image(self, emit_change=True):
+    #        """ Get the current xy scan data and set as scan_image of ROI. """
+    #        self._roi_list.set_scan_image() # add the camera logic as connector to get the image ?? or do not show image on ROI map ?
+    #
+    #        if emit_change:
+    #            self.sigRoiListUpdated.emit({'scan_image': self.roi_list_scan_image,
+    #                                     'scan_image_extent': self.roi_scan_image_extent})
+    #        return None
 
     @QtCore.Slot()
     def reset_roi_list(self):
-        self._roi_list = RegionOfInterestList() # create an instance of the RegionOfInterestList class
+        self._roi_list = RegionOfInterestList()  # create an instance of the RegionOfInterestList class
         # self.set_cam_image()
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
-                                 'rois': self.roi_positions,
-                                 'cam_image': self.roi_list_cam_image,
-                                 'cam_image_extent': self.roi_list_cam_image_extent
-                                 })
+                                     'rois': self.roi_positions,
+                                     'cam_image': self.roi_list_cam_image,
+                                     'cam_image_extent': self.roi_list_cam_image_extent
+                                     })
         self.set_active_roi(None)
         return None
-    
+
     # @QtCore.Slot()
     # def set_cam_image(self, emit_change=True):
     #     """ test if this helps to solve the distance measuremetn problem when roi_image is not initialized
@@ -591,8 +595,6 @@ class RoiLogic(GenericLogic):
     #         self.sigRoiListUpdated.emit({'scan_image': self.roi_list_cam_image,
     #                                  'scan_image_extent': self.roi_cam_image_extent})
     #     return None
-    
-
 
     @QtCore.Slot(float)
     def set_roi_width(self, width):
@@ -600,29 +602,27 @@ class RoiLogic(GenericLogic):
         self.sigWidthUpdated.emit(width)
         return None
 
-
     def save_roi_list(self, path, filename):
         """
         Save the current roi_list to a file. A dictionary format is used.
         """
         # convert the roi_list to a dictionary
         roi_list_dict = self.roi_list_to_dict(self._roi_list)
-        
+
         if not os.path.exists(path):
             try:
-                os.makedirs(path) # recursive creation of all directories on the path
+                os.makedirs(path)  # recursive creation of all directories on the path
             except Exception as e:
                 self.log.error('Error {0}'.format(e))
-                
+
         p = os.path.join(path, filename)
-        
-        with open(p+'.json', 'w') as file:
+
+        with open(p + '.json', 'w') as file:
             json.dump(roi_list_dict, file)
-            
+
         return None
 
-    
-    # to solve: problem with marker size when loading a new list 
+    # to solve: problem with marker size when loading a new list
     def load_roi_list(self, complete_path=None):
         """ 
         Load a selected roi_list from .json file. 
@@ -630,21 +630,19 @@ class RoiLogic(GenericLogic):
         # if no path given do nothing
         if complete_path is None:
             return None
-        
+
         with open(complete_path, 'r') as file:
-            roi_list_dict = json.load(file) 
-            
+            roi_list_dict = json.load(file)
+
         self._roi_list = self.dict_to_roi(roi_list_dict)
 
-        
         self.sigRoiListUpdated.emit({'name': self.roi_list_name,
-                                 'rois': self.roi_positions,
-                                 'cam_image': self.roi_list_cam_image,
-                                 'cam_image_extent': self.roi_list_cam_image_extent
-                                 })     
+                                     'rois': self.roi_positions,
+                                     'cam_image': self.roi_list_cam_image,
+                                     'cam_image_extent': self.roi_list_cam_image_extent
+                                     })
         self.set_active_roi(None if len(self.roi_names) == 0 else self.roi_names[0])
         return None
-
 
     @_roi_list.constructor
     def dict_to_roi(self, roi_dict):
@@ -653,10 +651,9 @@ class RoiLogic(GenericLogic):
     @_roi_list.representer
     def roi_list_to_dict(self, roi_list):
         return roi_list.to_dict()
-    
-    
+
     ################### mosaic tools
-    
+
     # def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
     #     """
     #     Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
@@ -696,8 +693,8 @@ class RoiLogic(GenericLogic):
             # shift and stretch the grid to create the roi centers
             # mind the 3rd dimension so that it can be passed to the add_roi method
             # calculate start positions (lower left corner of the grid) given the central position
-            x_start_pos = x_center_pos - roi_width * (width-1)/2
-            y_start_pos = y_center_pos - roi_width * (height-1)/2
+            x_start_pos = x_center_pos - roi_width * (width - 1) / 2
+            y_start_pos = y_center_pos - roi_width * (height - 1) / 2
             roi_centers = grid_array * roi_width + [x_start_pos, y_start_pos, 0]
 
             for item in roi_centers:
@@ -731,7 +728,7 @@ class RoiLogic(GenericLogic):
     # but maybe modify to send the selected value with it..
     @QtCore.Slot()
     @QtCore.Slot(float)
-    def add_interpolation(self, roi_distance=2): # remember to correct the roi_distance parameter
+    def add_interpolation(self, roi_distance=2):  # remember to correct the roi_distance parameter
         """ Fills the space between the already defined rois (at least 2) with more rois using a center to center distance roi_distance.
         The grid starts in the minimum x and y coordinates from the already defined rois and covers the maximum x and y coordinates
 
@@ -758,12 +755,13 @@ class RoiLogic(GenericLogic):
                 width = abs(xmax - xmin)
                 height = abs(ymax - ymin)
                 print(width, height)
-                num_x = ceil(width / roi_distance) + 1 # number of tiles in x direction
-                num_y =  ceil(height / roi_distance) + 1 # number of tiles in y direction
+                num_x = ceil(width / roi_distance) + 1  # number of tiles in x direction
+                num_y = ceil(height / roi_distance) + 1  # number of tiles in y direction
                 print(num_x, num_y)
 
                 # create a grid of the central points
-                grid = self.make_serpentine_grid(int(num_x), int(num_y)) # type conversion necessary because xmin etc are numpy floats
+                grid = self.make_serpentine_grid(int(num_x), int(
+                    num_y))  # type conversion necessary because xmin etc are numpy floats
                 # type conversion from list to np array for making linear, elementwise operations
                 grid_array = np.array(grid)
                 # stretch the grid and shift it so that the first center point is in (x_min, y_min)
@@ -779,7 +777,28 @@ class RoiLogic(GenericLogic):
             except Exception:
                 self.log.error('Could not create interpolation')
 
+    # functions for the tracking mode of the stage position.
+    # using a timer as first approach (did not work because i put the timer into __init__ but it should have gone in on_activate
+    # alternatively, use worker thread as for temperature tracking in basic_gui
+    # worker thread version
+    def start_tracking(self):
+        self.tracking = True
+        # monitor the current stage position, using a worker thread
+        worker = Worker()
+        worker.signals.sigFinished.connect(self.tracking_loop)
+        self.threadpool.start(worker)
 
+    def stop_tracking(self):
+        self.tracking = False
+        # get once again the latest position
+        position = self.stage_position
+        self.sigUpdateStagePosition.emit(position)
 
-
-
+    def tracking_loop(self):
+        position = self.stage_position
+        self.sigUpdateStagePosition.emit(position)
+        if self.tracking:
+            # enter in a loop until tracking mode is switched off
+            worker = Worker()
+            worker.signals.sigFinished.connect(self.tracking_loop)
+            self.threadpool.start(worker)
