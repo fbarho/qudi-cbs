@@ -42,8 +42,8 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  #   Dummy camera
-    _resolution = ConfigOption('resolution', (1280, 720))  # High-definition !
+    _camera_name = ConfigOption('camera_name', 'Dummy camera')  # 'Dummy camera' 'iXon Ultra 897'
+    _resolution = ConfigOption('resolution', (720, 1280))  # indicate (nb rows, nb cols) because row-major config is used in gui module
 
     _live = False
     _acquiring = False
@@ -52,10 +52,21 @@ class CameraDummy(Base, CameraInterface):
     _has_temp = False
     _has_shutter = False
 
+    # uncomment if _has_temp = True
+    # temperature = 17
+    # _default_temperature = 12
+
+    image_size = _resolution
+    n_frames = 1
+
+    _full_width = 0
+    _full_height = 0
+
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        pass
+        self._full_width = self._resolution[0]
+        self._full_height = self._resolution[1]
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -74,7 +85,7 @@ class CameraDummy(Base, CameraInterface):
 
         @return tuple: Size (width, height)
         """
-        return self._resolution
+        return self.image_size
 
     def support_live_acquisition(self):
         """ Return whether or not the camera can take care of live acquisition
@@ -113,7 +124,6 @@ class CameraDummy(Base, CameraInterface):
         self._live = False
         self._acquiring = False
 
-
     def get_acquired_data(self):
         """ Return an array of last acquired image.
 
@@ -121,17 +131,18 @@ class CameraDummy(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
-        #data = np.random.random(self._resolution)*self._exposure*self._gain
-        data = np.random.normal(size=self._resolution) # * self._exposure * self._gain
+        if self.n_frames > 1:
+            data = self._data_generator(size=(self.n_frames, self.image_size[0], self.image_size[1]))
+        else:
+            data = self._data_generator(size=self.image_size)
         return data
-        #return data.transpose()
 
     def set_exposure(self, exposure):
         """ Set the exposure time in seconds
 
-        @param float time: desired new exposure time
+        @param float exposure: desired new exposure time
 
-        @return float: setted new exposure time
+        @return float: newly set exposure time
         """
         self._exposure = exposure
         return self._exposure
@@ -175,11 +186,15 @@ class CameraDummy(Base, CameraInterface):
         return self._has_temp
 
     # for tests do as if temperature available..
+    # uncomment if needed
     # def set_temperature(self, temp):
     #     self.temperature = temp
     #
     # def get_temperature(self):
     #     return self.temperature
+    #
+    # def is_cooler_on(self):
+    #     return 1
 
     def has_shutter(self):
         """ Is the camera equipped with a shutter?
@@ -198,7 +213,8 @@ class CameraDummy(Base, CameraInterface):
         # handle the variables indicating the status
         if self.support_live_acquisition():
             self._live = True   # allow the user to select if image should be shown or not; set self._live accordingly
-            self._acquiring = True
+            self._acquiring = False
+        self.n_frames = n_frames
         self.log.info('started movie acquisition')
         return True
 
@@ -209,6 +225,7 @@ class CameraDummy(Base, CameraInterface):
         """
         self._live = False
         self._acquiring = False
+        self.n_frames = 1
         self.log.info('movie acquisition finished')
         return True
 
@@ -219,21 +236,36 @@ class CameraDummy(Base, CameraInterface):
         """
         time.sleep(1)
 
-       # just for tests of the gui
+    def get_most_recent_image(self):
+        """ Returns an np array of the most recent image.
+
+        Used for live display on gui during save procedures"""
+        data = np.random.normal(size=self.image_size)  # * self._exposure * self._gain
+        return data
+
+    def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
+        """ Allows to reduce the actual sensor size We don't use the binning parameters but they are needed in the
+        function call to be conform with syntax of andor camera """
+        self.image_size = (abs(hend-hstart)+1, abs(vend-vstart)+1)  # col, rows
+        return 0
+
+    # mock method to get data which is equivalent to kinetic series (n_frames > 1 allowed)
+    def _data_generator(self, size):
+        """ Allows to generate 2D or 3D data
+        @param: int tuple size (width, height) or (depth, width, height)
+        @return: np.array(float) data
+        """
+        data = np.random.normal(size=size)
+        return data
+
+    # just for tests of the gui  # pseudo-interface functions specific to andor camera
     def _set_spool(self, active, mode, filenamestem, framebuffer):
+        """ Simulates the spooling functionality of the andor camera.
+         This function must be available if camera name is set to iXon Ultra 897
+         """
         self.log.info('camera dummy: started spooling')
 
     def get_kinetic_time(self):
+        """ Simulates kinetic time method of andor camera
+        This function must be available if camera name is set to iXon Ultra 897"""
         return self._exposure + 0.765421
-
-    def get_most_recent_image(self):
-        data = np.random.normal(size=self._resolution) #* self._exposure * self._gain
-        return data
-        ## for test purpose do the same data generation as for
-
-
-
-
-
-
-

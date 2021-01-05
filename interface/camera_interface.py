@@ -29,6 +29,10 @@ class CameraInterface(metaclass=InterfaceMetaclass):
     """ This interface is used to manage and visualize a simple camera
     """
 
+    # set the internal attributes _full_width, _full_height,
+    # and, if has_temp returns true: _default_temperature
+    # if has_shutter returns true: _shutter
+
     @abstract_interface_method
     def get_name(self):
         """ Retrieve an identifier of the camera that the GUI can print
@@ -123,7 +127,6 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-
     @abstract_interface_method
     def get_ready_state(self):
         """ Is the camera ready for an acquisition ?
@@ -132,13 +135,13 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-    #### new interface functions not in the original qudi version
+    # new interface functions not in the original qudi version
     @abstract_interface_method
     def has_temp(self):
         """ Does the camera support setting of the temperature?
 
-        if this function returns true, make sure that get_temperature, set_temperature, is_cooler_on and _set_cooler are implemented
-        the attribute _default_temperature should be also be set in the hardware module
+        if this function returns true, make sure that get_temperature, set_temperature, is_cooler_on and _set_cooler
+        are implemented the attribute _default_temperature should be also be set in the hardware module
         
         @return bool: has temperature ?
         """
@@ -153,7 +156,6 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @return bool: has shutter ?
         """
         pass
-
 
     @abstract_interface_method
     def start_movie_acquisition(self, n_frames):
@@ -178,5 +180,28 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         """ waits until an acquisition is finished
 
         @return None
+        """
+        pass
+
+    @abstract_interface_method
+    def get_most_recent_image(self):
+        """ Return an array of last acquired image.
+
+        @return numpy array: image data in format [[row],[row]...]
+
+        Each pixel might be a float, integer or sub pixels
+        """
+        pass
+
+    @abstract_interface_method
+    def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
+        """ Sets a ROI on the sensor surface
+
+        @param int hbin: number of pixels to bin horizontally
+        @param int vbin: number of pixels to bin vertically.
+        @param int hstart: Start column (inclusive)
+        @param int hend: End column (inclusive)
+        @param int vstart: Start row (inclusive)
+        @param int vend: End row (inclusive).
         """
         pass

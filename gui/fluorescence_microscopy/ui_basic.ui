@@ -31,7 +31,7 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="save_image_MenuAction"/>
+    <addaction name="close_MenuAction"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -47,6 +47,8 @@
      <string>Options</string>
     </property>
     <addaction name="camera_settings_Action"/>
+    <addaction name="rotate_image_cw_MenuAction"/>
+    <addaction name="rotate_image_ccw_MenuAction"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -80,6 +82,12 @@
     </sizepolicy>
    </property>
    <property name="minimumSize">
+    <size>
+     <width>350</width>
+     <height>350</height>
+    </size>
+   </property>
+   <property name="maximumSize">
     <size>
      <width>350</width>
      <height>350</height>
@@ -196,7 +204,7 @@
   </widget>
   <widget class="QDockWidget" name="camera_DockWidget">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
@@ -220,11 +228,17 @@
     <widget class="ScanPlotWidget" name="camera_ScanPlotWidget">
      <property name="geometry">
       <rect>
-       <x>280</x>
+       <x>290</x>
        <y>10</y>
-       <width>471</width>
+       <width>450</width>
        <height>500</height>
       </rect>
+     </property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
      <property name="minimumSize">
       <size>
@@ -233,122 +247,131 @@
       </size>
      </property>
     </widget>
-    <widget class="QLabel" name="label_3">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>60</y>
-       <width>141</width>
-       <height>17</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Camera settings:</string>
-     </property>
-    </widget>
-    <widget class="QWidget" name="layoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>80</y>
-       <width>265</width>
-       <height>89</height>
-      </rect>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="0" column="0">
-       <widget class="QLabel" name="exposure_Label">
-        <property name="text">
-         <string>Exposure time (s)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLineEdit" name="exposure_LineEdit">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>Gain</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="gain_LineEdit">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="temperature_Label">
-        <property name="text">
-         <string>Temperature (°C)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="temperature_LineEdit">
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-    <widget class="QWidget" name="layoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>200</y>
-       <width>251</width>
-       <height>104</height>
-      </rect>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QLabel" name="label_6">
-        <property name="text">
-         <string>Default path:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="save_path_LineEdit">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_7">
-        <property name="text">
-         <string>Samplename:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="samplename_LineEdit">
-        <property name="text">
-         <string>sample1</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
     <widget class="HistogramLUTWidget" name="histogram_Widget" native="true">
      <property name="geometry">
       <rect>
-       <x>760</x>
+       <x>710</x>
        <y>10</y>
-       <width>61</width>
-       <height>491</height>
+       <width>120</width>
+       <height>500</height>
       </rect>
      </property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>11</x>
+       <y>11</y>
+       <width>269</width>
+       <height>226</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>Camera settings:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="0" column="0">
+           <widget class="QLabel" name="exposure_Label">
+            <property name="text">
+             <string>Exposure time (s)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="exposure_LineEdit">
+            <property name="toolTip">
+             <string>Use Options -&gt; Camera settings to modify</string>
+            </property>
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Gain</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="gain_LineEdit">
+            <property name="toolTip">
+             <string>Use Options -&gt; Camera settings to modify</string>
+            </property>
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="temperature_Label">
+            <property name="text">
+             <string>Temperature (°C)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="temperature_LineEdit">
+            <property name="toolTip">
+             <string>Use Options -&gt; Camera settings to modify</string>
+            </property>
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QLabel" name="label_6">
+          <property name="text">
+           <string>Default path:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="save_path_LineEdit">
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_7">
+          <property name="text">
+           <string>Samplename:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="samplename_LineEdit">
+          <property name="text">
+           <string>sample1</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
     </widget>
    </widget>
   </widget>
@@ -484,9 +507,9 @@
     </widget>
    </widget>
   </widget>
-  <action name="save_image_MenuAction">
+  <action name="close_MenuAction">
    <property name="text">
-    <string>Save Image</string>
+    <string>Close</string>
    </property>
   </action>
   <action name="start_video_Action">
@@ -617,6 +640,22 @@
    </property>
    <property name="text">
     <string>Set sensor region</string>
+   </property>
+  </action>
+  <action name="rotate_image_cw_MenuAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Rotate image cw</string>
+   </property>
+  </action>
+  <action name="rotate_image_ccw_MenuAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Rotate image ccw</string>
    </property>
   </action>
  </widget>
