@@ -26,67 +26,68 @@ from gui.guibase import GUIBase
 from core.connector import Connector
 from core.configoption import ConfigOption
 from qtwidgets.scan_plotwidget import ScanImageItem, ScanViewBox
+from gui.validators import NameValidator
 
 
-# adapted the validator from poimangui.py
-class NameValidator(QtGui.QValidator):
-    """
-    This is a validator for strings that should be compatible with filenames.
-    So no special characters (except '_') and blanks are allowed.
-    If the flag path = True, / and \ are additionally allowed.
-    """
-
-    name_re = re.compile(r'([\w]+)')
-    path_re = re.compile(r'([/\\\\\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
-
-    def __init__(self, *args, empty_allowed=False, path=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._empty_allowed = bool(empty_allowed)
-        self._path = bool(path)  # flag that is used to select the path_re instead of name_re
-
-    def validate(self, string, position):
-        """
-        This is the actual validator. It checks whether the current user input is a valid string
-        every time the user types a character. There are 3 states that are possible.
-        1) Invalid: The current input string is invalid. The user input will not accept the last
-                    typed character.
-        2) Acceptable: The user input in conform with the regular expression and will be accepted.
-        3) Intermediate: The user input is not a valid string yet but on the right track. Use this
-                         return value to allow the user to type fill-characters needed in order to
-                         complete an expression.
-        @param string: The current input string (from a QLineEdit for example)
-        @param position: The current position of the text cursor
-        @return: enum QValidator::State: the returned validator state,
-                 str: the input string, int: the cursor position
-        """
-        # Return intermediate status when empty string is passed
-        if not string:
-            if self._empty_allowed:
-                return self.Acceptable, '', position
-            else:
-                return self.Intermediate, string, position
-
-        if self._path:  # flag for path validator
-            match = self.path_re.match(string)
-        else:
-            match = self.name_re.match(string)
-        if not match:
-            return self.Invalid, '', position
-
-        matched = match.group()
-        if matched == string:
-            return self.Acceptable, string, position
-
-        return self.Invalid, matched, position
-
-    def fixup(self, text):
-        if self._path:
-            match = self.path_re.search(text)
-        else:
-            match = self.name_re.search(text)
-        if match:
-            return match.group()
-        return ''
+## adapted the validator from poimangui.py
+#class NameValidator(QtGui.QValidator):
+#    """
+#    This is a validator for strings that should be compatible with filenames.
+#    So no special characters (except '_') and blanks are allowed.
+#    If the flag path = True, / and \ are additionally allowed.
+#    """
+#
+#    name_re = re.compile(r'([\w]+)')
+#    path_re = re.compile(r'([/\\\\\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
+#
+#    def __init__(self, *args, empty_allowed=False, path=False, **kwargs):
+#        super().__init__(*args, **kwargs)
+#        self._empty_allowed = bool(empty_allowed)
+#        self._path = bool(path)  # flag that is used to select the path_re instead of name_re
+#
+#    def validate(self, string, position):
+#        """
+#        This is the actual validator. It checks whether the current user input is a valid string
+#        every time the user types a character. There are 3 states that are possible.
+#        1) Invalid: The current input string is invalid. The user input will not accept the last
+#                    typed character.
+#        2) Acceptable: The user input in conform with the regular expression and will be accepted.
+#        3) Intermediate: The user input is not a valid string yet but on the right track. Use this
+#                         return value to allow the user to type fill-characters needed in order to
+#                         complete an expression.
+#        @param string: The current input string (from a QLineEdit for example)
+#        @param position: The current position of the text cursor
+#        @return: enum QValidator::State: the returned validator state,
+#                 str: the input string, int: the cursor position
+#        """
+#        # Return intermediate status when empty string is passed
+#        if not string:
+#            if self._empty_allowed:
+#                return self.Acceptable, '', position
+#            else:
+#                return self.Intermediate, string, position
+#
+#        if self._path:  # flag for path validator
+#            match = self.path_re.match(string)
+#        else:
+#            match = self.name_re.match(string)
+#        if not match:
+#            return self.Invalid, '', position
+#
+#        matched = match.group()
+#        if matched == string:
+#            return self.Acceptable, string, position
+#
+#        return self.Invalid, matched, position
+#
+#    def fixup(self, text):
+#        if self._path:
+#            match = self.path_re.search(text)
+#        else:
+#            match = self.name_re.search(text)
+#        if match:
+#            return match.group()
+#        return ''
 
 
 class CameraSettingDialog(QtWidgets.QDialog):
@@ -258,7 +259,7 @@ class BasicGUI(GUIBase):
     def init_camera_dockwidget(self):
         """ initializes the display item and the indicators. Connects signals for the camera dockwidget and the camera toolbar"""
         # initialize the imageitem (display of camera image) qnd its histogram
-        self.imageitem = pg.ImageItem(axisOrder='row-major')  # image=data can be set here ..
+        self.imageitem = pg.ImageItem()  # image=data can be set here ..   axisOrder='row-major'
         self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
         self._mw.camera_ScanPlotWidget.setAspectLocked(True)
         self._mw.camera_ScanPlotWidget.sigMouseAreaSelected.connect(self.mouse_area_selected)
@@ -329,7 +330,7 @@ class BasicGUI(GUIBase):
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
 
         # signals from logic
-        self._camera_logic.sigUpdateDisplay.connect(self.update_data)
+        self._camera_logic.sigUpdateDisplay.connect(self.update_data, QtCore.Qt.DirectConnection)
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
@@ -359,6 +360,7 @@ class BasicGUI(GUIBase):
         # connect signal from logic
         self._camera_logic.sigUpdateCamStatus.connect(self.update_camera_status_display)
         self._camera_logic.sigProgress.connect(self.update_statusbar)
+        self._camera_logic.sigSaving.connect(self.update_statusbar_saving)
 
     def init_laser_dockwidget(self):
         """ initializes the labels for the lasers given in config and connects signals for the laser control toolbar"""
@@ -627,7 +629,7 @@ class BasicGUI(GUIBase):
             image_data = np.rot90(image_data, 3)
         if self.rotation_ccw:
             image_data = np.rot90(image_data, 1)
-        self.imageitem.setImage(image_data, axisOrder='row-major')
+        self.imageitem.setImage(image_data)  #  , axisOrder='row-major'
 
     @QtCore.Slot()
     def save_last_image_clicked(self):
@@ -682,6 +684,8 @@ class BasicGUI(GUIBase):
         # toolbuttons
         self.enable_camera_toolbuttons()
         self._mw.save_video_Action.setChecked(False)
+        # clear the statusbar
+        self._mw.progress_label.setText('')
 
     @QtCore.Slot()
     def set_spooling_clicked(self):
@@ -717,6 +721,10 @@ class BasicGUI(GUIBase):
         # total = self._save_sd.n_frames_SpinBox.value()
         # progress = number_images / total * 100  # try first with the simple version, then use rescaling in %
         self._mw.progress_label.setText('{} images saved'.format(number_images))
+        
+    @QtCore.Slot()
+    def update_statusbar_saving(self):
+        self._mw.progress_label.setText('Saving..')
 
     def reset_toolbuttons(self):
         """ this slot is called when save dialog is canceled
@@ -933,5 +941,5 @@ class BasicGUI(GUIBase):
 
 ## fix formating problem tiff
 ## size policy in qt designer : camera image should expand to maximum possible
-## check status bar functionality on setup
+
 

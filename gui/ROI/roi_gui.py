@@ -23,66 +23,8 @@ from qtpy import QtCore, QtGui
 from qtpy import QtWidgets
 from qtpy import uic
 from qtwidgets.scan_plotwidget import ScanImageItem
-
-
-class NameValidator(QtGui.QValidator):
-    """
-    This is a validator for strings that should be compatible with filenames.
-    So no special characters (except '_') and blanks are allowed.
-    If the flag path = True, / and \ are additionally allowed.
-    """
-
-    name_re = re.compile(r'([\w]+)')
-    path_re = re.compile(r'([/\\\\\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
-
-    def __init__(self, *args, empty_allowed=False, path=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._empty_allowed = bool(empty_allowed)
-        self._path = bool(path)  # flag that is used to select the path_re instead of name_re
-
-    def validate(self, string, position):
-        """
-        This is the actual validator. It checks whether the current user input is a valid string
-        every time the user types a character. There are 3 states that are possible.
-        1) Invalid: The current input string is invalid. The user input will not accept the last
-                    typed character.
-        2) Acceptable: The user input in conform with the regular expression and will be accepted.
-        3) Intermediate: The user input is not a valid string yet but on the right track. Use this
-                         return value to allow the user to type fill-characters needed in order to
-                         complete an expression.
-        @param string: The current input string (from a QLineEdit for example)
-        @param position: The current position of the text cursor
-        @return: enum QValidator::State: the returned validator state,
-                 str: the input string, int: the cursor position
-        """
-        # Return intermediate status when empty string is passed
-        if not string:
-            if self._empty_allowed:
-                return self.Acceptable, '', position
-            else:
-                return self.Intermediate, string, position
-
-        if self._path:  # flag for path validator
-            match = self.path_re.match(string)
-        else:
-            match = self.name_re.match(string)
-        if not match:
-            return self.Invalid, '', position
-
-        matched = match.group()
-        if matched == string:
-            return self.Acceptable, string, position
-
-        return self.Invalid, matched, position
-
-    def fixup(self, text):
-        if self._path:
-            match = self.path_re.search(text)
-        else:
-            match = self.name_re.search(text)
-        if match:
-            return match.group()
-        return ''
+from core.configoption import ConfigOption
+from gui.validators import NameValidator
 
 
 # Class representing the marker.  # adapted from POI manager module of Qudi.
@@ -283,7 +225,7 @@ class StageMarker(pg.RectROI):
         """
         self._position = np.array(position, dtype=float)
         width = self.width
-        label_offset = width / 2
+        label_offset = 0
         self.setPos(self._position[0] - width / 2,
                     self._position[1] - width / 2)  # draw the marker from the lower left corner of the square
         self.label.setPos(self._position[0] + label_offset, self._position[1] + label_offset)
@@ -295,7 +237,7 @@ class StageMarker(pg.RectROI):
 
         @param float width: Width of the square
         """
-        label_offset = width / 2
+        label_offset = 0
         self.setSize((width, width))
         self.setPos(self.position[0] - width / 2, self.position[1] - width / 2)
         self.label.setPos(self.position[0] + label_offset, self.position[1] + label_offset)
@@ -335,12 +277,16 @@ class RoiGUI(GUIBase):
     """
     # declare connectors
     roi_logic = Connector(interface='RoiLogic')
+    
+    # set the default save path for roi lists from config
+    default_path = ConfigOption('default_path', missing='warn')
 
     # declare signals
     sigRoiWidthChanged = QtCore.Signal(float)
     sigRoiListNameChanged = QtCore.Signal(str)
     sigStartTracking = QtCore.Signal()
     sigStopTracking = QtCore.Signal()
+    sigAddInterpolation = QtCore.Signal(float)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -358,8 +304,10 @@ class RoiGUI(GUIBase):
         self._markers = {}  # already initialized in init so maybe remove it here..
 
         self._mw = RoiMainWindow()
-        self.initMosaicSettingsUI()  # initialize the Mosaic settings window in the options menu
 
+        
+        # set the default save path before validator is applied: make sure that config is correct
+        self._mw.save_path_LineEdit.setText(self.default_path)
         # Add validator to LineEdits
         self._mw.roi_list_name_LineEdit.setValidator(NameValidator())
         self._mw.save_path_LineEdit.setValidator(NameValidator(path=True))
@@ -385,6 +333,9 @@ class RoiGUI(GUIBase):
         #                                          rateLimit=30,
         #                                          slot=self.mouse_moved_callback)
 
+        # place this here so that the initialized values can be retrieved for the mosaic dialog
+        self.initMosaicSettingsUI()  # initialize the Mosaic settings window in the options menu
+        
         # Connect signals
         self.__connect_internal_signals()
         self.__connect_update_signals_from_logic()
@@ -407,8 +358,8 @@ class RoiGUI(GUIBase):
         """ Initialize the ROI map """
         self.roi_image = ScanImageItem(axisOrder='row-major')
         self._mw.roi_map_ViewWidget.addItem(self.roi_image)
-        self._mw.roi_map_ViewWidget.setLabel('bottom', 'x position', units='um')  # check units ..
-        self._mw.roi_map_ViewWidget.setLabel('left', 'y position', units='um')
+        self._mw.roi_map_ViewWidget.setLabel('bottom', 'x position')  # units='um'  check units ..
+        self._mw.roi_map_ViewWidget.setLabel('left', 'y position')  # , units='um
         self._mw.roi_map_ViewWidget.setAspectLocked(lock=True, ratio=1.0)
         #        # Get camera image from logic and update initialize plot
         #        self._update_cam_image(self.roi_logic().roi_list_cam_image,
@@ -438,8 +389,9 @@ class RoiGUI(GUIBase):
         self._mw.new_roi_Action.triggered.connect(self.roi_logic().add_roi, QtCore.Qt.QueuedConnection)
         self._mw.go_to_roi_Action.triggered.connect(self.roi_logic().go_to_roi, QtCore.Qt.QueuedConnection)
         self._mw.delete_roi_Action.triggered.connect(self.roi_logic().delete_roi, QtCore.Qt.QueuedConnection)
-        self._mw.add_interpolation_Action.triggered.connect(self.roi_logic().add_interpolation,
-                                                            QtCore.Qt.QueuedConnection)
+        self._mw.add_interpolation_Action.triggered.connect(self.add_interpolation_clicked, QtCore.Qt.QueuedConnection) # this might go to connect internal signals
+       
+
 
         # roi list toolbar actions
         self._mw.new_list_Action.triggered.connect(self.roi_logic().reset_roi_list, QtCore.Qt.QueuedConnection)
@@ -450,7 +402,7 @@ class RoiGUI(GUIBase):
         self.sigRoiWidthChanged.connect(self.roi_logic().set_roi_width)
         self.sigRoiListNameChanged.connect(self.roi_logic().rename_roi_list, QtCore.Qt.QueuedConnection)
         self._mw.active_roi_ComboBox.activated[str].connect(self.roi_logic().set_active_roi, QtCore.Qt.QueuedConnection)
-
+        self.sigAddInterpolation.connect(self.roi_logic().add_interpolation, QtCore.Qt.QueuedConnection)
         self.sigStartTracking.connect(self.roi_logic().start_tracking)
         self.sigStopTracking.connect(self.roi_logic().stop_tracking)
 
@@ -466,7 +418,7 @@ class RoiGUI(GUIBase):
 
         self._mw.new_list_Action.triggered.disconnect()
         self._mw.active_roi_ComboBox.activated[str].disconnect()
-
+        self.sigAddInterpolation.disconnect()
         self.sigStartTracking.disconnect()
         self.sigStopTracking.connect()
 
@@ -519,6 +471,9 @@ class RoiGUI(GUIBase):
         self._mosaic_sd.rejected.connect(self.mosaic_default_settings)  # cancel button
         self._mosaic_sd.current_pos_CheckBox.stateChanged.connect(
             self.mosaic_position)  # current position checkbox updates position fields
+        
+        # set the default values
+        self.mosaic_default_settings()
 
     # slots of the mosaic settings window
     def mosaic_update_settings(self):
@@ -548,7 +503,8 @@ class RoiGUI(GUIBase):
         self._mosaic_sd.current_pos_CheckBox.setChecked(False)
         self._mosaic_sd.x_pos_DSpinBox.setValue(0)
         self._mosaic_sd.y_pos_DSpinBox.setValue(0)
-        self._mosaic_sd.mosaic_roi_width_DSpinBox.setValue(0)
+        roi_width = self._mw.roi_width_doubleSpinBox.value()
+        self._mosaic_sd.mosaic_roi_width_DSpinBox.setValue(roi_width)  
         self._mosaic_sd.mosaic_size1_RadioButton.setAutoExclusive(False)
         self._mosaic_sd.mosaic_size1_RadioButton.setChecked(False)
         self._mosaic_sd.mosaic_size1_RadioButton.setAutoExclusive(True)
@@ -679,7 +635,7 @@ class RoiGUI(GUIBase):
         if name:
             active_roi_pos = self.roi_logic().get_roi_position(name)
             self._mw.roi_coords_label.setText(
-                'x={0:.2}µm, y={1:.2}µm, z={2:.2}µm'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
+                'x={0}, y={1}, z={2}'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
             )
         else:
             active_roi_pos = np.zeros(3)
@@ -727,6 +683,11 @@ class RoiGUI(GUIBase):
                                                 QtWidgets.QMessageBox.No)
         if result == QtWidgets.QMessageBox.Yes:
             self.roi_logic().delete_all_roi()
+            
+    @QtCore.Slot()
+    def add_interpolation_clicked(self):
+        roi_distance = self._mw.roi_width_doubleSpinBox.value()
+        self.sigAddInterpolation.emit(roi_distance)
 
     def _update_cam_image(self, cam_image, cam_image_extent):
         """
@@ -787,7 +748,7 @@ class RoiGUI(GUIBase):
             active_roi_pos = roi_dict[active_roi]
 
             self._mw.roi_coords_label.setText(
-                'x={0:.2}µm, y={1:.2}µm, z={2:.2}µm'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
+                'x={0}, y={1}, z={2}'.format(active_roi_pos[0], active_roi_pos[1], active_roi_pos[2])
             )
         else:
             self._mw.active_roi_ComboBox.setCurrentIndex(-1)
@@ -824,7 +785,7 @@ class RoiGUI(GUIBase):
         try:
             stagemarker = StageMarker(position=position,
                                       view_widget=self._mw.roi_map_ViewWidget,
-                                      width=5,  # to be defined
+                                      width=50,  # to be defined
                                       movable=False)
             # add the marker to the roi overview image
             stagemarker.add_to_view_widget()

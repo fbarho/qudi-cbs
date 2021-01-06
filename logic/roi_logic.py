@@ -306,12 +306,12 @@ class RoiLogic(GenericLogic):
 
     # declare connectors
     stage = Connector(interface='MotorInterface')
-
+    
     # status vars
     _roi_list = StatusVar(default=dict())  # Notice constructor and representer further below
     _active_roi = StatusVar(default=None)
     _roi_width = StatusVar(
-        default=20)  # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
+        default=50)  # check if unit is correct when used with real translation stage. Value corresponds to FOV ??
 
     # Signals
     sigRoiUpdated = QtCore.Signal(str, str, np.ndarray)  # old_name, new_name, current_position
@@ -417,7 +417,7 @@ class RoiLogic(GenericLogic):
     def stage_position(self):
         pos = self.stage().get_pos()  # this returns a dictionary of the format {'x': pos_x, 'y': pos_y}
         return tuple(pos.values())[
-               :3]  # get only the dictionary values as a list. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
+               :3]  # get only the dictionary values as a tuple. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
 
     # even if called with a name not None, a generic name is set. The specified one is not taken into account. This is handled in the add_roi method of RegionOfInterestList class
     @QtCore.Slot()
@@ -425,7 +425,7 @@ class RoiLogic(GenericLogic):
     def add_roi(self, position=None, name=None, emit_change=True):
         """
         Creates a new ROI and adds it to the current ROI list.
-        ROI can be optionally initialized with position and name.
+        ROI can be optionally initialized with position.
 
         @param str name: Name for the ROI (must be unique within ROI list).
                          None (default) will create generic name.
@@ -728,7 +728,7 @@ class RoiLogic(GenericLogic):
     # but maybe modify to send the selected value with it..
     @QtCore.Slot()
     @QtCore.Slot(float)
-    def add_interpolation(self, roi_distance=2):  # remember to correct the roi_distance parameter
+    def add_interpolation(self, roi_distance=50):  # remember to correct the roi_distance parameter
         """ Fills the space between the already defined rois (at least 2) with more rois using a center to center distance roi_distance.
         The grid starts in the minimum x and y coordinates from the already defined rois and covers the maximum x and y coordinates
 
@@ -741,23 +741,20 @@ class RoiLogic(GenericLogic):
             self.log.warning('Please specify at least 2 ROIs to perform an interpolation')
         else:
             try:
-                # x_coords = [self.roi_positions[key][0] for key in self.roi_positions] # get the x coordonates for all the rois in the current roi list
-                # y_coords = [self.roi_positions[key][1] for key in self.roi_positions] # get the y coordonates for all the rois in the current roi list
-
                 # find the minimal and maximal x and y coordonates from the current roi_list
                 xmin = min([self.roi_positions[key][0] for key in self.roi_positions])
                 xmax = max([self.roi_positions[key][0] for key in self.roi_positions])
                 ymin = min([self.roi_positions[key][1] for key in self.roi_positions])
                 ymax = max([self.roi_positions[key][1] for key in self.roi_positions])
-                print(xmin, xmax, ymin, ymax)
+                # print(xmin, xmax, ymin, ymax)
 
                 # calculate the number of tiles needed
                 width = abs(xmax - xmin)
                 height = abs(ymax - ymin)
-                print(width, height)
+                # print(width, height)
                 num_x = ceil(width / roi_distance) + 1  # number of tiles in x direction
                 num_y = ceil(height / roi_distance) + 1  # number of tiles in y direction
-                print(num_x, num_y)
+                # print(num_x, num_y)
 
                 # create a grid of the central points
                 grid = self.make_serpentine_grid(int(num_x), int(
@@ -766,7 +763,7 @@ class RoiLogic(GenericLogic):
                 grid_array = np.array(grid)
                 # stretch the grid and shift it so that the first center point is in (x_min, y_min)
                 roi_centers = grid_array * roi_distance + [xmin, ymin, 0]
-                print(roi_centers)
+                # print(roi_centers)
 
                 # list is not reset before adding new rois. we might end up having some overlapping exactly the initial ones.
                 # to discuss if the initial ones shall be kept

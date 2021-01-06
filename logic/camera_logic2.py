@@ -76,6 +76,7 @@ class CameraLogic(GenericLogic):
     sigGainChanged = QtCore.Signal(float)
     sigTemperatureChanged = QtCore.Signal(float)
     sigProgress = QtCore.Signal(int)  # sends the number of already acquired images
+    sigSaving = QtCore.Signal()
 
     sigUpdateCamStatus = QtCore.Signal(str, str, str, str)
 
@@ -328,18 +329,19 @@ class CameraLogic(GenericLogic):
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
-        if display:
-            self.log.info('display activated')
-            # in this first version this might be specific to andor camera
-            for i in range(n_frames):
-                i += 1
-                # self.log.info('image {}'.format(i))  # only for debugging. avoid using this, it slows everything down
+            
+        ready = self._hardware.get_ready_state()
+        while not ready:
+            progress = self._hardware._get_total_number_images_acquired() # replace by general method get_progress to be put on the interface
+            self.sigProgress.emit(progress)
+            ready =  self._hardware.get_ready_state()
+            if display:
                 self._last_image = self._hardware.get_most_recent_image()
-                self.sigUpdateDisplay.emit()  # try DirectConnection when working on the setup
-                sleep(0.01)  # this is used to force enough time for a signal to be transmitted. To be modified using a proper method
-            # self.log.info('display loop finished')
+                self.sigUpdateDisplay.emit()
+                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
 
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
+        self.sigSaving.emit()
         image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.enabled = False
@@ -364,22 +366,18 @@ class CameraLogic(GenericLogic):
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
-        if display:
-            self.log.info('display activated')
-            # in this first version this might be specific to andor camera
-            for i in range(n_frames):
-                i += 1
-                # self.log.info('image {}'.format(i))
+        
+        ready = self._hardware.get_ready_state()
+        while not ready:
+            spoolprogress = self._hardware._get_total_number_images_acquired()  
+            self.sigProgress.emit(spoolprogress)
+            ready =  self._hardware.get_ready_state()
+            if display:
                 self._last_image = self._hardware.get_most_recent_image()
                 self.sigUpdateDisplay.emit()
-                sleep(0.01)  # this is used to force enough time for a signal to be transmitted. To be modified using a proper method
-            # self.log.info('display loop finished')
+                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
 
-        # to be tested:
-        # while not self._hardware.get_ready_state():
-        #     spoolprogress = self._hardware._get_spool_progress()  ## replace this by a more general method get_progress which should be on the interface
-        #     self.log.info('progress: {}'.format(spoolprogress))
-        #     self.sigProgress.emit(spoolprogress)
+
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
         self._hardware._set_spool(0, 7, path, 10)  # deactivate spooling
