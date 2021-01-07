@@ -77,6 +77,7 @@ class CameraLogic(GenericLogic):
     sigTemperatureChanged = QtCore.Signal(float)
     sigProgress = QtCore.Signal(int)  # sends the number of already acquired images
     sigSaving = QtCore.Signal()
+    sigCleanStatusbar = QtCore.Signal()
 
     sigUpdateCamStatus = QtCore.Signal(str, str, str, str)
 
@@ -319,12 +320,16 @@ class CameraLogic(GenericLogic):
         complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
         self._save_to_tiff(1, complete_path, image_data)
 
-    def save_video(self, filenamestem, n_frames, display):
+    def save_video(self, filenamestem, n_frames, display, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: int n_frames: number of frames to be saved
-        @param: bool display: show images on live display on gui """
+        @param: bool display: show images on live display on gui
+        @param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
+                for example when function is called from ipython console or in a task
+                #leave the default value True when function is called from gui
+        """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
@@ -332,7 +337,8 @@ class CameraLogic(GenericLogic):
             
         ready = self._hardware.get_ready_state()
         while not ready:
-            progress = self._hardware._get_total_number_images_acquired() # replace by general method get_progress to be put on the interface
+            # progress = self._hardware._get_total_number_images_acquired() # replace by general method get_progress to be put on the interface
+            progress = self._hardware.get_progress()
             self.sigProgress.emit(progress)
             ready =  self._hardware.get_ready_state()
             if display:
@@ -350,7 +356,10 @@ class CameraLogic(GenericLogic):
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '.tiff', addfile=False)
         # create the PIL.Image object and save it to tiff
         self._save_to_tiff(n_frames, complete_path, image_data)
-        self.sigVideoSavingFinished.emit()
+        if emit_signal:
+            self.sigVideoSavingFinished.emit()
+        else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
+            self.sigCleanStatusbar.emit()
 
     # this function is specific for andor ixon ultra camera
     def do_spooling(self, filenamestem, n_frames, display):
@@ -369,7 +378,8 @@ class CameraLogic(GenericLogic):
         
         ready = self._hardware.get_ready_state()
         while not ready:
-            spoolprogress = self._hardware._get_total_number_images_acquired()  
+            # spoolprogress = self._hardware._get_total_number_images_acquired()
+            spoolprogress = self._hardware.get_progress()
             self.sigProgress.emit(spoolprogress)
             ready =  self._hardware.get_ready_state()
             if display:
@@ -422,6 +432,46 @@ class CameraLogic(GenericLogic):
         filename = '{0}{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
+    #
+    # def _save_to_tiff(self, n_frames, path, data):
+    #     """ helper function to save the image data to a tiff file
+    #
+    #     creates the PIL.Image object and saves it to tiff
+    #
+    #     @params int n_frames: number of frames (needed to distinguish between 2D and 3D data)
+    #     @params str path: complete path where the object is saved to
+    #     @params data: np.array
+    #
+    #     @returns None
+    #     """
+    #     # 2D data case (no stack)
+    #     if n_frames == 1:  # formatting of this case needs special treatment .. remove later if not needed
+    #         im = Image.fromarray(data)
+    #         try:
+    #             # conversion to 16 bit tiff
+    #             im.convert('I;16').save(path, format='tiff')
+    #             # unconverted version (32 bit) im.save(path, format='tiff')
+    #             self.log.info('Saved data to file {}'.format(path))
+    #         except:
+    #             self.log.warning('Data not saved')
+    #         return None
+    #
+    #     # 3D data (note: z stack is the first dimension)
+    #     else:
+    #         # create the PIL.Image object and save it to tiff
+    #         imlist = []
+    #         for i in range(n_frames):
+    #             im = Image.fromarray(data[i])
+    #             imlist.append(im)
+    #         try:
+    #             # conversion to 16 bit tiff
+    #             # im.convert('I;16').save(path, format='tiff')
+    #             # unconverted version (32 bit)
+    #             imlist[0].save(path, format='tiff', save_all=True, append_images=imlist[1:])
+    #             self.log.info('Saved data to file {}'.format(path))
+    #         except:
+    #             self.log.warning('Data not saved')
+    #         return None
 
     def _save_to_tiff(self, n_frames, path, data):
         """ helper function to save the image data to a tiff file
@@ -435,12 +485,9 @@ class CameraLogic(GenericLogic):
         @returns None
         """
         # 2D data case (no stack)
-        if n_frames == 1:  # formatting of this case needs special treatment .. remove later if not needed
-            im = Image.fromarray(data)
+        if n_frames == 1:
             try:
-                # conversion to 16 bit tiff
-                im.convert('I;16').save(path, format='tiff')
-                # unconverted version (32 bit) im.save(path, format='tiff')
+                self.save_u16_to_tiff(data, data.shape, path)
                 self.log.info('Saved data to file {}'.format(path))
             except:
                 self.log.warning('Data not saved')
@@ -448,21 +495,48 @@ class CameraLogic(GenericLogic):
 
         # 3D data (note: z stack is the first dimension)
         else:
-            # create the PIL.Image object and save it to tiff
-            imlist = []
-            for i in range(n_frames):
-                im = Image.fromarray(data[i])
-                imlist.append(im)
             try:
-                # conversion to 16 bit tiff
-                # im.convert('I;16').save(path, format='tiff')
-                # unconverted version (32 bit)
-                imlist[0].save(path, format='tiff', save_all=True, append_images=imlist[1:])
+                size = (data.shape[1], data.shape[2])
+                self.save_u16_to_tiff_stack(n_frames, data, size, path)
                 self.log.info('Saved data to file {}'.format(path))
             except:
                 self.log.warning('Data not saved')
             return None
-        
+
+    def save_u16_to_tiff(self, u16int, size, tiff_filename):
+        """
+        function found at https://blog.itsayellow.com/technical/saving-16-bit-tiff-images-with-pillow-in-python/#
+        Since Pillow has poor support for 16-bit TIFF, we make our own save function to properly save a 16-bit TIFF.
+
+        modified version for numpy array only
+
+        @param u16int: np.array to be saved as tiff
+        @param size: size of the data
+        @param str tiff_filename
+        """
+        # write 16-bit TIFF image
+        # PIL interprets mode 'I;16' as "uint16, little-endian"
+        img_out = Image.new('I;16', size)
+        outpil = u16int.astype(u16int.dtype.newbyteorder("<")).tobytes()
+        img_out.frombytes(outpil)
+        img_out.save(tiff_filename)
+
+    def save_u16_to_tiff_stack(self, n_frames, u16int, size, tiff_filename):
+        """ handles saving of 3D image data to 16 bit tiff stacks
+        @param int n_frames: number of frames to be saved (1st dimension of the image data)
+        @param u16int: 3D np.array to be saved as tiff
+        @param int tuple size: size of an individual image in the stack (x pixel, y pixel)
+        @param str tiff_filename: complete path to the file, including the suffix .tiff """
+
+        imlist = []  # this will be a list of pillow Image objects
+        for i in range(n_frames):
+            img_out = Image.new('I;16', size)  # initialize a new pillow object of the right size
+            outpil = u16int[i].astype(
+                u16int.dtype.newbyteorder("<")).tobytes()  # convert the i-th frame to bytes object
+            img_out.frombytes(outpil)  # create pillow object from bytes
+            imlist.append(img_out)  # create the list of pillow image objects
+        imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
+
     def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
         """ defines a limited region on the sensor surface, hence accelerating the acquisition
 

@@ -205,3 +205,8 @@ class CameraInterface(metaclass=InterfaceMetaclass):
         @param int vend: End row (inclusive).
         """
         pass
+
+    @abstract_interface_method
+    def get_progress(self):
+        """ retrieves the total number of acquired images during a movie acquisition"""
+        pass

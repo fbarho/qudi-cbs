@@ -584,6 +584,15 @@ class IxonUltra(Base, CameraInterface):
             return -1
         return 0
 
+    def get_progress(self):
+        """ retrieves the total number of acquired images """
+        index = c_long()
+        error_code = self.dll.GetTotalNumberImagesAcquired(byref(index))
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.warning('Could not get number of images acquired: {}'.format(ERROR_DICT[error_code]))
+            return
+        return index.value
+
     # not relevant here
     # soon to be interface functions for using
     # a camera as a part of a (slow) photon counter
@@ -1054,13 +1063,14 @@ class IxonUltra(Base, CameraInterface):
             return
         return index.value
 
-    def _get_total_number_images_acquired(self):
-        index = c_long()
-        error_code = self.dll.GetTotalNumberImagesAcquired(byref(index))
-        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
-            self.log.warning('Could not get number of images acquired: {}'.format(ERROR_DICT[error_code]))
-            return
-        return index.value
+    # replaced by interface function get_progress
+    # def _get_total_number_images_acquired(self):
+    #     index = c_long()
+    #     error_code = self.dll.GetTotalNumberImagesAcquired(byref(index))
+    #     if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+    #         self.log.warning('Could not get number of images acquired: {}'.format(ERROR_DICT[error_code]))
+    #         return
+    #     return index.value
 
     def _set_number_kinetics(self, number):
         """ set the number of scans for a kinetic series acquisition 

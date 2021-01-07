@@ -62,6 +62,8 @@ class CameraDummy(Base, CameraInterface):
     _full_width = 0
     _full_height = 0
 
+    _progress = 0
+
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
@@ -132,9 +134,10 @@ class CameraDummy(Base, CameraInterface):
         Each pixel might be a float, integer or sub pixels
         """
         if self.n_frames > 1:
-            data = self._data_generator(size=(self.n_frames, self.image_size[0], self.image_size[1]))
+            data = self._data_generator(size=(self.n_frames, self.image_size[0], self.image_size[1])) # * self._exposure * self._gain
         else:
-            data = self._data_generator(size=self.image_size)
+            data = self._data_generator(size=self.image_size) #  * self._exposure * self._gain
+        # data = data.astype(np.int16)
         return data
 
     def set_exposure(self, exposure):
@@ -241,6 +244,7 @@ class CameraDummy(Base, CameraInterface):
 
         Used for live display on gui during save procedures"""
         data = np.random.normal(size=self.image_size)  # * self._exposure * self._gain
+        # data = data.astype(np.int16)  # type conversion
         return data
 
     def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
@@ -269,3 +273,15 @@ class CameraDummy(Base, CameraInterface):
         """ Simulates kinetic time method of andor camera
         This function must be available if camera name is set to iXon Ultra 897"""
         return self._exposure + 0.765421
+
+    def get_progress(self):
+        """ retrieves the total number of acquired images during a movie acquisition"""
+        n_frames = self.n_frames
+        self._progress += 1
+        progress = self._progress
+        if progress == n_frames:
+            self._live = False
+            self._progress = 0
+            return n_frames
+        return progress
+
