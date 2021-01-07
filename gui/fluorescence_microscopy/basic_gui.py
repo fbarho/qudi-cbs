@@ -193,6 +193,7 @@ class BasicGUI(GUIBase):
     # flags that for rotation settings
     rotation_cw = False
     rotation_ccw = False
+    flip = False
 
     def __init__(self, config, **kwargs):
 
@@ -216,8 +217,10 @@ class BasicGUI(GUIBase):
         # make sure that the flags for image rotation are initially false and toggle buttons in options menu unchecked
         self.rotation_cw = False
         self.rotation_ccw = False
+        self.flip = False
         self._mw.rotate_image_cw_MenuAction.setChecked(False)
         self._mw.rotate_image_ccw_MenuAction.setChecked(False)
+        self._mw.flip_image_MenuAction.setChecked(False)
 
         # Menu bar actions
         # File menu
@@ -226,6 +229,7 @@ class BasicGUI(GUIBase):
         self._mw.camera_settings_Action.triggered.connect(self.open_camera_settings)
         self._mw.rotate_image_cw_MenuAction.toggled.connect(self.rotate_image_cw_toggled)
         self._mw.rotate_image_ccw_MenuAction.toggled.connect(self.rotate_image_ccw_toggled)
+        self._mw.flip_image_MenuAction.toggled.connect(self.flip_image_toggled)
         
         # initialize functionality of the camera dockwidget
         self.init_camera_dockwidget()
@@ -335,6 +339,7 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
         self._camera_logic.sigSpoolingFinished.connect(self.spooling_finished)
+        self._camera_logic.sigCleanStatusbar.connect(self.clean_statusbar)
 
     def init_camera_status_dockwidget(self):
         """ initializes the indicators and connects signals for the camera status dockwidget"""
@@ -628,7 +633,9 @@ class BasicGUI(GUIBase):
         if self.rotation_cw:
             image_data = np.rot90(image_data, 3)
         if self.rotation_ccw:
-            image_data = np.rot90(image_data, 1)
+            image_data = np.rot90(image_data, 1)  # eventually replace by faster rotation method T and invert
+        if self.flip:  # rotation 180deg
+            image_data = np.rot90(image_data, 2)
         self.imageitem.setImage(image_data)  #  , axisOrder='row-major'
 
     @QtCore.Slot()
@@ -726,6 +733,10 @@ class BasicGUI(GUIBase):
     def update_statusbar_saving(self):
         self._mw.progress_label.setText('Saving..')
 
+    @QtCore.Slot()
+    def clean_statusbar(self):
+        self._mw.progress_label.setText('')
+
     def reset_toolbuttons(self):
         """ this slot is called when save dialog is canceled
 
@@ -817,9 +828,11 @@ class BasicGUI(GUIBase):
             self.rotation_cw = False
         else:  # rotation not yet applied. Toggle button has just been checked by user
             self.rotation_cw = True
-            # automatically uncheck the rotate ccw button (make them mutually exclusive)
+            # automatically uncheck the rotate ccw and rotate 180deg button (make them mutually exclusive)
             self._mw.rotate_image_ccw_MenuAction.setChecked(False)
+            self._mw.flip_image_MenuAction.setChecked(False)
             self.rotation_ccw = False
+            self.flip = False
 
     @QtCore.Slot()
     def rotate_image_ccw_toggled(self):
@@ -827,8 +840,22 @@ class BasicGUI(GUIBase):
             self.rotation_ccw = False
         else:  # rotation not yet applied. Toggle button has just been checked by user
             self.rotation_ccw = True
-            # automatically uncheck the rotate cw button (make them mutually exclusive)
+            # automatically uncheck the rotate cw button and rotate 180deg button (make them mutually exclusive)
             self._mw.rotate_image_cw_MenuAction.setChecked(False)
+            self._mw.flip_image_MenuAction.setChecked(False)
+            self.rotation_cw = False
+            self.flip = False
+
+    @QtCore.Slot()
+    def flip_image_toggled(self):
+        if self.flip:  # rotation is already applied. Toggle button has just been unchecked by user
+            self.flip = False
+        else:  # rotation not yet applied. Toggle button has just been checked by user
+            self.flip = True
+            # automatically uncheck the rotate cw button and rotate 180deg button (make them mutually exclusive)
+            self._mw.rotate_image_cw_MenuAction.setChecked(False)
+            self._mw.rotate_image_ccw_MenuAction.setChecked(False)
+            self.rotation_cw = False
             self.rotation_cw = False
 
     # camera status dockwidget

@@ -49,6 +49,7 @@
     <addaction name="camera_settings_Action"/>
     <addaction name="rotate_image_cw_MenuAction"/>
     <addaction name="rotate_image_ccw_MenuAction"/>
+    <addaction name="flip_image_MenuAction"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
@@ -647,7 +648,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Rotate image cw</string>
+    <string>Rotate image 90deg cw</string>
    </property>
   </action>
   <action name="rotate_image_ccw_MenuAction">
@@ -655,7 +656,15 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Rotate image ccw</string>
+    <string>Rotate image 90deg ccw</string>
+   </property>
+  </action>
+  <action name="flip_image_MenuAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Rotate image 180deg</string>
    </property>
   </action>
  </widget>
