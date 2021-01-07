@@ -80,8 +80,11 @@
    <property name="minimum">
     <double>1.000000000000000</double>
    </property>
+   <property name="maximum">
+    <double>200.000000000000000</double>
+   </property>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>165</x>
@@ -120,7 +123,7 @@
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>160</x>

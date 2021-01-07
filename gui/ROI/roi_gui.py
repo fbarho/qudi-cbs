@@ -113,7 +113,7 @@ class RoiMarker(pg.RectROI):
         """
         self._position = np.array(position, dtype=float)
         width = self.width
-        label_offset = width  # / np.sqrt(2) # to adjust
+        label_offset = width / 2
         self.setPos(self._position[0] - width / 2, self._position[
             1] - width / 2)  # check if the origin is at the lower left corner, then this should be correct, else to be modified !!!
         self.label.setPos(self._position[0] + label_offset, self._position[1] + label_offset)
@@ -420,7 +420,7 @@ class RoiGUI(GUIBase):
         self._mw.active_roi_ComboBox.activated[str].disconnect()
         self.sigAddInterpolation.disconnect()
         self.sigStartTracking.disconnect()
-        self.sigStopTracking.connect()
+        self.sigStopTracking.disconnect()
 
         # self._mw.get_confocal_image_PushButton.clicked.disconnect()
 
