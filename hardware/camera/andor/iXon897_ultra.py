@@ -343,7 +343,7 @@ class IxonUltra(Base, CameraInterface):
             for i in range(len(cimage)):
                 image_array[i] = cimage[i]
 
-        image_array = np.reshape(image_array, (self._width, self._height))
+        image_array = np.reshape(image_array, (self._height, self._width))  # (self._width, self._height))
 
         return image_array
 
@@ -380,7 +380,7 @@ class IxonUltra(Base, CameraInterface):
         cimage_array = c_int * dim
         cimage = cimage_array()
 
-        # this will be a bit hacky
+        # this will be a bit hacky 
         if self._acquisition_mode == 'RUN_TILL_ABORT':
             # error_code = self.dll.GetOldestImage(pointer(cimage), dim)
             # new version for tests 
@@ -397,9 +397,9 @@ class IxonUltra(Base, CameraInterface):
 
         if self._scans > 1:  # not sure if it matters if we add artifically a 3rd dim, so use if-else structure for the moment
             image_array = np.reshape(image_array,
-                                     (self._scans, self._width, self._height))  # self._scans, self._width, self._height
+                                     (self._scans, self._height, self._width))  # self._scans, self._width, self._height
         else:
-            image_array = np.reshape(image_array, (self._width, self._height))
+            image_array = np.reshape(image_array, (self._height, self._width))
 
         self._cur_image = image_array
         return image_array

@@ -484,10 +484,13 @@ class CameraLogic(GenericLogic):
 
         @returns None
         """
+        # type conversion to int16
+        data = data.astype('int16')
+        # self.log.info('type conversion called')
         # 2D data case (no stack)
         if n_frames == 1:
             try:
-                self.save_u16_to_tiff(data, data.shape, path)
+                self.save_u16_to_tiff(data, (data.shape[1], data.shape[0]), path)
                 self.log.info('Saved data to file {}'.format(path))
             except:
                 self.log.warning('Data not saved')
@@ -496,7 +499,7 @@ class CameraLogic(GenericLogic):
         # 3D data (note: z stack is the first dimension)
         else:
             try:
-                size = (data.shape[1], data.shape[2])
+                size = (data.shape[2], data.shape[1])
                 self.save_u16_to_tiff_stack(n_frames, data, size, path)
                 self.log.info('Saved data to file {}'.format(path))
             except:
@@ -510,7 +513,8 @@ class CameraLogic(GenericLogic):
 
         modified version for numpy array only
 
-        @param u16int: np.array to be saved as tiff
+        @param u16int: np.array with dtype int16 to be saved as tiff. 
+             make sure that the data is in int16 format ! otherwise th conversion to bytes will not give the right result
         @param size: size of the data
         @param str tiff_filename
         """
@@ -524,7 +528,7 @@ class CameraLogic(GenericLogic):
     def save_u16_to_tiff_stack(self, n_frames, u16int, size, tiff_filename):
         """ handles saving of 3D image data to 16 bit tiff stacks
         @param int n_frames: number of frames to be saved (1st dimension of the image data)
-        @param u16int: 3D np.array to be saved as tiff
+        @param u16int: 3D np.array with dtype int16 to be saved as tiff
         @param int tuple size: size of an individual image in the stack (x pixel, y pixel)
         @param str tiff_filename: complete path to the file, including the suffix .tiff """
 

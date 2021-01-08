@@ -263,7 +263,7 @@ class BasicGUI(GUIBase):
     def init_camera_dockwidget(self):
         """ initializes the display item and the indicators. Connects signals for the camera dockwidget and the camera toolbar"""
         # initialize the imageitem (display of camera image) qnd its histogram
-        self.imageitem = pg.ImageItem()  # image=data can be set here ..   axisOrder='row-major'
+        self.imageitem = pg.ImageItem(axisOrder='row-major', invertY=True) # image=data can be set here ..  axisOrder='row-major'
         self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
         self._mw.camera_ScanPlotWidget.setAspectLocked(True)
         self._mw.camera_ScanPlotWidget.sigMouseAreaSelected.connect(self.mouse_area_selected)
@@ -629,14 +629,20 @@ class BasicGUI(GUIBase):
         Get the image data from the logic and print it on the window
         """
         image_data = self._camera_logic.get_last_image()
-        # handle the rotation settings
+        # handle the rotation that occurs due to the image formatting conventions (see also https://github.com/pyqtgraph/pyqtgraph/issues/315) 
+        # this could be improved by another method ?! though reversing the y axis did not work. 
+        image_data = np.rot90(image_data, 3)  # 90 deg clockwise 
+        
+        # handle the user defined rotation settings
         if self.rotation_cw:
             image_data = np.rot90(image_data, 3)
         if self.rotation_ccw:
             image_data = np.rot90(image_data, 1)  # eventually replace by faster rotation method T and invert
         if self.flip:  # rotation 180deg
             image_data = np.rot90(image_data, 2)
-        self.imageitem.setImage(image_data)  #  , axisOrder='row-major'
+        self.imageitem.setImage(image_data.T)  #
+        # transposing the data makes the rotations behave as they should when axisOrder row-major is used (set in initialization of ImageItem)
+        # see also https://github.com/pyqtgraph/pyqtgraph/issues/315
 
     @QtCore.Slot()
     def save_last_image_clicked(self):
