@@ -188,10 +188,26 @@ class RegionOfInterestList:
         else:
             position = position - self.origin
 
+            # first version leading to an error when rois somewhere at the top or in the middle of the list are deleted
+            # # Create a generic name which cannot be accessed by the user
+            # index = len(self._rois) + 1
+            # str_index = str(index).zfill(3)  # zero padding
+            # name = 'ROI_' + str_index
+
             # Create a generic name which cannot be accessed by the user
-            index = len(self._rois) + 1
-            str_index = str(index).zfill(3)  # zero padding
-            name = 'ROI_' + str_index
+            # using the increment of the last roi in the list (deleted roi names do not get 'refilled')
+            if len(self._rois) == 0:
+                last_number = 0
+            else:
+                last_index = len(self._rois) - 1  # self._rois is a dictionary
+                print(last_index)
+                print(self._rois.keys())
+                keylist = [*self._rois.keys()]
+                last = keylist[last_index]  # pick the roi with the highest number in the list containing all the keys
+                last_number = int(last.strip('ROI_'))
+            new_index = last_number + 1
+            str_new_index = str(new_index).zfill(3)  # zero padding
+            name = 'ROI_' + str_new_index
 
             roi_inst = RegionOfInterest(position=position, name=name)
         self._rois[roi_inst.name] = roi_inst
@@ -276,9 +292,20 @@ class RegionOfInterest:
         if new_name is not None and not isinstance(new_name, str):
             raise TypeError('Name to set must be either None or of type str.')
         if not new_name:
-            index = len(self._rois) + 1
-            str_index = str(index).zfill(3)
-            new_name = 'ROI_' + str_index
+            # Create a generic name which cannot be accessed by the user
+            # using the increment of the last roi in the list (deleted roi names do not get 'refilled')
+            if len(self._rois) == 0:
+                last_number = 0
+            else:
+                last_index = len(self._rois) - 1  # self._rois is a dictionary
+                print(last_index)
+                print(self._rois.keys())
+                keylist = [*self._rois.keys()]
+                last = keylist[last_index]  # pick the roi with the highest number in the list containing all the keys
+                last_number = int(last.strip('ROI_'))
+            new_index = last_number + 1
+            str_new_index = str(new_index).zfill(3)  # zero padding
+            new_name = 'ROI_' + str_new_index
         self._name = new_name
 
     @property
@@ -326,7 +353,8 @@ class RoiLogic(GenericLogic):
     _mosaic_x_start = 0
     _mosaic_y_start = 0
     _mosaic_roi_width = 0
-    _mosaic_number = 0
+    _mosaic_number_x = 0  # width
+    _mosaic_number_y = 0  # height
 
     tracking = False
 
@@ -431,7 +459,7 @@ class RoiLogic(GenericLogic):
                          None (default) will create generic name.
         @param scalar[3] position: Iterable of length 3 representing the (x, y, z) position with
                                    respect to the ROI list origin. None (default) causes the current
-                                   crosshair position to be used.
+                                   stage position to be used.
         @param bool emit_change: Flag indicating if the changed ROI set should be signaled.
         """
         # Get current stage position from motor interface if no position is provided.
@@ -671,20 +699,22 @@ class RoiLogic(GenericLogic):
     #     except Exception:
     #         self.log.error('Could not create mosaic')
 
-    def add_mosaic(self, x_center_pos=0, y_center_pos=0, roi_width=1, width=3, height=3):
+    def add_mosaic(self, roi_width, width, height, x_center_pos=0, y_center_pos=0, add=False):
         """
         Defines a new list containing a serpentine scan. Parameters can be specified in the settings dialog on GUI option menu.
 
-        @param x_center_pos:
-        @param y_center_pos:
         @param roi_width: (better distance)
         @param width: number of tiles in x direction
         @param height: number of tiles in y direction
+        @param x_center_pos:
+        @param y_center_pos:
+        @param bool add: add the mosaic to the present list (True) or start a new one (False)
 
         @returns: None
         """
         try:
-            self.reset_roi_list()  # create a new list
+            if not add:
+                self.reset_roi_list()  # create a new list
 
             # create a grid of the central points
             grid = self.make_serpentine_grid(width, height)

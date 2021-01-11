@@ -165,7 +165,7 @@ class RoiMarker(pg.RectROI):
 # class representing the marker for the current stage position
 class StageMarker(pg.RectROI):
     """
-    Creates a square as marker.
+    Creates a square as marker for the stage.
 
     @param float[2] pos: The (x, y) position of the stage center.
     @param **args: All extra keyword arguments are passed to ROI()
@@ -280,6 +280,8 @@ class RoiGUI(GUIBase):
     
     # set the default save path for roi lists from config
     default_path = ConfigOption('default_path', missing='warn')
+    # set the size of the stage marker
+    stagemarker_width = ConfigOption('stagemarker_width', 50, missing='info')
 
     # declare signals
     sigRoiWidthChanged = QtCore.Signal(float)
@@ -485,15 +487,24 @@ class RoiGUI(GUIBase):
         self._mw.roi_width_doubleSpinBox.setValue(
             self._mosaic_sd.mosaic_roi_width_DSpinBox.value())  # synchronize the roi width spinboxes so that the marker is drawn correctly
         if self._mosaic_sd.mosaic_size1_RadioButton.isChecked():
-            self.roi_logic()._mosaic_number = 9
+            self.roi_logic()._mosaic_number_x = 9
+            self.roi_logic()._mosaic_number_y = 9
         if self._mosaic_sd.mosaic_size2_RadioButton.isChecked():
-            self.roi_logic()._mosaic_number = 25
+            self.roi_logic()._mosaic_number_x = 25
+            self.roi_logic()._mosaic_number_y = 25
+        if self._mosaic_sd.mosaic_userdefined_RadioButton.isChecked():
+            self.roi_logic()._mosaic_number_x = self._mosaic_sd.mosaic_width_SpinBox.value()
+            self.roi_logic()._mosaic_number_y = self._mosaic_sd.mosaic_height_SpinBox.value()
+        add_to_list = self._mosaic_sd.mosaic_add_to_list_CheckBox.isChecked()
+
+
 
         self.roi_logic().add_mosaic(x_center_pos=self.roi_logic()._mosaic_x_start,
                                     y_center_pos=self.roi_logic()._mosaic_y_start,
                                     roi_width=self.roi_logic()._mosaic_roi_width,
-                                    width=self.roi_logic()._mosaic_number,
-                                    height=self.roi_logic()._mosaic_number)
+                                    width=self.roi_logic()._mosaic_number_x,
+                                    height=self.roi_logic()._mosaic_number_y,
+                                    add=add_to_list)
 
     def mosaic_default_settings(self):
         """ Restore default settings. 
@@ -511,6 +522,10 @@ class RoiGUI(GUIBase):
         self._mosaic_sd.mosaic_size2_RadioButton.setAutoExclusive(False)
         self._mosaic_sd.mosaic_size2_RadioButton.setChecked(False)
         self._mosaic_sd.mosaic_size2_RadioButton.setAutoExclusive(True)
+        self._mosaic_sd.mosaic_userdefined_RadioButton.setAutoExclusive(False)
+        self._mosaic_sd.mosaic_userdefined_RadioButton.setChecked(False)
+        self._mosaic_sd.mosaic_userdefined_RadioButton.setAutoExclusive(True)
+        self._mosaic_sd.mosaic_add_to_list_CheckBox.setChecked(False)
 
     def mosaic_position(self):
         """ check state of the current position checkbox and handle position settings accordingly
@@ -766,10 +781,11 @@ class RoiGUI(GUIBase):
                                view_widget=self._mw.roi_map_ViewWidget,
                                roi_name=name,
                                width=self.roi_logic()._roi_width,
-                               # self.roi_logic().optimise_xy_size / np.sqrt(2), # to change !!!!!!!
                                movable=False)
             # Add to the roi overview image widget
             marker.add_to_view_widget()
+            # remove the handle that can be used to resize the roi as we do not want this functionality
+            marker.removeHandle(marker.getHandles()[0])
             marker.sigRoiSelected.connect(self.roi_logic().set_active_roi, QtCore.Qt.QueuedConnection)
             self._markers[name] = marker
 
@@ -785,10 +801,12 @@ class RoiGUI(GUIBase):
         try:
             stagemarker = StageMarker(position=position,
                                       view_widget=self._mw.roi_map_ViewWidget,
-                                      width=50,  # to be defined
+                                      width=self.stagemarker_width,  # to be defined in config
                                       movable=False)
             # add the marker to the roi overview image
             stagemarker.add_to_view_widget()
+            # remove the scaling handle
+            stagemarker.removeHandle(stagemarker.getHandles()[0])
             self.stagemarker = stagemarker
         except Exception:
             self.log.warn('Unable to add stage marker to image')
