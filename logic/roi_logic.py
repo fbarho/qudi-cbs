@@ -645,8 +645,12 @@ class RoiLogic(GenericLogic):
 
         p = os.path.join(path, filename)
 
-        with open(p + '.json', 'w') as file:
-            json.dump(roi_list_dict, file)
+        try:
+            with open(p + '.json', 'w') as file:
+                json.dump(roi_list_dict, file)
+            self.log.info('ROI list saved to file {}.json'.format(p))
+        except Exception as e:
+            self.log.warning('ROI list not saved: {}'.format(e))
 
         return None
 
@@ -657,19 +661,24 @@ class RoiLogic(GenericLogic):
         """
         # if no path given do nothing
         if complete_path is None:
+            self.log.warning('No path to ROI list given')
             return None
 
-        with open(complete_path, 'r') as file:
-            roi_list_dict = json.load(file)
+        try:
+            with open(complete_path, 'r') as file:
+                roi_list_dict = json.load(file)
 
-        self._roi_list = self.dict_to_roi(roi_list_dict)
+            self._roi_list = self.dict_to_roi(roi_list_dict)
 
-        self.sigRoiListUpdated.emit({'name': self.roi_list_name,
+            self.sigRoiListUpdated.emit({'name': self.roi_list_name,
                                      'rois': self.roi_positions,
                                      'cam_image': self.roi_list_cam_image,
                                      'cam_image_extent': self.roi_list_cam_image_extent
                                      })
-        self.set_active_roi(None if len(self.roi_names) == 0 else self.roi_names[0])
+            self.set_active_roi(None if len(self.roi_names) == 0 else self.roi_names[0])
+            self.log.info('Loaded ROI list from {}'.format(complete_path))
+        except Exception as e:
+            self.log.warning('ROI list not loaded: {}'.format(e))
         return None
 
     @_roi_list.constructor

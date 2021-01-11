@@ -331,9 +331,9 @@ class RoiGUI(GUIBase):
 
         # Distance Measurement: # to be added later
         # Introducing a SignalProxy will limit the rate of signals that get fired.
-        # self._mouse_moved_proxy = pg.SignalProxy(signal=self.roi_image.scene().sigMouseMoved,
-        #                                          rateLimit=30,
-        #                                          slot=self.mouse_moved_callback)
+        self._mouse_moved_proxy = pg.SignalProxy(signal=self.roi_image.scene().sigMouseMoved,
+                                                 rateLimit=30,
+                                                 slot=self.mouse_moved_callback)
 
         # place this here so that the initialized values can be retrieved for the mosaic dialog
         self.initMosaicSettingsUI()  # initialize the Mosaic settings window in the options menu
@@ -364,8 +364,7 @@ class RoiGUI(GUIBase):
         self._mw.roi_map_ViewWidget.setLabel('left', 'y position')  # , units='um
         self._mw.roi_map_ViewWidget.setAspectLocked(lock=True, ratio=1.0)
         #        # Get camera image from logic and update initialize plot
-        #        self._update_cam_image(self.roi_logic().roi_list_cam_image,
-        #                                self.roi_logic().roi_list_cam_image_extent)
+        # self._update_cam_image(self.roi_logic().roi_list_cam_image, self.roi_logic().roi_list_cam_image_extent)
 
     def __connect_update_signals_from_logic(self):
         """ establish the connections of signals emitted in logic module """
@@ -547,49 +546,43 @@ class RoiGUI(GUIBase):
         self._mosaic_sd.exec_()
 
     # to fix: unit display + bug when initializing a new list
-    #     @QtCore.Slot(object)
-    #     def mouse_moved_callback(self, event):
-    #         """ Handles any mouse movements inside the image.
-    #
-    #         @param event:   Event that signals the new mouse movement.
-    #                         This should be of type QPointF.
-    #
-    #         Gets the mouse position, converts it to a position scaled to the image axis
-    #         and than calculates and updated the position to the current ROI.
-    #         """
-    #
-    #         # converts the absolute mouse position to a position relative to the axis
-    #         mouse_pos = self.roi_image.getViewBox().mapSceneToView(event[0])
-    #
-    #         # only calculate distance, if a ROI is selected
-    #         active_roi = self.roi_logic().active_roi
-    #         if active_roi:
-    #             roi_pos = self.roi_logic().get_roi_position(active_roi)
-    #             dx = ScaledFloat(mouse_pos.x() - roi_pos[0])
-    #             dy = ScaledFloat(mouse_pos.y() - roi_pos[1])
-    #             d_total = ScaledFloat(
-    #                 np.sqrt((mouse_pos.x() - roi_pos[0])**2 + (mouse_pos.y() - roi_pos[1])**2))
-    #
-    #             self._mw.roi_distance_Label.setText(
-    #                 '{0:.2r}um (dx = {1:.2r}um, dy = {2:.2r}um)'.format(d_total, dx, dy))
-    #         else:
-    #             self._mw.roi_distance_Label.setText('? (?, ?)')
-    #         pass
+    @QtCore.Slot(object)
+    def mouse_moved_callback(self, event):
+        """ Handles any mouse movements inside the image.
+        @param event:   Event that signals the new mouse movement.
+                       This should be of type QPointF.
+        Gets the mouse position, converts it to a position scaled to the image axis
+        and than calculates and updated the position to the current ROI.
+        """
+
+        # converts the absolute mouse position to a position relative to the axis
+        mouse_pos = self.roi_image.getViewBox().mapSceneToView(event[0])
+        # only calculate distance, if a ROI is selected
+        active_roi = self.roi_logic().active_roi
+        if active_roi:
+            roi_pos = self.roi_logic().get_roi_position(active_roi)
+            dx = ScaledFloat(mouse_pos.x() - roi_pos[0])
+            dy = ScaledFloat(mouse_pos.y() - roi_pos[1])
+            d_total = ScaledFloat(
+                np.sqrt((mouse_pos.x() - roi_pos[0])**2 + (mouse_pos.y() - roi_pos[1])**2))
+            self._mw.roi_distance_Label.setText(
+                '{0:.2r} (dx = {1:.2r}, dy = {2:.2r})'.format(d_total, dx, dy))
+        else:
+            self._mw.roi_distance_Label.setText('? (?, ?)')
+        pass
 
     @QtCore.Slot(dict)
     def update_roi_list(self, roi_dict):
-        ## test if this solves the problem with the distance measurement
-        self.__init_roi_map_image()
-
-        #### this is the normal content of this function:
         if not isinstance(roi_dict, dict):
             self.log.error('ROI parameters to update must be given in a single dictionary.')
             return
 
         if 'name' in roi_dict:
             self._update_roi_list_name(name=roi_dict['name'])
-        if 'cam_image' in roi_dict and 'cam_image_extent' in roi_dict:
-            self._update_cam_image(cam_image=roi_dict['cam_image'], cam_image_extent=roi_dict['cam_image_extent'])
+        # put this in comments because it will reset the image with a None type object and lead to an error in the distance measurement
+        # to be reactivated when the possibility of a camera image overlay is established
+        # if 'cam_image' in roi_dict and 'cam_image_extent' in roi_dict:
+        #     self._update_cam_image(cam_image=roi_dict['cam_image'], cam_image_extent=roi_dict['cam_image_extent'])
         if 'rois' in roi_dict:
             self._update_rois(roi_dict=roi_dict['rois'])
         return
