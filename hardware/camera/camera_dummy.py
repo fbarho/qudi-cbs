@@ -67,8 +67,8 @@ class CameraDummy(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        self._full_width = self._resolution[0]
-        self._full_height = self._resolution[1]
+        self._full_width = self._resolution[1]
+        self._full_height = self._resolution[0]
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -250,7 +250,7 @@ class CameraDummy(Base, CameraInterface):
     def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
         """ Allows to reduce the actual sensor size We don't use the binning parameters but they are needed in the
         function call to be conform with syntax of andor camera """
-        self.image_size = (abs(hend-hstart)+1, abs(vend-vstart)+1)  # col, rows
+        self.image_size = (abs(vend-vstart)+1, abs(hend-hstart)+1, )  # rows, cols
         return 0
 
     # mock method to get data which is equivalent to kinetic series (n_frames > 1 allowed)
