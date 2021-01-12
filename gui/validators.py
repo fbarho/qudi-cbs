@@ -21,7 +21,7 @@ class NameValidator(QtGui.QValidator):
     """
 
     name_re = re.compile(r'([\w]+)')
-    path_re = re.compile(r'([/\\\\\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
+    path_re = re.compile(r'([/\\:\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
 
     def __init__(self, *args, empty_allowed=False, path=False, **kwargs):
         super().__init__(*args, **kwargs)

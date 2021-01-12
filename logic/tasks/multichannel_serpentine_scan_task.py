@@ -72,7 +72,13 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
 
             # set the filter to the specified position
             self.ref['filter'].set_position(self.imaging_sequence[key]['filter_pos'])
-
+            # add a waiting time to be sure filter is set before starting imaging 
+            time.sleep(1)  
+            pos = self.ref['filter'].get_position()
+            while not pos == self.imaging_sequence[key]['filter_pos']:
+                time.sleep(1)
+                pos = self.ref['filter'].get_position()
+                
             # indicate the intensity value to be applied to the lightsource
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[key]['lightsource'], self.imaging_sequence[key]['intensity'])
 
@@ -139,6 +145,7 @@ class Task(InterruptableTask): # do not change the name of the class. it is alwa
             self.save_path = self.user_param_dict['save_path']
             self.imaging_sequence = self.user_param_dict['imaging_sequence'] # which itself is a dictionary
             self.n_frames = self.user_param_dict['n_frames']
+            self.display = bool(self.user_param_dict['activate_display'])
             
             self.log.info('loaded user parameters')
         except:
