@@ -200,8 +200,8 @@ class RegionOfInterestList:
                 last_number = 0
             else:
                 last_index = len(self._rois) - 1  # self._rois is a dictionary
-                print(last_index)
-                print(self._rois.keys())
+#                print(last_index)
+#                print(self._rois.keys())
                 keylist = [*self._rois.keys()]
                 last = keylist[last_index]  # pick the roi with the highest number in the list containing all the keys
                 last_number = int(last.strip('ROI_'))

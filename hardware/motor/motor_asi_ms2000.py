@@ -31,6 +31,7 @@ class MS2000(Base, MotorInterface):
     """
 
     _com_port = ConfigOption("com_port", missing="error")
+    _baud_rate = ConfigOption("baud_rate", 9600, missing="warn")
 
     _first_axis_label = ConfigOption("first_axis_label", "x", missing="warn")
     _second_axis_label = ConfigOption("second_axis_label", "y", missing="warn")
@@ -47,7 +48,7 @@ class MS2000(Base, MotorInterface):
         """
 
         self._serial_connection = serial.Serial(
-            self._com_port, baudrate=9600, bytesize=8, parity="N", stopbits=1, xonxoff=True
+            self._com_port, baudrate=self._baud_rate, bytesize=8, parity="N", stopbits=1, xonxoff=True
         )
 
         # add here the setting of private attributes
