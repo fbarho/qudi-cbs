@@ -28,6 +28,7 @@ class MS2000(Base, MotorInterface):
         com_port: 'COM4'
         first_axis_label: 'x'
         second_axis_label: 'y'
+        third_axis_label: 'z'
     """
 
     _com_port = ConfigOption("com_port", missing="error")
@@ -35,8 +36,10 @@ class MS2000(Base, MotorInterface):
 
     _first_axis_label = ConfigOption("first_axis_label", "x", missing="warn")
     _second_axis_label = ConfigOption("second_axis_label", "y", missing="warn")
+    _third_axis_label = ConfigOption("third_axis_label", None)  # default case is intended for 2 axes stage, for 3 axes specify in config
    
     _conversion_factor = 10.0  # user will send positions in um, stage uses 0.1 um
+    axis_list = None
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -55,7 +58,11 @@ class MS2000(Base, MotorInterface):
         self._timeout = 15
 
         # create a list as iterator for methods that need a specified axis to apply to
-        self.axis_list = [self._first_axis_label, self._second_axis_label]
+        axis_list = [self._first_axis_label, self._second_axis_label, self._third_axis_label]  # this serves only as local iterator
+        self.axis_list = []
+        for item in axis_list:
+            if isinstance(item, str):
+                self.axis_list.append(item)
 
         return 0
 
@@ -98,15 +105,12 @@ class MS2000(Base, MotorInterface):
 
                 else:
                     self.log.warn(f"axis {axis_label} is not configured")
-            pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
-
         except:
             self.log.error("relative movement of ASI MS2000 translation stage is not possible")
             pos = {}
             
-        
-
         return pos
+        # pos contains only the axes that were moved. Should the others also be returned ?
 
     def move_abs(self, param_dict):
         """ Moves the stage to the given position.
@@ -136,7 +140,6 @@ class MS2000(Base, MotorInterface):
 
                 else:
                     self.log.warn(f"axis {axis_label} is not configured")
-            pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
 
         except:
             self.log.error("relative movement of ASI MS2000 translation stage is not possible")
@@ -148,6 +151,7 @@ class MS2000(Base, MotorInterface):
         """ Stops all active motors, stops a movement of the stage if ongoing. 
         
         Attention, the (following) command N+1 is not performed! The N+2 command is again performed.
+        new tests on RAMM: following command is perfomed normally ..
         
         @ returns: error code (ok: 0)
         """
@@ -168,8 +172,7 @@ class MS2000(Base, MotorInterface):
         ) in self.axis_list:  # this list is generated above to generalize more easily in case that more axes are added
             cmd = f"W {axis_label}\r"
             pos[axis_label] = float(self.query(cmd)[3:]) / self._conversion_factor  # [3:] -> remove the leading 'A: '
-        
-        pos['z'] = 0 # add an artificial z component that is set to 0 # just for tests ... to be modified
+
         return pos
 
     def get_status(self):
@@ -252,10 +255,10 @@ class MS2000(Base, MotorInterface):
             waiting_time = waiting_time + 0.5
             status = self.get_status()
             if waiting_time >= self._timeout:
-                self.log.error("ASI MS2000 translation stage timeout occured")
+                self.log.error("ASI MS2000 translation stage timeout occurred")
                 break
 
-    def homing(self):
+    def homing_xy(self):
         """ Moves the stage to homeposition on x and y axes.
         Motor stops when hardware or firmware limit switch is encountered.
         

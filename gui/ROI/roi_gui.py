@@ -496,10 +496,9 @@ class RoiGUI(GUIBase):
             self.roi_logic()._mosaic_number_y = self._mosaic_sd.mosaic_height_SpinBox.value()
         add_to_list = self._mosaic_sd.mosaic_add_to_list_CheckBox.isChecked()
 
-
-
         self.roi_logic().add_mosaic(x_center_pos=self.roi_logic()._mosaic_x_start,
                                     y_center_pos=self.roi_logic()._mosaic_y_start,
+                                    z_pos = self.roi_logic().stage_position[2],
                                     roi_width=self.roi_logic()._mosaic_roi_width,
                                     width=self.roi_logic()._mosaic_number_x,
                                     height=self.roi_logic()._mosaic_number_y,

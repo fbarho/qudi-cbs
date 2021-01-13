@@ -444,8 +444,10 @@ class RoiLogic(GenericLogic):
     @property
     def stage_position(self):
         pos = self.stage().get_pos()  # this returns a dictionary of the format {'x': pos_x, 'y': pos_y}
-        return tuple(pos.values())[
-               :3]  # get only the dictionary values as a tuple. [:3] as safety to get only the x y axis and empty z value, in case more axis are configured (such as for the motor_dummy)
+        if len(pos) == 2 and 'z' not in pos.keys():  # case for the 2 axes stage
+            pos['z'] = 0  # add an artificial z component so that add_roi method can be called which expects a tuple (x, y, z)
+        return tuple(pos.values())[:3]  # get only the dictionary values as a tuple.
+        # [:3] as safety to get only the x y axis and (eventually empty) z value, in case more axis are configured (such as for the motor_dummy)
 
     # even if called with a name not None, a generic name is set. The specified one is not taken into account. This is handled in the add_roi method of RegionOfInterestList class
     @QtCore.Slot()
@@ -690,25 +692,7 @@ class RoiLogic(GenericLogic):
         return roi_list.to_dict()
 
     ################### mosaic tools
-
-    # def add_mosaic(self, x_start_pos=0, y_start_pos=0, roi_width=0, num=0):
-    #     """
-    #     Defines a new list containing a mosaic with parameters specified in the settings dialog on GUI option menu
-    #
-    #     Attention : this version is a mosaic (a new row starts always on the left) and not a serpentine scan ! To be modified ..
-    #     """
-    #     try:
-    #         self.reset_roi_list() # create a new list
-    #
-    #         # create a grid of the central points (generator type)
-    #         grid_gen = ((x*roi_width + x_start_pos, y*roi_width + y_start_pos, 0) for y in range(num) for x in range(num))
-    #
-    #         for item in grid_gen:
-    #             self.add_roi(item)
-    #     except Exception:
-    #         self.log.error('Could not create mosaic')
-
-    def add_mosaic(self, roi_width, width, height, x_center_pos=0, y_center_pos=0, add=False):
+    def add_mosaic(self, roi_width, width, height, x_center_pos=0, y_center_pos=0, z_pos=0, add=False):
         """
         Defines a new list containing a serpentine scan. Parameters can be specified in the settings dialog on GUI option menu.
 
@@ -717,6 +701,7 @@ class RoiLogic(GenericLogic):
         @param height: number of tiles in y direction
         @param x_center_pos:
         @param y_center_pos:
+        @param z_pos: current z position of the stage if there is one; or 0 for two axes stage
         @param bool add: add the mosaic to the present list (True) or start a new one (False)
 
         @returns: None
@@ -734,7 +719,7 @@ class RoiLogic(GenericLogic):
             # calculate start positions (lower left corner of the grid) given the central position
             x_start_pos = x_center_pos - roi_width * (width - 1) / 2
             y_start_pos = y_center_pos - roi_width * (height - 1) / 2
-            roi_centers = grid_array * roi_width + [x_start_pos, y_start_pos, 0]
+            roi_centers = grid_array * roi_width + [x_start_pos, y_start_pos, z_pos]
 
             for item in roi_centers:
                 self.add_roi(item)
@@ -800,8 +785,11 @@ class RoiLogic(GenericLogic):
                     num_y))  # type conversion necessary because xmin etc are numpy floats
                 # type conversion from list to np array for making linear, elementwise operations
                 grid_array = np.array(grid)
+                # get the current z position of the stage to keep the same level for all rois defined in the interpolation
+                # alternative: set it to 0. What should be done in case the different rois are not on the same z level ?
+                z = self.stage_position[2]
                 # stretch the grid and shift it so that the first center point is in (x_min, y_min)
-                roi_centers = grid_array * roi_distance + [xmin, ymin, 0]
+                roi_centers = grid_array * roi_distance + [xmin, ymin, z]
                 # print(roi_centers)
 
                 # list is not reset before adding new rois. we might end up having some overlapping exactly the initial ones.
