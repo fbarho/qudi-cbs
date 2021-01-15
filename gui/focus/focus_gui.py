@@ -24,7 +24,7 @@ class FocusWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'ui_focustest.ui')
+        ui_file = os.path.join(this_dir, 'ui_focus.ui')
 
         # Load it
         super().__init__()
@@ -41,6 +41,9 @@ class FocusGUI(GUIBase):
 
     # Signals
     sigUpdateStep = QtCore.Signal(float)
+    sigMoveUp = QtCore.Signal(float)
+    sigMoveDown = QtCore.Signal(float)
+    sigInitPiezo = QtCore.Signal()
 
 
     _mw = None
@@ -59,15 +62,20 @@ class FocusGUI(GUIBase):
         # Windows
         self._mw = FocusWindow()
 
-
+        self._mw.piezo_init_Action.setChecked(False)
         # connect signals
         # internal signals
+        self._mw.close_MenuAction.triggered.connect(self._mw.close)
         self._mw.step_doubleSpinBox.valueChanged.connect(self.step_changed)
+        self._mw.move_up_PushButton.clicked.connect(self.move_up_button_clicked)
+        self._mw.move_down_PushButton.clicked.connect(self.move_down_button_clicked)
+        self._mw.piezo_init_Action.triggered.connect(self.piezo_init_clicked)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
-        self._mw.move_up_PushButton.clicked.connect(self._focus_logic.move_up)
-        self._mw.move_down_PushButton.clicked.connect(self._focus_logic.move_down)
+        self.sigMoveUp.connect(self._focus_logic.move_up)
+        self.sigMoveDown.connect(self._focus_logic.move_down)
+        self.sigInitPiezo.connect(self._focus_logic.init_piezo)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -76,6 +84,7 @@ class FocusGUI(GUIBase):
         # signals from logic
         self._focus_logic.sigStepChanged.connect(self.update_step)
         self._focus_logic.sigPositionChanged.connect(self.update_position)
+        self._focus_logic.sigPiezoInitFinished.connect(self.piezo_init_finished)
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -83,6 +92,7 @@ class FocusGUI(GUIBase):
         self._mw.move_down_PushButton.clicked.disconnect()
         self._focus_logic.sigStepChanged.disconnect()
         self._focus_logic.sigPositionChanged.disconnect()
+        self._mw.close()
 
 
     def show(self):
@@ -101,4 +111,26 @@ class FocusGUI(GUIBase):
 
     def update_position(self, position):
         self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
+
+    def move_up_button_clicked(self):
+        # the function move_up in the logic module needs to receive the step as parameter
+        # for this reason, we use this function move_up_button_clicked to send the signal with the step as parameter.
+        # this signal is then in turn connected to the function in the logic module
+        step = self._mw.step_doubleSpinBox.value()
+        self.sigMoveUp.emit(step)
+
+    def move_down_button_clicked(self):
+        step = self._mw.step_doubleSpinBox.value()
+        self.sigMoveDown.emit(step)
+
+    def piezo_init_clicked(self):
+        self._mw.piezo_init_Action.setEnabled(False)
+        self._mw.piezo_init_Action.setText('Initialization running..')
+        self._mw.piezo_init_Action.setChecked(True)
+        self.sigInitPiezo.emit()
+
+    def piezo_init_finished(self):
+        self._mw.piezo_init_Action.setText('Reinitialize')
+        self._mw.piezo_init_Action.setEnabled(True)
+        self._mw.piezo_init_Action.setChecked(False)
 
