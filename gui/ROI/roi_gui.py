@@ -542,6 +542,8 @@ class RoiGUI(GUIBase):
     def open_mosaic_settings(self):
         """ Opens the settings menu. 
         """
+        # retrieve the current position from the stage each time the dialog is opened and set the spinboxes accordingly
+        self.mosaic_position()
         self._mosaic_sd.exec_()
 
     # to fix: unit display + bug when initializing a new list
@@ -806,7 +808,7 @@ class RoiGUI(GUIBase):
     @QtCore.Slot(np.ndarray)
     def update_stage_position(self, position):
         """ updates the textlabel with the current stage position and moves the stage marker """
-        self._mw.stage_position_Label.setText('x={0}, y={1}'.format(position[0], position[1]))
+        self._mw.stage_position_Label.setText('x={0}, y={1}, z={2}'.format(position[0], position[1], position[2]))
         self.stagemarker.set_position(position)
 
     @QtCore.Slot()
