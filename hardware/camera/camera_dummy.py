@@ -243,7 +243,7 @@ class CameraDummy(Base, CameraInterface):
         """ Returns an np array of the most recent image.
 
         Used for live display on gui during save procedures"""
-        data = np.random.normal(size=self.image_size)  # * self._exposure * self._gain
+        data = np.random.normal(size=self.image_size) # * self._exposure * self._gain
         # data = data.astype(np.int16)  # type conversion
         return data
 

@@ -448,6 +448,9 @@ class BasicGUI(GUIBase):
             self._cam_sd.temp_spinBox.setEnabled(False)
             self._cam_sd.label_3.setEnabled(False)
 
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._cam_sd.frame_transfer_CheckBox.setEnabled(True)
+
         # write the configuration to the settings window of the GUI.
         self.cam_keep_former_settings()
 
@@ -458,6 +461,7 @@ class BasicGUI(GUIBase):
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
+        self._camera_logic.activate_frametransfer(self._cam_sd.frame_transfer_CheckBox.isChecked())
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
@@ -465,6 +469,7 @@ class BasicGUI(GUIBase):
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
+        self._cam_sd.frame_transfer_CheckBox.setChecked(False)  # as default value
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
@@ -598,6 +603,7 @@ class BasicGUI(GUIBase):
         """
         self.sigImageStart.emit()
         self.disable_camera_toolbuttons()
+        self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
     def acquisition_finished(self):
         """ Callback of sigAcquisitionFinished. Resets all tool buttons to callable state
@@ -623,6 +629,7 @@ class BasicGUI(GUIBase):
             self._mw.start_video_Action.setText('Stop Live')
             self._mw.start_video_Action.setToolTip('Stop live video')
             self.sigVideoStart.emit()
+        self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
     def update_data(self):
         """ Callback of sigUpdateDisplay in the camera_logic module.
@@ -680,6 +687,8 @@ class BasicGUI(GUIBase):
         self._video = True
         # open the save settings window
         self.open_save_settings()
+        # hide the rubberband tool used for roi selection on sensor
+        self.imageitem.getViewBox().rbScaleBox.hide()
 
     def video_saving_finished(self):
         """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
@@ -709,6 +718,8 @@ class BasicGUI(GUIBase):
         self._spooling = True
         # open the save settings dialog
         self.open_save_settings()
+        # hide the rubberband tool used for roi selection on sensor
+        self.imageitem.getViewBox().rbScaleBox.hide()
 
     def spooling_finished(self):
         """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """

@@ -108,7 +108,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>800</width>
+     <width>864</width>
      <height>500</height>
     </size>
    </property>
@@ -142,6 +142,12 @@
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>100</width>
+             <height>0</height>
+            </size>
            </property>
            <property name="readOnly">
             <bool>true</bool>

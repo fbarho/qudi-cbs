@@ -152,7 +152,7 @@ class CameraLogic(GenericLogic):
     # this function is specific to andor camera
     def get_kinetic_time(self):
         """ Get kinetic time (Andor camera only) """
-        if self._hardware.get_name() == 'iXon Ultra 897':
+        if self.get_name() == 'iXon Ultra 897':
             self._kinetic_time = self._hardware.get_kinetic_time()
             return self._kinetic_time
         else:
@@ -391,8 +391,10 @@ class CameraLogic(GenericLogic):
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
         self._hardware._set_spool(0, 7, path, 10)  # deactivate spooling
+        self.log.info('Spooling finished. Saved data to file {}'.format(path))
         self.enabled = False
         self.sigSpoolingFinished.emit()
+
 
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
         """ helper function that creates a generic filename using the following format:
@@ -566,3 +568,20 @@ class CameraLogic(GenericLogic):
             self.log.warn('Sensor region not reset to default')
         else:
             self.log.info('Sensor region reset to default: {} x {}'.format(width, height))
+
+
+    def activate_frametransfer(self, activate):
+        """ Activate frametransfer mode for ixon ultra camera:
+        the boolean activate is stored in a variable in the camera module. When an acquisition is started, frame transfer is set accordingly.
+
+        @params: bool activate ?
+        """
+        if self.get_name() == 'iXon Ultra 897':
+            self._hardware.frame_transfer_active = int(activate)
+            # self.log.info(f'Frametransfer mode activated: {activate}')
+        # do nothing in case of cameras that do not support frame transfer
+        else:
+            pass
+
+        # should frame transfer be available for live display ??
+        # right now it is only available for the movie saving procedures
