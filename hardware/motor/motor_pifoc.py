@@ -14,7 +14,7 @@ from core.module import Base
 from interface.motor_interface import MotorInterface
 from core.configoption import ConfigOption
 
-from pipython import GCSDevice
+from pipython import GCSDevice, pitools
 
 
 # first version without context manager
@@ -66,10 +66,13 @@ class PIFOC(Base, MotorInterface):
         self.log.info('connected: {}'.format(self.pidevice.qIDN().strip()))
 
         self.axes = self.pidevice.axes  # this returns a list
-        self.log.info('available axes: {}'.format(self.axis))
+        self.log.info('available axes: {}'.format(self.axes))
 
+        # remove log entries later on
         self._axis_label = self.axes[0]
-        # self._axis_ID = self.pidevice.GetControllerID()  # to test if this is the right function call
+        self.log.info(self._axis_label)
+        self._axis_ID = self.pidevice.GetID() 
+        self.log.info(self._axis_ID)
 
     def on_deactivate(self):
         """ 
@@ -111,45 +114,43 @@ class PIFOC(Base, MotorInterface):
         for i in range(len(
                 param_dict)):  # potentially a list of axes. real case: list of length 1 because pifoc only has one axis
             (axis, step) = param_dict.popitem()
-            if axis in self.axes:  # control if the right axis is addressed  # and step step < constraints[axis]['max_step'] and condition that position stays in allowed range
-                err = self.pidevice.MRT(axis, step)
+            cur_pos = position[axis]  # returns just the float value of the axis
+            # self.log.info(cur_pos)
+            if axis in self.axes and abs(step) <= constraints[axis]['max_step'] and constraints[axis]['pos_min'] <= cur_pos + step <= constraints[axis]['pos_max']: # and condition that position stays in allowed range
+                self.pidevice.MVR(axis, step)
+                err = True
                 if not err:
                     error_code = self.pidevice.GetError()
                     error_msg = self.pidevice.TranslateError(error_code)
-                    self.log.warning(f'Could not move axis {axis} by {step} : {error_msg}.')
+                    self.log.warning(f'Could not move axis {axis} by {step}: {error_msg}.')
+                    # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
+                    # that is, if the error does not come from the controller but due to the coded conditions 
         return err
-
-        # do we need a security mechanism to only do the movement if the step is smaller than max step size and
-        # pos + step does not leave the allowed range ?
-        # add this in the try- block before call to MOV or as and .. after if axis in self.axes
-
-        # note that there is a different function available for simultaneous multi axes movement. (MVR)
+        # note that there is a different function available for simultaneous multi axes movement. 
 
     def move_abs(self, param_dict):
         """ Moves stage to absolute position (absolute movement)
 
         @param dict param_dict: Dictionary with axis name and target position (in um units) as key - value pairs
 
-        @return int: error code (True: ok, False: error)       - or modify to return position ??
+        @return int: error code (True: ok, False: error)       - or modify to return the new position ??
         """
-        # first draft:
-        # axes =list(param_dict.keys())    #
-        # # add later the security mechanism to check if the right axis is given
-        # target = param_dict[axes[0]]  # access the target value for the specified axis   # just use the single axis for this first version
-        # self.pidevice.MOV(axes[0], target)
-
         constraints = self.get_constraints()
         err = False
 
         for i in range(len(
                 param_dict)):  # potentially a list of axes. real case: list of length 1 because pifoc only has one axis
             (axis, target) = param_dict.popitem()
-            if axis in self.axes and constraints[axis]['min_pos'] <= target <= constraints[axis]['max_pos']:  # control if the right axis is addressed
-                err = self.pidevice.MOV(axis, target)
+            # self.log.info(f'axis: {axis}; target: {target}')
+            if axis in self.axes and constraints[axis]['pos_min'] <= target <= constraints[axis]['pos_max']:  # control if the right axis is addressed
+                self.pidevice.MOV(axis, target)  # MOV has no return value
+                err = True  
                 if not err:
                     error_code = self.pidevice.GetError()
                     error_msg = self.pidevice.TranslateError(error_code)
                     self.log.warning(f'Could not move axis {axis} to {target} : {error_msg}.')
+                    # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
+                    # that is, if the error does not come from the controller but due to the coded conditions 
         return err
 
         # note that there is a different function available for simultaneous multi axes movement. (MVE)
@@ -159,12 +160,13 @@ class PIFOC(Base, MotorInterface):
 
         @return int: error code (True: ok, False: error)
         """
-        err = self.pidevice.HLT()  # needs eventually controller ID as argument  # HLT or STP ?
-        errorcode = self.pidevice.GetError()
-        errormsg = self.pidevice.TranslateError(errorcode)
-        if not err:
-            self.log.warning(f'Error calling abort: {errormsg}')
-        return err
+        # err = self.pidevice.HLT()  # needs eventually controller ID as argument  # HLT or STP ?
+        # errorcode = self.pidevice.GetError()
+        # errormsg = self.pidevice.TranslateError(errorcode)
+        # if not err:
+        #     self.log.warning(f'Error calling abort: {errormsg}')
+        # return err
+        pass 
 
     def get_pos(self, param_list=None):
         """ Gets current position of the controller
@@ -175,14 +177,14 @@ class PIFOC(Base, MotorInterface):
                                 If nothing is passed, then from each axis the
                                 position is asked.
 
-        @return dict: with keys being the axis labels and item the current
+        @return OrderedDict: with keys being the axis labels and item the current
                       position.
 
                       update docstring after tests !
         """
-        pos = self.pidevice.qPOS(self.axis)
+        pos = self.pidevice.qPOS(self.axes)  # this returns an OrderedDict
 
-        # do some formatting if needed
+        # do some formatting if needed -- this is done in logic module ! 
 
         #        with GCSDevice(self._controllername) as pidevice:
         #            pos = pidevice.qPOS(self.axis)
@@ -200,7 +202,7 @@ class PIFOC(Base, MotorInterface):
 
         @return bool err
         """
-        err = self.pidevice.IsControllerReady()  # might need controller id as argument - to test
+        err = self.pidevice.IsControllerReady()  
         return err
 
     def calibrate(self, param_list=None):
@@ -236,6 +238,7 @@ class PIFOC(Base, MotorInterface):
         # do some formatting if needed
 
         # return vel
+        self.log.info('get_velocity not available')
 
     def set_velocity(self, param_dict):
         """ Write new value for velocity.
@@ -248,5 +251,25 @@ class PIFOC(Base, MotorInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        pass
+        self.log.info('set velocity not available')
         # should it be possible to set the velocity else just send a message that this function is not available for the controller
+
+# not on the interface 
+    def wait_for_idle(self):
+        """ first draft for a wait for idle function
+        
+        checks if on target 
+        
+        problem: seems to return too fast, so that the position is not yet the right one.. 
+        although this function is actually meant to not wait until the target position is reached.. 
+        
+        it works when the two log entries are activated. this seems to take some additional time, allowing 
+        the stage to reach the target 
+        """
+        # self.log.info('old position: {}'.format(self.get_pos()))
+        pitools.waitontarget(self.pidevice)
+        # self.log.info('new position: {}'.format(self.get_pos()))
+        return 
+
+        
+        
