@@ -362,7 +362,7 @@ class CameraLogic(GenericLogic):
             self.sigCleanStatusbar.emit()
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, n_frames, display):
+    def do_spooling(self, filenamestem, n_frames, display, method=7):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
@@ -371,7 +371,7 @@ class CameraLogic(GenericLogic):
         @param: bool display: show images on live display on gui """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
-        self._hardware._set_spool(1, 7, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
+        self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
@@ -390,7 +390,7 @@ class CameraLogic(GenericLogic):
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
-        self._hardware._set_spool(0, 7, path, 10)  # deactivate spooling
+        self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
         self.log.info('Spooling finished. Saved data to file {}'.format(path))
         self.enabled = False
         self.sigSpoolingFinished.emit()
@@ -577,8 +577,8 @@ class CameraLogic(GenericLogic):
         @params: bool activate ?
         """
         if self.get_name() == 'iXon Ultra 897':
-            self._hardware.frame_transfer_active = int(activate)
-            # self.log.info(f'Frametransfer mode activated: {activate}')
+            self._hardware._frame_transfer_active = int(activate)
+            self.log.info(f'Frametransfer mode activated: {activate}')
         # do nothing in case of cameras that do not support frame transfer
         else:
             pass

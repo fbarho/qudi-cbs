@@ -278,7 +278,7 @@ class BasicGUI(GUIBase):
         # initialize the camera setting indicators on the GUI
         # use the kinetic time for andor camera, exposure time for all others
         if self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
             self._mw.exposure_Label.setText('Kinetic time (s)')
         else:
             self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
@@ -444,6 +444,9 @@ class BasicGUI(GUIBase):
         self._cam_sd.rejected.connect(self.cam_keep_former_settings)  # cancel buttons
         # self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
         
+        ## to add for the frame transfer settings
+        # self._cam_sd.frame_transfer_CheckBox.toggled(bool).connect(self.cam_update_kinetic_time)
+        
         if not self._camera_logic.has_temp:
             self._cam_sd.temp_spinBox.setEnabled(False)
             self._cam_sd.label_3.setEnabled(False)
@@ -470,6 +473,7 @@ class BasicGUI(GUIBase):
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
         self._cam_sd.frame_transfer_CheckBox.setChecked(False)  # as default value
+        
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
@@ -579,7 +583,7 @@ class BasicGUI(GUIBase):
         @param: float exposure"""
         # indicate the kinetic time instead of the exposure time for andor ixon camera
         if self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
         else:
             self._mw.exposure_LineEdit.setText(str(exposure))
 
@@ -639,6 +643,7 @@ class BasicGUI(GUIBase):
         # handle the rotation that occurs due to the image formatting conventions (see also https://github.com/pyqtgraph/pyqtgraph/issues/315) 
         # this could be improved by another method ?! though reversing the y axis did not work. 
         image_data = np.rot90(image_data, 3)  # 90 deg clockwise 
+        
         
         # handle the user defined rotation settings
         if self.rotation_cw:
@@ -837,7 +842,8 @@ class BasicGUI(GUIBase):
         vstart_ = min(vstart, vend)
         vend_ = max(vstart, vend)
         self.log.info('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, vstart_, vend_)
+        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, 512-vend_, 512-vstart_)   ## this enables the correct selection of the roi ## improve the position where the calculation is performed
+        ##################################################
 
     @QtCore.Slot()
     def rotate_image_cw_toggled(self):

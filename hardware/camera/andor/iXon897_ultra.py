@@ -167,7 +167,7 @@ class IxonUltra(Base, CameraInterface):
     _scans = 1  # TODO get from camera
     _acquiring = False
     _cur_image = None
-    _frame_transfer_active = False
+    _frame_transfer_active = 0
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
