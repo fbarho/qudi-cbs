@@ -445,7 +445,7 @@ class BasicGUI(GUIBase):
         # self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
         
         ## to add for the frame transfer settings
-        # self._cam_sd.frame_transfer_CheckBox.toggled(bool).connect(self.cam_update_kinetic_time)
+        self._cam_sd.frame_transfer_CheckBox.toggled[bool].connect(self._camera_logic.set_frametransfer)
         
         if not self._camera_logic.has_temp:
             self._cam_sd.temp_spinBox.setEnabled(False)
@@ -464,7 +464,6 @@ class BasicGUI(GUIBase):
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
-        self._camera_logic.activate_frametransfer(self._cam_sd.frame_transfer_CheckBox.isChecked())
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 

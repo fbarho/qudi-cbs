@@ -42,7 +42,7 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'Dummy camera')  # 'Dummy camera' 'iXon Ultra 897'
+    _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  # 'Dummy camera' 'iXon Ultra 897'
     _resolution = ConfigOption('resolution', (720, 1280))  # indicate (nb rows, nb cols) because row-major config is used in gui module
 
     _live = False
@@ -63,6 +63,8 @@ class CameraDummy(Base, CameraInterface):
     _full_height = 0
 
     _progress = 0
+
+    _frame_transfer = False
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -272,7 +274,10 @@ class CameraDummy(Base, CameraInterface):
     def get_kinetic_time(self):
         """ Simulates kinetic time method of andor camera
         This function must be available if camera name is set to iXon Ultra 897"""
-        return self._exposure + 0.765421
+        if self._frame_transfer:
+            return self._exposure + 0.123
+        else:
+            return self._exposure + 0.765421
 
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
@@ -284,4 +289,15 @@ class CameraDummy(Base, CameraInterface):
             self._progress = 0
             return n_frames
         return progress
+
+
+    def _set_frame_transfer(self, transfer_mode):
+        if transfer_mode == 1:
+            self._frame_transfer = True
+            self.log.info('Camera dummy: activated frame transfer mode, transfer_mode {}'.format(transfer_mode))
+        elif transfer_mode == 0:
+            self._frame_transfer = False
+            self.log.info('Camera dummy: deactivated frame transfer mode, transfer_mode {}'.format(transfer_mode))
+        else:
+            self.log.info('Camera dummy: specify the transfer_mode to set frame transfer, transfer_mode {}'.format(transfer_mode))
 

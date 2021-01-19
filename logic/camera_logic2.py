@@ -569,19 +569,19 @@ class CameraLogic(GenericLogic):
         else:
             self.log.info('Sensor region reset to default: {} x {}'.format(width, height))
 
-
-    def activate_frametransfer(self, activate):
+    @QtCore.Slot(bool)
+    def set_frametransfer(self, activate):
         """ Activate frametransfer mode for ixon ultra camera:
         the boolean activate is stored in a variable in the camera module. When an acquisition is started, frame transfer is set accordingly.
 
         @params: bool activate ?
         """
         if self.get_name() == 'iXon Ultra 897':
-            self._hardware._frame_transfer_active = int(activate)
+            self._hardware._set_frame_transfer(int(activate))
             self.log.info(f'Frametransfer mode activated: {activate}')
+            # we also need to update the indicator on the gui
+            exp = self.get_exposure()  # we just need to send the signal sigExposureChanged but it must carry a float so we send exp as argument
+            self.sigExposureChanged.emit(exp)
         # do nothing in case of cameras that do not support frame transfer
         else:
             pass
-
-        # should frame transfer be available for live display ??
-        # right now it is only available for the movie saving procedures

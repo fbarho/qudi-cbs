@@ -167,7 +167,6 @@ class IxonUltra(Base, CameraInterface):
     _scans = 1  # TODO get from camera
     _acquiring = False
     _cur_image = None
-    _frame_transfer_active = 0
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -304,7 +303,6 @@ class IxonUltra(Base, CameraInterface):
                 self.log.error('shutter did non open. {}'.format(msg))
 
         self._set_acquisition_mode('KINETICS')
-        self._set_frame_transfer(self._frame_transfer_active)
         self.set_exposure(self._exposure)  # make sure this is taken into account
         self._set_number_kinetics(n_frames)
         self._scans = n_frames  # set this attribute to get the right dimension out of get_acquired_data
@@ -321,7 +319,6 @@ class IxonUltra(Base, CameraInterface):
         """
         # no abort_acquisition needed because acquisition finishes when the number of frames is reached
         self._set_acquisition_mode(self._default_acquisition_mode)  # reset to default (single scan typically)
-        self._set_frame_transfer(0)  # reset to default (frame transfer off)
         self._scans = 1  # reset to default number of scans. this is important so that the other acquisition modes run correctly
         self._live = False
         self._acquiring = False
@@ -824,6 +821,9 @@ class IxonUltra(Base, CameraInterface):
 
 # modified fb: frame transfer has no effect when acq mode is single scan or fast_kinetics. it has an effect for kinetic mode however
     def _set_frame_transfer(self, transfer_mode):
+        """ set the frame transfer mode
+
+        @param: int tranfer_mode: 0: off, 1: on"""
         acq_mode = self._acquisition_mode
 
         if (acq_mode == 'SINGLE_SCAN') | (acq_mode == 'FAST_KINETICS'):
