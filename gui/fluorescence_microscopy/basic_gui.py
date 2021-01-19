@@ -165,8 +165,8 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoSavingStart = QtCore.Signal(str, int, bool)
-    sigSpoolingStart = QtCore.Signal(str, int, bool)
+    sigVideoSavingStart = QtCore.Signal(str, str, int, bool)
+    sigSpoolingStart = QtCore.Signal(str, str, int, bool)
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -493,6 +493,9 @@ class BasicGUI(GUIBase):
         # add a validator to the folder name lineedit
         self._save_sd.foldername_LineEdit.setValidator(NameValidator(empty_allowed=True))  # empty_allowed=True should be set or not ?
 
+        # populate the file format combobox
+        self._save_sd.file_format_ComboBox.addItems(self._camera_logic.fileformat_list)
+
         # connect the lineedit with the path label
         self._save_sd.foldername_LineEdit.textChanged.connect(self.update_path_label)
         # link the number of frames to the acquisition time
@@ -513,6 +516,7 @@ class BasicGUI(GUIBase):
         today = datetime.today().strftime('%Y-%m-%d')
         path = os.path.join(default_path, today, folder_name)
         # self.log.info('created path: {}'.format(path))
+        fileformat = str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
         self._last_path = path  # maintain this variable to make it accessible for metadata saving
@@ -522,9 +526,9 @@ class BasicGUI(GUIBase):
         # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
         # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
         if self._video:
-            self.sigVideoSavingStart.emit(path, n_frames, display)
+            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display)
         elif self._spooling:
-            self.sigSpoolingStart.emit(path, n_frames, display)
+            self.sigSpoolingStart.emit(path, fileformat, n_frames, display)
         else:  # to do: write an error message or something like this ???
             pass
 
@@ -542,6 +546,7 @@ class BasicGUI(GUIBase):
         self._save_sd.n_frames_SpinBox.setValue(1)
         self.update_acquisition_time()
         self._save_sd.enable_display_CheckBox.setChecked(True)
+        self._save_sd.file_format_ComboBox.setCurrentIndex(0)
 
     def update_path_label(self):
         """ generates the informative text indicating the complete path, displayed below the folder name specified by the user """
@@ -676,7 +681,7 @@ class BasicGUI(GUIBase):
         self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
         self._camera_logic.save_last_image(filenamestem)
         # save metadata to txt file in the same folder
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -700,7 +705,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -731,7 +736,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))

@@ -24,6 +24,7 @@ import numpy as np
 from time import sleep
 import os
 from PIL import Image
+from astropy.io import fits
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -96,6 +97,8 @@ class CameraLogic(GenericLogic):
     _kinetic_time = None
 
     _hardware = None
+
+    fileformat_list = ['tiff', 'fits']
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -306,11 +309,12 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, fileformat='.tiff'):
+    def save_last_image(self, path, fileformat='tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
-        @param: str fileformat: default '.tiff' but can be modified if needed. make sure not to forget the dot """
+        @param: str fileformat: default 'tiff' but can be modified if needed.
+        """
 
         if self._last_image is None:
             self.log.warning('No image available to save')
@@ -320,7 +324,7 @@ class CameraLogic(GenericLogic):
         complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
         self._save_to_tiff(1, complete_path, image_data)
 
-    def save_video(self, filenamestem, n_frames, display, emit_signal=True):
+    def save_video(self, filenamestem, fileformat, n_frames, display, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
@@ -353,16 +357,21 @@ class CameraLogic(GenericLogic):
         self.enabled = False
 
         # data handling
-        complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '.tiff', addfile=False)
+        complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
-        self._save_to_tiff(n_frames, complete_path, image_data)
+        if fileformat == 'tiff':
+            self._save_to_tiff(n_frames, complete_path, image_data)
+        elif fileformat == 'fits':
+            self._save_to_fits(complete_path, image_data)
+        else:
+            self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
             self.sigVideoSavingFinished.emit()
         else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
             self.sigCleanStatusbar.emit()
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, n_frames, display, method=7):
+    def do_spooling(self, filenamestem, fileformat, n_frames, display):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
@@ -371,6 +380,13 @@ class CameraLogic(GenericLogic):
         @param: bool display: show images on live display on gui """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
+        if fileformat == 'tiff':
+            method = 7
+        elif fileformat == 'fits':
+            method = 5
+        else:
+            self.log.info(f'Your fileformat {fileformat} is currently not covered')
+
         self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
@@ -378,7 +394,6 @@ class CameraLogic(GenericLogic):
         
         ready = self._hardware.get_ready_state()
         while not ready:
-            # spoolprogress = self._hardware._get_total_number_images_acquired()
             spoolprogress = self._hardware.get_progress()
             self.sigProgress.emit(spoolprogress)
             ready =  self._hardware.get_ready_state()
@@ -386,7 +401,6 @@ class CameraLogic(GenericLogic):
                 self._last_image = self._hardware.get_most_recent_image()
                 self.sigUpdateDisplay.emit()
                 sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
-
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
@@ -405,7 +419,7 @@ class CameraLogic(GenericLogic):
 
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
-        @params: str fileformat: specify the type of file (.tiff, .txt, ..). don't forget the point before the type
+        @params: str fileformat: specify the type of file (tiff, txt, ..)
         @params: bool addfile: if True, the last created folder will again be accessed (needed for metadata saving)
 
         @returns str complete path
@@ -431,7 +445,7 @@ class CameraLogic(GenericLogic):
                 os.makedirs(path)
             except Exception as e:
                 self.log.error('Error creating the target folder: {}'.format(e))
-        filename = '{0}{1}'.format(file, fileformat)
+        filename = '{0}.{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
     #
@@ -481,7 +495,7 @@ class CameraLogic(GenericLogic):
         creates the PIL.Image object and saves it to tiff
 
         @params int n_frames: number of frames (needed to distinguish between 2D and 3D data)
-        @params str path: complete path where the object is saved to
+        @params str path: complete path where the object is saved to (including the suffix .tiff)
         @params data: np.array
 
         @returns None
@@ -518,7 +532,7 @@ class CameraLogic(GenericLogic):
         @param u16int: np.array with dtype int16 to be saved as tiff. 
              make sure that the data is in int16 format ! otherwise th conversion to bytes will not give the right result
         @param size: size of the data
-        @param str tiff_filename
+        @param str tiff_filename including the suffix '.tiff'
         """
         # write 16-bit TIFF image
         # PIL interprets mode 'I;16' as "uint16, little-endian"
@@ -542,6 +556,29 @@ class CameraLogic(GenericLogic):
             img_out.frombytes(outpil)  # create pillow object from bytes
             imlist.append(img_out)  # create the list of pillow image objects
         imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
+
+    def _save_to_fits(self, path, data):
+        """ helper function to save the image data to a fits file.
+        see also https://docs.astropy.org/en/latest/io/fits/index.html#creating-a-new-image-file
+
+        Workes for 2D data and stacks
+
+        @params str path: complete path where the object is saved to, including the suffix .fits
+        @params data: np.array
+
+        @returns None
+        """
+        data = data.astype(np.int16)  # data conversion because 16 bit image shall be saved
+
+        hdu = fits.PrimaryHDU(data)  # PrimaryHDU object encapsulates the data
+
+        # create a HDUlist and write to file
+        try:
+            hdul = fits.HDUList([hdu])
+            hdul.writeto(path)
+            self.log.info('Saved data to file {}'.format(path))
+        except Exception as e:
+            self.log.warning(f'Data not saved: {e}')
 
     def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
         """ defines a limited region on the sensor surface, hence accelerating the acquisition
