@@ -33,27 +33,27 @@ from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
 
-class WorkerSignals(QtCore.QObject):
-    """ Defines the signals available from a running worker thread """
-
-    sigFinished = QtCore.Signal()
-
-
-class Worker(QtCore.QRunnable):
-    """ Worker thread to monitor the camera temperature every 5 seconds
-
-    The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
-    display """
-
-    def __init__(self, *args, **kwargs):
-        super(Worker, self).__init__()
-        self.signals = WorkerSignals()
-
-    @QtCore.Slot()
-    def run(self):
-        """ """
-        sleep(5)
-        self.signals.sigFinished.emit()
+# class WorkerSignals(QtCore.QObject):
+#     """ Defines the signals available from a running worker thread """
+#
+#     sigFinished = QtCore.Signal()
+#
+#
+# class Worker(QtCore.QRunnable):
+#     """ Worker thread to monitor the camera temperature every 5 seconds
+#
+#     The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
+#     display """
+#
+#     def __init__(self, *args, **kwargs):
+#         super(Worker, self).__init__()
+#         self.signals = WorkerSignals()
+#
+#     @QtCore.Slot()
+#     def run(self):
+#         """ """
+#         sleep(5)
+#         self.signals.sigFinished.emit()
 
 
 class CameraLogic(GenericLogic):
@@ -189,9 +189,9 @@ class CameraLogic(GenericLogic):
             self._hardware.set_temperature(temp)
 
             # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
-            worker = Worker()
-            worker.signals.sigFinished.connect(self.update_temperature)
-            self.threadpool.start(worker)
+            # worker = Worker()
+            # worker.signals.sigFinished.connect(self.update_temperature)
+            # self.threadpool.start(worker)
 
     def get_temperature(self):
         """ Get temperature of hardware, if accessible """
@@ -205,15 +205,15 @@ class CameraLogic(GenericLogic):
     @QtCore.Slot()
     def update_temperature(self):
         """ helper function to update the display on GUI after a waiting time defined in the Worker class"""
-
-        value = self.get_temperature()  # get the current temperature from the hardware
-        self.sigTemperatureChanged.emit(value)
-
-        if abs(value - self.temperature_setpoint) > 3:  # the tolerance of the camera itself is 3 degree
-            # enter in a loop until temperature setpoint reached
-            worker = Worker()
-            worker.signals.sigFinished.connect(self.update_temperature)
-            self.threadpool.start(worker)
+        pass
+        # value = self.get_temperature()  # get the current temperature from the hardware
+        # self.sigTemperatureChanged.emit(value)
+        #
+        # if abs(value - self.temperature_setpoint) > 3:  # the tolerance of the camera itself is 3 degree
+        #     # enter in a loop until temperature setpoint reached
+        #     worker = Worker()
+        #     worker.signals.sigFinished.connect(self.update_temperature)
+        #     self.threadpool.start(worker)
 
     def start_single_acquistion(self):  # watch out for the typo !!
         """ Take a single camera image
