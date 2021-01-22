@@ -334,4 +334,98 @@ class CameraThorlabs(Base, CameraInterface):
         Get the gain
         """
         return self._gain
+    
+    
+    
+    ### new interface functions
+    def has_temp(self):
+        """ Does the camera support setting of the temperature?
+
+        if this function returns true, make sure that get_temperature, set_temperature, is_cooler_on and _set_cooler
+        are implemented the attribute _default_temperature should be also be set in the hardware module
+        
+        @return bool: has temperature ?
+        """
+        return False
+
+    def has_shutter(self):
+        """ Is the camera equipped with a mechanical shutter?
+
+        if this function returns true, the attribute _shutter should also be defined in the hardware module
+
+        @return bool: has shutter ?
+        """
+        return False
+
+# the following functions are related to the save_video functionality. 
+# not needed for thorlabs camera at the moment
+# camera logic informs the user that no movie was saved when action called
+    def start_movie_acquisition(self, n_frames):
+        """ set the conditions to save a movie and start the acquisition
+
+        @param int n_frames: number of frames
+
+        @return bool: Success ?
+        """
+        pass
+
+    def finish_movie_acquisition(self):
+        """ resets the conditions used to save a movie to default
+
+        @return bool: Success ?
+        """
+        pass
+
+    def wait_until_finished(self):
+        """ waits until an acquisition is finished
+
+        @return None
+        """
+        pass
+
+    def get_most_recent_image(self):
+        """ Return an array of last acquired image.
+
+        @return numpy array: image data in format [[row],[row]...]
+
+        Each pixel might be a float, integer or sub pixels
+        """
+        pass
+    
+    def get_progress(self):
+        """ retrieves the total number of acquired images during a movie acquisition"""
+        pass
+########################################################################
+
+# does not work yet .. 
+    def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
+        """ Sets a ROI on the sensor surface
+
+        @param int hbin: number of pixels to bin horizontally
+        @param int vbin: number of pixels to bin vertically.
+        @param int hstart: Start column (inclusive)
+        @param int hend: End column (inclusive)
+        @param int vstart: Start row (inclusive)
+        @param int vend: End row (inclusive).
+        """
+#        hbin = 1  # overwrite in case a value was given # no binning made available to the user
+#        vbin = 1
+#        width = hend - hstart
+#        
+#        height = vend - vstart
+#        self.log.info(f'{width}, {height}')
+#        try:
+#            self.log.info(f'image start position {hstart}, {vstart}')
+#            self.set_image_position(hstart, vstart)
+#            #self.set_image_size(width, height)
+#            return 0
+#        except:
+#            return -1
+        pass 
+    
+    
+ 
+
+
+
 
