@@ -167,6 +167,9 @@ class BasicGUI(GUIBase):
 
     sigVideoSavingStart = QtCore.Signal(str, str, int, bool)
     sigSpoolingStart = QtCore.Signal(str, str, int, bool)
+    
+    sigInterruptLive = QtCore.Signal()
+    sigResumeLive = QtCore.Signal()
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -332,6 +335,8 @@ class BasicGUI(GUIBase):
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigVideoSavingStart.connect(self._camera_logic.save_video)
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
+        self.sigInterruptLive.connect(self._camera_logic.interrupt_live)
+        self.sigResumeLive.connect(self._camera_logic.resume_live)
 
         # signals from logic
         self._camera_logic.sigUpdateDisplay.connect(self.update_data)  # QtCore.Qt.DirectConnection
@@ -464,6 +469,8 @@ class BasicGUI(GUIBase):
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
+        if self._camera_logic.enabled:
+            self.sigResumeLive.emit()
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
@@ -472,13 +479,19 @@ class BasicGUI(GUIBase):
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
         self._cam_sd.frame_transfer_CheckBox.setChecked(False)  # as default value
+        if self._camera_logic.enabled:
+            self.sigResumeLive.emit()
         
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
         """ Opens the settings menu. 
         """
+        # interrupt live display 
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._cam_sd.exec_()
+
 
     # Initialisation of the save settings windows
     def init_save_settings_ui(self):
@@ -846,7 +859,12 @@ class BasicGUI(GUIBase):
         vstart_ = min(vstart, vend)
         vend_ = max(vstart, vend)
         self.log.info('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, 512-vend_, 512-vstart_)   ## this enables the correct selection of the roi ## improve the position where the calculation is performed
+        # inversion along the y axis: 
+        # it is needed to call the function set_sensor_region(hbin, vbin, hstart, hend, vstart, vend)
+        # using the following arguments: set_sensor_region(hbin, vbin, start, hend, num_px_y - vend, num_px_y - vstart) ('vstart' needs to be smaller than 'vend')
+        num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
+        self.log.info(num_px_y)  # probably needed to always use num_px_y_max (=512 for andor)      
+        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)   ## this enables the correct selection of the roi ## improve the position where the calculation is performed
         ##################################################
 
     @QtCore.Slot()

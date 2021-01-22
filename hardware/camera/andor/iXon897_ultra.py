@@ -134,7 +134,7 @@ class IxonUltra(Base, CameraInterface):
         default_read_mode: 'IMAGE'
         default_temperature: -70
         default_cooler_on: True
-        default_acquisition_mode: 'SINGLE_SCAN'
+        default_acquisition_mode: 'RUN_TILL_ABORT'     # use a default acquisition mode where frame transfer setting has an effect 
         default_trigger_mode: 'INTERNAL'
 
     """
@@ -250,7 +250,7 @@ class IxonUltra(Base, CameraInterface):
         @return bool: Success ?
         """
         msg = self._abort_acquisition()
-        self._set_acquisition_mode(self._default_acquisition_mode)  # reset to default (single scan typically)
+        self._set_acquisition_mode(self._default_acquisition_mode)  # reset to default (run till abort typically)
         if msg == "DRV_SUCCESS":
             self._live = False
             self._acquiring = False
@@ -274,11 +274,12 @@ class IxonUltra(Base, CameraInterface):
             return -1
         else:
             self._acquiring = True  # do we need this here?
+            self._set_acquisition_mode('SINGLE_SCAN')
+            self.log.info('set acquisition mode: single scan')
             msg = self._start_acquisition()
             if msg != "DRV_SUCCESS":
                 return False
-
-            self._acquiring = False
+            self._acquiring = False            
             return True
 
     # new function used instead of start_live_acquisition for saving a video     
@@ -826,18 +827,18 @@ class IxonUltra(Base, CameraInterface):
         @param: int tranfer_mode: 0: off, 1: on"""
         acq_mode = self._acquisition_mode
 
-        #if (acq_mode == 'SINGLE_SCAN') | (acq_mode == 'FAST_KINETICS'):
-        #    self.log.debug('Setting of frame transfer mode has no effect in acquisition '
-        #                   'mode \'SINGLE_SCAN\' or \'FAST_KINETICs\'.')
-        #    return -1
-        #else:
-        rtrn_val = self.dll.SetFrameTransferMode(transfer_mode)
-
-        if ERROR_DICT[rtrn_val] == 'DRV_SUCCESS':
-            return 0
-        else:
-            self.log.warning('Could not set frame transfer mode:{0}'.format(ERROR_DICT[rtrn_val]))
+        if (acq_mode == 'SINGLE_SCAN') | (acq_mode == 'FAST_KINETICS'):
+            self.log.debug('Setting of frame transfer mode has no effect in acquisition '
+                           'mode \'SINGLE_SCAN\' or \'FAST_KINETICs\'.')
             return -1
+        else:
+            rtrn_val = self.dll.SetFrameTransferMode(transfer_mode)
+
+            if ERROR_DICT[rtrn_val] == 'DRV_SUCCESS':
+                return 0
+            else:
+                self.log.warning('Could not set frame transfer mode:{0}'.format(ERROR_DICT[rtrn_val]))
+                return -1
 
     # getter functions
     def _get_status(self, status):

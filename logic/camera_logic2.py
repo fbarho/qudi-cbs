@@ -129,6 +129,7 @@ class CameraLogic(GenericLogic):
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.loop)
+        
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -200,7 +201,11 @@ class CameraLogic(GenericLogic):
         else:
             temp = self._hardware.get_temperature()
             self._temperature = temp
-            return temp
+            idle = self._hardware.get_ready_state()
+            if not idle:
+                return 'NA'
+            else:
+                return temp
 
     @QtCore.Slot()
     def update_temperature(self):
@@ -221,6 +226,7 @@ class CameraLogic(GenericLogic):
         self._hardware.start_single_acquisition()
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
+        self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
 
 #  #################################################
@@ -253,7 +259,13 @@ class CameraLogic(GenericLogic):
             self.timer.start(1000 * 1 / self._fps) 
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
-#  #########################################################3
+#  #########################################################
+    def interrupt_live(self):
+        self._hardware.stop_acquisition()
+        
+    def resume_live(self):
+        self._hardware.start_live_acquisition()
+        
 
     def get_last_image(self):
         """ Return last acquired image """
@@ -336,23 +348,27 @@ class CameraLogic(GenericLogic):
                 #leave the default value True when function is called from gui
         """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        # n_proxy helps to limit the number of displayed images during the video saving
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
             
         ready = self._hardware.get_ready_state()
         while not ready:
-            # progress = self._hardware._get_total_number_images_acquired() # replace by general method get_progress to be put on the interface
             progress = self._hardware.get_progress()
             self.sigProgress.emit(progress)
             ready =  self._hardware.get_ready_state()
             if display:
-                self._last_image = self._hardware.get_most_recent_image()
-                self.sigUpdateDisplay.emit()
-                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
+                if progress % n_proxy == 0:  # to limit the number of displayed images 
+                    self._last_image = self._hardware.get_most_recent_image()
+                    self.sigUpdateDisplay.emit()
+                    #sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there is a better way to do this ? not needed in case the modulo operation is used to take only every n'th image
 
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
         self.sigSaving.emit()
+        
         image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.enabled = False
@@ -370,6 +386,16 @@ class CameraLogic(GenericLogic):
             self.sigVideoSavingFinished.emit()
         else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
             self.sigCleanStatusbar.emit()
+            
+        
+        
+        
+        
+        
+
+
+#  #########################################################
+        
 
     # this function is specific for andor ixon ultra camera
     def do_spooling(self, filenamestem, fileformat, n_frames, display):
@@ -380,6 +406,9 @@ class CameraLogic(GenericLogic):
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        # n_proxy helps to limit the number of displayed images during the video saving
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
         if fileformat == 'tiff':
             method = 7
@@ -399,9 +428,10 @@ class CameraLogic(GenericLogic):
             self.sigProgress.emit(spoolprogress)
             ready =  self._hardware.get_ready_state()
             if display:
-                self._last_image = self._hardware.get_most_recent_image()
-                self.sigUpdateDisplay.emit()
-                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
+                if spoolprogress % n_proxy == 0:  # to limit the number of displayed images 
+                    self._last_image = self._hardware.get_most_recent_image()
+                    self.sigUpdateDisplay.emit()
+                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
@@ -623,3 +653,18 @@ class CameraLogic(GenericLogic):
         # do nothing in case of cameras that do not support frame transfer
         else:
             pass
+        
+        
+    def get_size(self):
+        """ Retrieve size of the image in pixel
+
+        @return tuple: Size (width, height)
+        """
+        return self._hardware.get_size()
+    
+    def get_max_size(self):
+        return self._hardware._full_width, self._hardware._full_height
+    
+    
+    
+
