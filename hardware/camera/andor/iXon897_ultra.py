@@ -390,7 +390,7 @@ class IxonUltra(Base, CameraInterface):
         if ERROR_DICT[error_code] != 'DRV_SUCCESS':
             self.log.warning('Couldn\'t retrieve an image. {0}'.format(ERROR_DICT[error_code]))
         else:
-            self.log.debug('image length {0}'.format(len(cimage)))
+            # self.log.debug('image length {0}'.format(len(cimage)))  # commented for tests fb 20 jan 
             for i in range(len(cimage)):
                 # could be problematic for 'FVB' or 'SINGLE_TRACK' readmode
                 image_array[i] = cimage[i]
@@ -826,12 +826,12 @@ class IxonUltra(Base, CameraInterface):
         @param: int tranfer_mode: 0: off, 1: on"""
         acq_mode = self._acquisition_mode
 
-        if (acq_mode == 'SINGLE_SCAN') | (acq_mode == 'FAST_KINETICS'):
-            self.log.debug('Setting of frame transfer mode has no effect in acquisition '
-                           'mode \'SINGLE_SCAN\' or \'FAST_KINETICs\'.')
-            return -1
-        else:
-            rtrn_val = self.dll.SetFrameTransferMode(transfer_mode)
+        #if (acq_mode == 'SINGLE_SCAN') | (acq_mode == 'FAST_KINETICS'):
+        #    self.log.debug('Setting of frame transfer mode has no effect in acquisition '
+        #                   'mode \'SINGLE_SCAN\' or \'FAST_KINETICs\'.')
+        #    return -1
+        #else:
+        rtrn_val = self.dll.SetFrameTransferMode(transfer_mode)
 
         if ERROR_DICT[rtrn_val] == 'DRV_SUCCESS':
             return 0
