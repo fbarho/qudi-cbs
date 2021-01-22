@@ -334,7 +334,7 @@ class BasicGUI(GUIBase):
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
 
         # signals from logic
-        self._camera_logic.sigUpdateDisplay.connect(self.update_data, QtCore.Qt.DirectConnection)
+        self._camera_logic.sigUpdateDisplay.connect(self.update_data)  # QtCore.Qt.DirectConnection
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
