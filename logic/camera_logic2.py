@@ -328,6 +328,7 @@ class CameraLogic(GenericLogic):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
+        @param: str fileformat
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
         @param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
