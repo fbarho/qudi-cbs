@@ -6,7 +6,6 @@ from interface.camera_interface import CameraInterface
 from .hamamatsu_python_driver import HamamatsuCamera
 
 
-
 class HCam(Base, CameraInterface):
     """ Hardware class for Hamamatsu Orca Flash Camera
 
@@ -19,7 +18,7 @@ class HCam(Base, CameraInterface):
         default_acquisition_mode: 'run_till_abort'
 
     """
-    #attributes from config
+    # attributes from config
     _default_exposure = ConfigOption('default_exposure', 0.01)  # in seconds
     _default_acquisition_mode = ConfigOption('default_acquisition_mode', 'run_till_abort')
     camera_id = ConfigOption('camera_id', 0)
@@ -31,7 +30,7 @@ class HCam(Base, CameraInterface):
     _full_height = 0  # maximum height of the sensor
     _exposure = _default_exposure
     _gain = 0
-
+    n_frames = 1
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -39,7 +38,8 @@ class HCam(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        self.camera = HamamatsuCamera(self.camera_id)  # the idea is to use the class HamamatsuCamera like a python wrapper for the dcamapi
+        self.camera = HamamatsuCamera(
+            self.camera_id)  # the idea is to use the class HamamatsuCamera like a python wrapper for the dcamapi
 
         self.get_size()  # update the values _weight, _height
         self._full_width = self._width
@@ -123,18 +123,33 @@ class HCam(Base, CameraInterface):
             return False
 
     def get_acquired_data(self):
-        """ Return an array of last acquired image.
+        """ Return an array of last acquired image in case of run till abort acquisition mode, or all data in case of fixed length acquisition mode.
 
         @return numpy array: image data in format [[row],[row]...]
 
         Each pixel might be a float, integer or sub pixels
         """
+        acq_mode = self.get_acquisiton_mode()
+
         image_array = []
-        [frames, dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_height, image_width] or the inverse ??
-        data = frames[-1].getData()  # for tests: get the last frame  #so this should rather go to get_most_recent_image ..
-        image_array = np.reshape(data, dim)  # check if dim im height, width or width, height
+        [frames,
+         dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_width, image_height]
+        if acq_mode == 'run_till_abort':
+            data = frames[-1].getData()  # for run_till_abort acquisition: get the last (= most recent) frame
+            image_array = np.reshape(data, (dim[1], dim[
+                0]))  # reshape in row major shape (height, width) # to check if image is reconstituted correctly
+        elif acq_mode == 'fixed_length' and self.n_frames == 1:  # equivalent to single_scan
+            data = frames[-1].getData()
+            image_array = np.reshape(data, (dim[1], dim[0]))
+            # this case is covered separately to guarantee the correct display for snap
+            # code could be combined with case 1 above (conditions listed with 'or')
+        elif acq_mode == 'fixed_length' and self.n_frames > 1:
+            frames_list = [np.reshape(frames[i].getData(), (dim[1], dim[0])) for i in range(len(frames))]  # retrieve the data, reshape it and create a list of the frames
+            image_array = np.stack(frames_list)
+        else:
+            self.log.info('Your aquisition mode is not covered yet.')
         return image_array
-        #to do: add a check if data is available to avoid the index error if data has already been retrieved
+        # to do: add a check if data is available to avoid the index error if data has already been retrieved
 
     def set_exposure(self, exposure):
         """ Set the exposure time in seconds
@@ -143,7 +158,8 @@ class HCam(Base, CameraInterface):
 
         @return bool: Success?
         """
-        new_exp = self.camera.setPropertyValue('exposure_time', exposure)  # return value new_exp: float if new exposure set (eventually corrected to be inside the allowed range); False if error
+        new_exp = self.camera.setPropertyValue('exposure_time',
+                                               exposure)  # return value new_exp: float if new exposure set (eventually corrected to be inside the allowed range); False if error
         # update the attribute
         if isinstance(new_exp, float):
             self._exposure = self.camera.getPropertyValue('exposure_time')[0]
@@ -157,7 +173,8 @@ class HCam(Base, CameraInterface):
 
         @return float exposure time
         """
-        self._exposure = self.camera.getPropertyValue('exposure_time')[0]  # is this needed ? or is the attribute _exposure always up to date due to the update in set_exposure ?
+        self._exposure = self.camera.getPropertyValue('exposure_time')[
+            0]  # is this needed ? or is the attribute _exposure always up to date due to the update in set_exposure ?
         return self._exposure
 
     def set_gain(self, gain):
@@ -181,7 +198,7 @@ class HCam(Base, CameraInterface):
 
         @return bool: ready ?
         """
-        pass
+        return self.camera.get_ready_state()
 
     # new interface functions not in the original qudi version
     def has_temp(self):
@@ -210,6 +227,7 @@ class HCam(Base, CameraInterface):
 
         @return bool: Success ?
         """
+        self.n_frames = n_frames  # needed to choose the correct case in get_acquired_data method
         try:
             self.camera.setACQMode('fixed_length', n_frames)
             self.camera.startAcquisition()
@@ -222,9 +240,9 @@ class HCam(Base, CameraInterface):
 
         @return bool: Success ?
         """
-        # right now this does the same as stop_acquisition ...
         try:
             self.camera.stopAcquisition()
+            self.n_frames = 1  # reset to default
             return True
         except:
             return False
@@ -243,11 +261,14 @@ class HCam(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
-        image_array = []
-        [frames, dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_height, image_width] or the inverse ??
-        data = frames[-1].getData()  # for tests: get the last frame  #so this should rather go to get_most_recent_image ..
-        image_array = np.reshape(data, dim)  # check if dim im height, width or width, height
-        return image_array
+        # this function should allow to retrieve the most recent image during a fixed length acquisition, in contrast to
+        # get acquired data where all data is retrieved
+        # image_array = []
+        # [frames, dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list
+        # data = frames[-1].getData()  # for tests: get the last frame
+        # image_array = np.reshape(data, (dim[1], dim[0]))
+        # return image_array
+        pass
 
     def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
         """ Sets a ROI on the sensor surface
@@ -263,10 +284,10 @@ class HCam(Base, CameraInterface):
         """
         try:
             # only multiples of 4 are allowed for hstart, hend, vsize, hsize. Use the lower nearest multiple of 4
-            hstart = int(hstart/4) * 4
-            vstart = int(vstart/4) * 4
-            vend = int(vend/4) * 4
-            hend = int(hend/4) * 4
+            hstart = int(hstart / 4) * 4
+            vstart = int(vstart / 4) * 4
+            vend = int(vend / 4) * 4
+            hend = int(hend / 4) * 4
             vsize = vend - vstart
             hsize = hend - hstart
             self.camera.setPropertyValue('subarray_hpos', hstart)
@@ -274,7 +295,7 @@ class HCam(Base, CameraInterface):
             self.camera.setPropertyValue('subarray_hsize', hsize)
             self.camera.setPropertyValue('subarray_vsize', vsize)
             self.camera.setSubArrayMode()
-            self.log.info(f'Set subarray: {vsize} x {hsize} pixels (rows x cols)')  #for tests
+            self.log.info(f'Set subarray: {vsize} x {hsize} pixels (rows x cols)')  # for tests
             return 0
         except:
             return -1
@@ -283,7 +304,10 @@ class HCam(Base, CameraInterface):
 
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
-        pass
+        return self.camera.last_frame_number
+        # to test if this works
 
-
-
+    # non interface functions
+    def get_acquisiton_mode(self):
+        acq_mode = self.camera.acquisition_mode
+        return acq_mode

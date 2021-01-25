@@ -13,7 +13,6 @@ import ctypes
 import ctypes.util
 import numpy
 
-# import storm_control.sc_library.halExceptions as halExceptions
 
 # Hamamatsu constants.
 
@@ -808,6 +807,23 @@ class HamamatsuCamera(object):
         """
         text_values = self.getPropertyText(property_name)
         return sorted(text_values, key=text_values.get)
+
+    # added functions FB
+    def getCaptureStatus(self):
+        captureStatus = ctypes.c_int32(0)
+        self.dcam.dcamcap_status(self.camera_handle, ctypes.byref(captureStatus))
+        # print(captureStatus.value)
+        # print(captureStatus.value == DCAMCAP_STATUS_BUSY)
+        return captureStatus.value
+
+    def get_ready_state(self):
+        ret = self.getCaptureStatus()
+        if ret == DCAMCAP_STATUS_BUSY:
+            return False
+        else:
+            return True
+
+
 
 
 class HamamatsuCameraMR(HamamatsuCamera):
