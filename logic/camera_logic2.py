@@ -24,6 +24,7 @@ import numpy as np
 from time import sleep
 import os
 from PIL import Image
+from astropy.io import fits
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -32,27 +33,27 @@ from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
 
-class WorkerSignals(QtCore.QObject):
-    """ Defines the signals available from a running worker thread """
-
-    sigFinished = QtCore.Signal()
-
-
-class Worker(QtCore.QRunnable):
-    """ Worker thread to monitor the camera temperature every 5 seconds
-
-    The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
-    display """
-
-    def __init__(self, *args, **kwargs):
-        super(Worker, self).__init__()
-        self.signals = WorkerSignals()
-
-    @QtCore.Slot()
-    def run(self):
-        """ """
-        sleep(5)
-        self.signals.sigFinished.emit()
+# class WorkerSignals(QtCore.QObject):
+#     """ Defines the signals available from a running worker thread """
+#
+#     sigFinished = QtCore.Signal()
+#
+#
+# class Worker(QtCore.QRunnable):
+#     """ Worker thread to monitor the camera temperature every 5 seconds
+#
+#     The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
+#     display """
+#
+#     def __init__(self, *args, **kwargs):
+#         super(Worker, self).__init__()
+#         self.signals = WorkerSignals()
+#
+#     @QtCore.Slot()
+#     def run(self):
+#         """ """
+#         sleep(5)
+#         self.signals.sigFinished.emit()
 
 
 class CameraLogic(GenericLogic):
@@ -97,6 +98,8 @@ class CameraLogic(GenericLogic):
 
     _hardware = None
 
+    fileformat_list = ['tiff', 'fits']
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -126,6 +129,7 @@ class CameraLogic(GenericLogic):
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.loop)
+        
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -152,7 +156,7 @@ class CameraLogic(GenericLogic):
     # this function is specific to andor camera
     def get_kinetic_time(self):
         """ Get kinetic time (Andor camera only) """
-        if self._hardware.get_name() == 'iXon Ultra 897':
+        if self.get_name() == 'iXon Ultra 897':
             self._kinetic_time = self._hardware.get_kinetic_time()
             return self._kinetic_time
         else:
@@ -186,9 +190,9 @@ class CameraLogic(GenericLogic):
             self._hardware.set_temperature(temp)
 
             # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
-            worker = Worker()
-            worker.signals.sigFinished.connect(self.update_temperature)
-            self.threadpool.start(worker)
+            # worker = Worker()
+            # worker.signals.sigFinished.connect(self.update_temperature)
+            # self.threadpool.start(worker)
 
     def get_temperature(self):
         """ Get temperature of hardware, if accessible """
@@ -197,20 +201,24 @@ class CameraLogic(GenericLogic):
         else:
             temp = self._hardware.get_temperature()
             self._temperature = temp
-            return temp
+            idle = self._hardware.get_ready_state()
+            if not idle:
+                return 'NA'
+            else:
+                return temp
 
     @QtCore.Slot()
     def update_temperature(self):
         """ helper function to update the display on GUI after a waiting time defined in the Worker class"""
-
-        value = self.get_temperature()  # get the current temperature from the hardware
-        self.sigTemperatureChanged.emit(value)
-
-        if abs(value - self.temperature_setpoint) > 3:  # the tolerance of the camera itself is 3 degree
-            # enter in a loop until temperature setpoint reached
-            worker = Worker()
-            worker.signals.sigFinished.connect(self.update_temperature)
-            self.threadpool.start(worker)
+        pass
+        # value = self.get_temperature()  # get the current temperature from the hardware
+        # self.sigTemperatureChanged.emit(value)
+        #
+        # if abs(value - self.temperature_setpoint) > 3:  # the tolerance of the camera itself is 3 degree
+        #     # enter in a loop until temperature setpoint reached
+        #     worker = Worker()
+        #     worker.signals.sigFinished.connect(self.update_temperature)
+        #     self.threadpool.start(worker)
 
     def start_single_acquistion(self):  # watch out for the typo !!
         """ Take a single camera image
@@ -218,6 +226,7 @@ class CameraLogic(GenericLogic):
         self._hardware.start_single_acquisition()
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
+        self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
 
 #  #################################################
@@ -250,7 +259,13 @@ class CameraLogic(GenericLogic):
             self.timer.start(1000 * 1 / self._fps) 
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
-#  #########################################################3
+#  #########################################################
+    def interrupt_live(self):
+        self._hardware.stop_acquisition()
+        
+    def resume_live(self):
+        self._hardware.start_live_acquisition()
+        
 
     def get_last_image(self):
         """ Return last acquired image """
@@ -306,11 +321,12 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, fileformat='.tiff'):
+    def save_last_image(self, path, fileformat='tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
-        @param: str fileformat: default '.tiff' but can be modified if needed. make sure not to forget the dot """
+        @param: str fileformat: default 'tiff' but can be modified if needed.
+        """
 
         if self._last_image is None:
             self.log.warning('No image available to save')
@@ -320,10 +336,11 @@ class CameraLogic(GenericLogic):
         complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
         self._save_to_tiff(1, complete_path, image_data)
 
-    def save_video(self, filenamestem, n_frames, display, emit_signal=True):
+    def save_video(self, filenamestem, fileformat, n_frames, display, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
+        @param: str fileformat
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
         @param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
@@ -331,38 +348,57 @@ class CameraLogic(GenericLogic):
                 #leave the default value True when function is called from gui
         """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        # n_proxy helps to limit the number of displayed images during the video saving
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
             
         ready = self._hardware.get_ready_state()
         while not ready:
-            # progress = self._hardware._get_total_number_images_acquired() # replace by general method get_progress to be put on the interface
             progress = self._hardware.get_progress()
             self.sigProgress.emit(progress)
             ready =  self._hardware.get_ready_state()
             if display:
-                self._last_image = self._hardware.get_most_recent_image()
-                self.sigUpdateDisplay.emit()
-                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
+                if progress % n_proxy == 0:  # to limit the number of displayed images 
+                    self._last_image = self._hardware.get_most_recent_image()
+                    self.sigUpdateDisplay.emit()
+                    #sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there is a better way to do this ? not needed in case the modulo operation is used to take only every n'th image
 
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
         self.sigSaving.emit()
+        
         image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.enabled = False
 
         # data handling
-        complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '.tiff', addfile=False)
+        complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
-        self._save_to_tiff(n_frames, complete_path, image_data)
+        if fileformat == 'tiff':
+            self._save_to_tiff(n_frames, complete_path, image_data)
+        elif fileformat == 'fits':
+            self._save_to_fits(complete_path, image_data)
+        else:
+            self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
             self.sigVideoSavingFinished.emit()
         else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
             self.sigCleanStatusbar.emit()
+            
+        
+        
+        
+        
+        
+
+
+#  #########################################################
+        
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, n_frames, display):
+    def do_spooling(self, filenamestem, fileformat, n_frames, display):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
@@ -370,29 +406,40 @@ class CameraLogic(GenericLogic):
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui """
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        # n_proxy helps to limit the number of displayed images during the video saving
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
-        self._hardware._set_spool(1, 7, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
+        if fileformat == 'tiff':
+            method = 7
+        elif fileformat == 'fits':
+            method = 5
+        else:
+            self.log.info(f'Your fileformat {fileformat} is currently not covered')
+
+        self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
         err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
         
         ready = self._hardware.get_ready_state()
         while not ready:
-            # spoolprogress = self._hardware._get_total_number_images_acquired()
             spoolprogress = self._hardware.get_progress()
             self.sigProgress.emit(spoolprogress)
             ready =  self._hardware.get_ready_state()
             if display:
-                self._last_image = self._hardware.get_most_recent_image()
-                self.sigUpdateDisplay.emit()
-                sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
-
+                if spoolprogress % n_proxy == 0:  # to limit the number of displayed images 
+                    self._last_image = self._hardware.get_most_recent_image()
+                    self.sigUpdateDisplay.emit()
+                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
-        self._hardware._set_spool(0, 7, path, 10)  # deactivate spooling
+        self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
+        self.log.info('Spooling finished. Saved data to file {}'.format(path))
         self.enabled = False
         self.sigSpoolingFinished.emit()
+
 
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
         """ helper function that creates a generic filename using the following format:
@@ -403,7 +450,7 @@ class CameraLogic(GenericLogic):
 
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
-        @params: str fileformat: specify the type of file (.tiff, .txt, ..). don't forget the point before the type
+        @params: str fileformat: specify the type of file (tiff, txt, ..)
         @params: bool addfile: if True, the last created folder will again be accessed (needed for metadata saving)
 
         @returns str complete path
@@ -429,7 +476,7 @@ class CameraLogic(GenericLogic):
                 os.makedirs(path)
             except Exception as e:
                 self.log.error('Error creating the target folder: {}'.format(e))
-        filename = '{0}{1}'.format(file, fileformat)
+        filename = '{0}.{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
     #
@@ -479,7 +526,7 @@ class CameraLogic(GenericLogic):
         creates the PIL.Image object and saves it to tiff
 
         @params int n_frames: number of frames (needed to distinguish between 2D and 3D data)
-        @params str path: complete path where the object is saved to
+        @params str path: complete path where the object is saved to (including the suffix .tiff)
         @params data: np.array
 
         @returns None
@@ -516,7 +563,7 @@ class CameraLogic(GenericLogic):
         @param u16int: np.array with dtype int16 to be saved as tiff. 
              make sure that the data is in int16 format ! otherwise th conversion to bytes will not give the right result
         @param size: size of the data
-        @param str tiff_filename
+        @param str tiff_filename including the suffix '.tiff'
         """
         # write 16-bit TIFF image
         # PIL interprets mode 'I;16' as "uint16, little-endian"
@@ -540,6 +587,29 @@ class CameraLogic(GenericLogic):
             img_out.frombytes(outpil)  # create pillow object from bytes
             imlist.append(img_out)  # create the list of pillow image objects
         imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
+
+    def _save_to_fits(self, path, data):
+        """ helper function to save the image data to a fits file.
+        see also https://docs.astropy.org/en/latest/io/fits/index.html#creating-a-new-image-file
+
+        Workes for 2D data and stacks
+
+        @params str path: complete path where the object is saved to, including the suffix .fits
+        @params data: np.array
+
+        @returns None
+        """
+        data = data.astype(np.int16)  # data conversion because 16 bit image shall be saved
+
+        hdu = fits.PrimaryHDU(data)  # PrimaryHDU object encapsulates the data
+
+        # create a HDUlist and write to file
+        try:
+            hdul = fits.HDUList([hdu])
+            hdul.writeto(path)
+            self.log.info('Saved data to file {}'.format(path))
+        except Exception as e:
+            self.log.warning(f'Data not saved: {e}')
 
     def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
         """ defines a limited region on the sensor surface, hence accelerating the acquisition
@@ -566,3 +636,35 @@ class CameraLogic(GenericLogic):
             self.log.warn('Sensor region not reset to default')
         else:
             self.log.info('Sensor region reset to default: {} x {}'.format(width, height))
+
+    @QtCore.Slot(bool)
+    def set_frametransfer(self, activate):
+        """ Activate frametransfer mode for ixon ultra camera:
+        the boolean activate is stored in a variable in the camera module. When an acquisition is started, frame transfer is set accordingly.
+
+        @params: bool activate ?
+        """
+        if self.get_name() == 'iXon Ultra 897':
+            self._hardware._set_frame_transfer(int(activate))
+            self.log.info(f'Frametransfer mode activated: {activate}')
+            # we also need to update the indicator on the gui
+            exp = self.get_exposure()  # we just need to send the signal sigExposureChanged but it must carry a float so we send exp as argument
+            self.sigExposureChanged.emit(exp)
+        # do nothing in case of cameras that do not support frame transfer
+        else:
+            pass
+        
+        
+    def get_size(self):
+        """ Retrieve size of the image in pixel
+
+        @return tuple: Size (width, height)
+        """
+        return self._hardware.get_size()
+    
+    def get_max_size(self):
+        return self._hardware._full_width, self._hardware._full_height
+    
+    
+    
+

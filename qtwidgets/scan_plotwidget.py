@@ -456,7 +456,7 @@ class ScanViewBox(ViewBox):
             ev.accept()
             self.updateScaleBox(ev.buttonDownPos(), ev.pos())
             if ev.isFinish():
-                self.rbScaleBox.hide()
+                # self.rbScaleBox.hide()
                 start = self.mapToView(ev.buttonDownPos())
                 stop = self.mapToView(ev.pos())
                 rect = QtCore.QRectF(start, stop)

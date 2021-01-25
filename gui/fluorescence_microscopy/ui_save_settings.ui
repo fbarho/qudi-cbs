@@ -48,42 +48,14 @@
      <x>50</x>
      <y>40</y>
      <width>321</width>
-     <height>114</height>
+     <height>145</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Folder:</string>
-      </property>
-     </widget>
-    </item>
     <item row="0" column="1" colspan="2">
      <widget class="QLineEdit" name="foldername_LineEdit"/>
     </item>
-    <item row="1" column="0" colspan="3">
-     <widget class="QLabel" name="complete_path_Label">
-      <property name="text">
-       <string>Save to: </string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Frames:</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0" colspan="2">
-     <widget class="QLabel" name="label_3">
-      <property name="text">
-       <string>Acquisition time (s): </string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="2">
+    <item row="4" column="2">
      <widget class="QDoubleSpinBox" name="acquisition_time_DoubleSpinBox">
       <property name="decimals">
        <number>3</number>
@@ -93,7 +65,28 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="2">
+    <item row="4" column="0" colspan="2">
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>Acquisition time (s): </string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Folder:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Frames:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="2">
      <widget class="QSpinBox" name="n_frames_SpinBox">
       <property name="minimum">
        <number>1</number>
@@ -102,6 +95,23 @@
        <number>1000000</number>
       </property>
      </widget>
+    </item>
+    <item row="1" column="0" colspan="3">
+     <widget class="QLabel" name="complete_path_Label">
+      <property name="text">
+       <string>Save to: </string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>Fileformat:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1" colspan="2">
+     <widget class="QComboBox" name="file_format_ComboBox"/>
     </item>
    </layout>
   </widget>

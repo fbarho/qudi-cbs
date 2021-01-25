@@ -59,10 +59,16 @@
       </property>
      </widget>
     </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Gain</string>
+    <item row="2" column="1">
+     <widget class="QSpinBox" name="temp_spinBox">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="minimum">
+       <number>-80</number>
+      </property>
+      <property name="maximum">
+       <number>25</number>
       </property>
      </widget>
     </item>
@@ -80,20 +86,30 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="1">
-     <widget class="QSpinBox" name="temp_spinBox">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="minimum">
-       <number>-80</number>
-      </property>
-      <property name="maximum">
-       <number>25</number>
+    <item row="1" column="0">
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Gain</string>
       </property>
      </widget>
     </item>
    </layout>
+  </widget>
+  <widget class="QCheckBox" name="frame_transfer_CheckBox">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>200</y>
+     <width>211</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Frame transfer mode</string>
+   </property>
   </widget>
  </widget>
  <resources/>

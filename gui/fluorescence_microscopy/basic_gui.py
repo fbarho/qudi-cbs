@@ -165,8 +165,11 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoSavingStart = QtCore.Signal(str, int, bool)
-    sigSpoolingStart = QtCore.Signal(str, int, bool)
+    sigVideoSavingStart = QtCore.Signal(str, str, int, bool)
+    sigSpoolingStart = QtCore.Signal(str, str, int, bool)
+    
+    sigInterruptLive = QtCore.Signal()
+    sigResumeLive = QtCore.Signal()
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -278,7 +281,7 @@ class BasicGUI(GUIBase):
         # initialize the camera setting indicators on the GUI
         # use the kinetic time for andor camera, exposure time for all others
         if self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
             self._mw.exposure_Label.setText('Kinetic time (s)')
         else:
             self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
@@ -332,9 +335,11 @@ class BasicGUI(GUIBase):
         self.sigVideoStop.connect(self._camera_logic.stop_loop)
         self.sigVideoSavingStart.connect(self._camera_logic.save_video)
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
+        self.sigInterruptLive.connect(self._camera_logic.interrupt_live)
+        self.sigResumeLive.connect(self._camera_logic.resume_live)
 
         # signals from logic
-        self._camera_logic.sigUpdateDisplay.connect(self.update_data, QtCore.Qt.DirectConnection)
+        self._camera_logic.sigUpdateDisplay.connect(self.update_data)  # QtCore.Qt.DirectConnection
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
@@ -444,9 +449,15 @@ class BasicGUI(GUIBase):
         self._cam_sd.rejected.connect(self.cam_keep_former_settings)  # cancel buttons
         # self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
         
+        ## to add for the frame transfer settings
+        self._cam_sd.frame_transfer_CheckBox.toggled[bool].connect(self._camera_logic.set_frametransfer)
+        
         if not self._camera_logic.has_temp:
             self._cam_sd.temp_spinBox.setEnabled(False)
             self._cam_sd.label_3.setEnabled(False)
+
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._cam_sd.frame_transfer_CheckBox.setEnabled(True)
 
         # write the configuration to the settings window of the GUI.
         self.cam_keep_former_settings()
@@ -458,6 +469,8 @@ class BasicGUI(GUIBase):
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
+        if self._camera_logic.enabled:
+            self.sigResumeLive.emit()
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
@@ -465,12 +478,20 @@ class BasicGUI(GUIBase):
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
+        self._cam_sd.frame_transfer_CheckBox.setChecked(False)  # as default value
+        if self._camera_logic.enabled:
+            self.sigResumeLive.emit()
+        
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
         """ Opens the settings menu. 
         """
+        # interrupt live display 
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._cam_sd.exec_()
+
 
     # Initialisation of the save settings windows
     def init_save_settings_ui(self):
@@ -484,6 +505,9 @@ class BasicGUI(GUIBase):
 
         # add a validator to the folder name lineedit
         self._save_sd.foldername_LineEdit.setValidator(NameValidator(empty_allowed=True))  # empty_allowed=True should be set or not ?
+
+        # populate the file format combobox
+        self._save_sd.file_format_ComboBox.addItems(self._camera_logic.fileformat_list)
 
         # connect the lineedit with the path label
         self._save_sd.foldername_LineEdit.textChanged.connect(self.update_path_label)
@@ -505,6 +529,7 @@ class BasicGUI(GUIBase):
         today = datetime.today().strftime('%Y-%m-%d')
         path = os.path.join(default_path, today, folder_name)
         # self.log.info('created path: {}'.format(path))
+        fileformat = str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
         self._last_path = path  # maintain this variable to make it accessible for metadata saving
@@ -514,9 +539,9 @@ class BasicGUI(GUIBase):
         # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
         # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
         if self._video:
-            self.sigVideoSavingStart.emit(path, n_frames, display)
+            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display)
         elif self._spooling:
-            self.sigSpoolingStart.emit(path, n_frames, display)
+            self.sigSpoolingStart.emit(path, fileformat, n_frames, display)
         else:  # to do: write an error message or something like this ???
             pass
 
@@ -534,6 +559,7 @@ class BasicGUI(GUIBase):
         self._save_sd.n_frames_SpinBox.setValue(1)
         self.update_acquisition_time()
         self._save_sd.enable_display_CheckBox.setChecked(True)
+        self._save_sd.file_format_ComboBox.setCurrentIndex(0)
 
     def update_path_label(self):
         """ generates the informative text indicating the complete path, displayed below the folder name specified by the user """
@@ -574,7 +600,7 @@ class BasicGUI(GUIBase):
         @param: float exposure"""
         # indicate the kinetic time instead of the exposure time for andor ixon camera
         if self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_kinetic_time()))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
         else:
             self._mw.exposure_LineEdit.setText(str(exposure))
 
@@ -598,6 +624,7 @@ class BasicGUI(GUIBase):
         """
         self.sigImageStart.emit()
         self.disable_camera_toolbuttons()
+        self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
     def acquisition_finished(self):
         """ Callback of sigAcquisitionFinished. Resets all tool buttons to callable state
@@ -623,6 +650,7 @@ class BasicGUI(GUIBase):
             self._mw.start_video_Action.setText('Stop Live')
             self._mw.start_video_Action.setToolTip('Stop live video')
             self.sigVideoStart.emit()
+        self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
     def update_data(self):
         """ Callback of sigUpdateDisplay in the camera_logic module.
@@ -632,6 +660,7 @@ class BasicGUI(GUIBase):
         # handle the rotation that occurs due to the image formatting conventions (see also https://github.com/pyqtgraph/pyqtgraph/issues/315) 
         # this could be improved by another method ?! though reversing the y axis did not work. 
         image_data = np.rot90(image_data, 3)  # 90 deg clockwise 
+        
         
         # handle the user defined rotation settings
         if self.rotation_cw:
@@ -665,7 +694,7 @@ class BasicGUI(GUIBase):
         self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
         self._camera_logic.save_last_image(filenamestem)
         # save metadata to txt file in the same folder
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -680,6 +709,8 @@ class BasicGUI(GUIBase):
         self._video = True
         # open the save settings window
         self.open_save_settings()
+        # hide the rubberband tool used for roi selection on sensor
+        self.imageitem.getViewBox().rbScaleBox.hide()
 
     def video_saving_finished(self):
         """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
@@ -687,7 +718,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -709,6 +740,8 @@ class BasicGUI(GUIBase):
         self._spooling = True
         # open the save settings dialog
         self.open_save_settings()
+        # hide the rubberband tool used for roi selection on sensor
+        self.imageitem.getViewBox().rbScaleBox.hide()
 
     def spooling_finished(self):
         """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
@@ -716,7 +749,7 @@ class BasicGUI(GUIBase):
         # this needs to be done by the gui because this is where all the parameters are available.
         # The camera logic has not access to all needed parameters
         filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', '.txt', addfile=True)
+        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
         with open(complete_path, 'w') as file:
             file.write(str(metadata))
@@ -826,7 +859,13 @@ class BasicGUI(GUIBase):
         vstart_ = min(vstart, vend)
         vend_ = max(vstart, vend)
         self.log.info('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, vstart_, vend_)
+        # inversion along the y axis: 
+        # it is needed to call the function set_sensor_region(hbin, vbin, hstart, hend, vstart, vend)
+        # using the following arguments: set_sensor_region(hbin, vbin, start, hend, num_px_y - vend, num_px_y - vstart) ('vstart' needs to be smaller than 'vend')
+        num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
+        self.log.info(num_px_y)  # probably needed to always use num_px_y_max (=512 for andor)      
+        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)   ## this enables the correct selection of the roi ## improve the position where the calculation is performed
+        ##################################################
 
     @QtCore.Slot()
     def rotate_image_cw_toggled(self):
