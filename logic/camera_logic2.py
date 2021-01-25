@@ -625,7 +625,7 @@ class CameraLogic(GenericLogic):
         if err < 0:
             self.log.warn('Sensor region not set')
         else:
-            self.log.info('Sensor region set to {} x {}'.format(hend-hstart+1, vend-vstart+1))
+            self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
     def reset_sensor_region(self):
         """ reset to full sensor size """

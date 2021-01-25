@@ -284,7 +284,7 @@ class BasicGUI(GUIBase):
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
             self._mw.exposure_Label.setText('Kinetic time (s)')
         else:
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_exposure()))
             self._mw.exposure_Label.setText('Exposure time (s)')
 
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
@@ -466,6 +466,9 @@ class BasicGUI(GUIBase):
     def cam_update_settings(self):
         """ Write new settings from the gui to the logic module
         """
+        # interrupt live display
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
@@ -475,6 +478,9 @@ class BasicGUI(GUIBase):
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
         """
+        # interrupt live display
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
@@ -487,9 +493,6 @@ class BasicGUI(GUIBase):
     def open_camera_settings(self):
         """ Opens the settings menu. 
         """
-        # interrupt live display 
-        if self._camera_logic.enabled:  # camera is acquiring
-            self.sigInterruptLive.emit()
         self._cam_sd.exec_()
 
 
@@ -602,7 +605,7 @@ class BasicGUI(GUIBase):
         if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
         else:
-            self._mw.exposure_LineEdit.setText(str(exposure))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(exposure))
 
     @QtCore.Slot(float)
     def update_gain(self, gain):
