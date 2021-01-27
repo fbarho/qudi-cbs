@@ -289,11 +289,11 @@ class BasicGUI(GUIBase):
 
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
         if not self._camera_logic.has_temp:
-            self._mw.temperature_LineEdit.setText('')
-            self._mw.temperature_LineEdit.setEnabled(False)
-            self._mw.temperature_Label.setEnabled(False)
+            self._mw.temp_setpoint_LineEdit.setText('')
+            self._mw.temp_setpoint_LineEdit.setEnabled(False)
+            self._mw.temp_setpoint_Label.setEnabled(False)
         else:
-            self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
+            self._mw.temp_setpoint_LineEdit.setText(str(self._camera_logic.temperature_setpoint))
 
         # signals from logic
         # update the camera setting indicators when value changed (via settings window or iPython console for example)
@@ -360,8 +360,12 @@ class BasicGUI(GUIBase):
             self._mw.cooler_status_LineEdit.setText('')
             self._mw.cooler_status_LineEdit.setEnabled(False)
             self._mw.cooler_Label.setEnabled(False)
+            self._mw.temperature_LineEdit.setText('')
+            self._mw.temperature_LineEdit.setEnabled(False)
+            self._mw.temperature_Label.setEnabled(False)
         else:
             self._mw.cooler_status_LineEdit.setText(self._camera_logic.get_cooler_state())
+            self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
 
         # signals
         # update the indicators when pushbutton is clicked
@@ -472,6 +476,7 @@ class BasicGUI(GUIBase):
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
+        self._mw.temp_setpoint_LineEdit.setText(str(self._cam_sd.temp_spinBox.value()))
         if self._camera_logic.enabled:
             self.sigResumeLive.emit()
 
@@ -695,13 +700,14 @@ class BasicGUI(GUIBase):
         folder_name = self._mw.samplename_LineEdit.text()
         filenamestem = os.path.join(default_path, today, folder_name)
         self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
-        self._camera_logic.save_last_image(filenamestem)
-        # save metadata to txt file in the same folder
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
-        metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        err = self._camera_logic.save_last_image(filenamestem)
+        if err == 0:  # data saving was correctly done. now save also the metadata
+            # save metadata to txt file in the same folder
+            complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
+            metadata = self._create_metadata_dict()
+            with open(complete_path, 'w') as file:
+                file.write(str(metadata))
+            self.log.info('saved metadata to {}'.format(complete_path))
 
     @QtCore.Slot()
     def save_video_clicked(self):
