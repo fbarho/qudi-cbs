@@ -1,11 +1,10 @@
-import numpy as np
 from core.module import Base
 from core.configoption import ConfigOption
 from interface.filterwheel_interface import FilterwheelInterface
 
 
 class NoFilterDummy(Base, FilterwheelInterface):
-    """ This class is used for a setup without filterwheelner
+    """ This class is used for a setup without filterwheel
 
     Example config for copy-paste:
 
@@ -29,8 +28,11 @@ class NoFilterDummy(Base, FilterwheelInterface):
 
     position = 1
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def on_activate(self):
+        """ Module activation method """
         if len(self._filternames) != self._num_filters or len(self._positions) != self._num_filters or len(self._allowed_lasers) != self._num_filters:
             self.log.warning('Please specify name, position, and allowed lasers for each filter')
 
@@ -38,7 +40,7 @@ class NoFilterDummy(Base, FilterwheelInterface):
         pass
 
     def get_position(self):
-        """ Get the current position, from 1 to 6 (or 12) """
+        """ Get the current position"""
         return self.position
 
     def set_position(self, value):
@@ -48,8 +50,8 @@ class NoFilterDummy(Base, FilterwheelInterface):
 
         @ returns: int: error code: ok = 0
         """
-        pass
-        #return 0
+        # pass
+        return 0
 
     def get_filter_dict(self):
         """ Retrieves a dictionary with the following entries:

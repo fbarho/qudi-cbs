@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 Dummy implementation for camera_interface.
 
@@ -36,7 +35,7 @@ class CameraDummy(Base, CameraInterface):
         module.Class: 'camera.camera_dummy.CameraDummy'
         support_live: True
         camera_name: 'Dummy camera'
-        resolution: (1280, 720)
+        resolution: (720, 1280)
         exposure: 0.1 
         gain: 1.0
     """
@@ -45,8 +44,8 @@ class CameraDummy(Base, CameraInterface):
     _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  # 'Dummy camera' 'iXon Ultra 897'
     _resolution = ConfigOption('resolution', (720, 1280))  # indicate (nb rows, nb cols) because row-major config is used in gui module
 
-    _live = False
-    _acquiring = False
+    _live = False  # attribute indicating if the camera is currently in live mode
+    _acquiring = False  # attribute indicating if the camera is currently acquiring  an image
     _exposure = ConfigOption('exposure', .1) 
     _gain = ConfigOption('gain', 1.)
     _has_temp = False
@@ -89,7 +88,7 @@ class CameraDummy(Base, CameraInterface):
 
         @return tuple: Size (width, height)
         """
-        return self.image_size
+        return self.image_size[1], self.image_size[0]
 
     def support_live_acquisition(self):
         """ Return whether or not the camera can take care of live acquisition
@@ -136,10 +135,9 @@ class CameraDummy(Base, CameraInterface):
         Each pixel might be a float, integer or sub pixels
         """
         if self.n_frames > 1:
-            data = self._data_generator(size=(self.n_frames, self.image_size[0], self.image_size[1])) # * self._exposure * self._gain
+            data = self._data_generator(size=(self.n_frames, self.image_size[0], self.image_size[1]))  # * self._exposure * self._gain
         else:
-            data = self._data_generator(size=self.image_size) #  * self._exposure * self._gain
-        # data = data.astype(np.int16)
+            data = self._data_generator(size=self.image_size)  # * self._exposure * self._gain
         return data
 
     def set_exposure(self, exposure):
@@ -164,7 +162,7 @@ class CameraDummy(Base, CameraInterface):
 
         @param float gain: desired new gain
 
-        @return float: new exposure gain
+        @return float: new gain setting
         """
         self._gain = gain
         return self._gain
@@ -190,16 +188,29 @@ class CameraDummy(Base, CameraInterface):
         """
         return self._has_temp
 
-    # for tests do as if temperature available..
-    # uncomment if needed
+    # for tests do as if temperature available
+    # uncomment if _has_temp is set to True
     # def set_temperature(self, temp):
+    #     """ Set the temperature setpoint
+    #
+    #     @param int temp: desired new temperature
+    #
+    #     @return: bool: success ?
+    #     """
     #     self.temperature = temp
+    #     return True
     #
     # def get_temperature(self):
+    #     """ Get the current temperature
+    #
+    #     @return float: temperature
+    #     """
     #     return self.temperature
     #
     # def is_cooler_on(self):
+    #     """ checks the cooler state """
     #     return 1
+    ##########################
 
     def has_shutter(self):
         """ Is the camera equipped with a shutter?
@@ -217,7 +228,7 @@ class CameraDummy(Base, CameraInterface):
         """
         # handle the variables indicating the status
         if self.support_live_acquisition():
-            self._live = True   # allow the user to select if image should be shown or not; set self._live accordingly
+            self._live = True
             self._acquiring = False
         self.n_frames = n_frames
         self.log.info('started movie acquisition')
@@ -245,17 +256,25 @@ class CameraDummy(Base, CameraInterface):
         """ Returns an np array of the most recent image.
 
         Used for live display on gui during save procedures"""
-        data = np.random.normal(size=self.image_size) # * self._exposure * self._gain
+        data = np.random.normal(size=self.image_size)  # * self._exposure * self._gain
         # data = data.astype(np.int16)  # type conversion
         return data
 
     def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
-        """ Allows to reduce the actual sensor size We don't use the binning parameters but they are needed in the
-        function call to be conform with syntax of andor camera """
+        """ Allows to reduce the actual sensor size
+        We don't use the binning parameters but they are needed in the
+        function call to be conform with syntax of andor camera
+        @param int hbin: number of pixels to bin horizontally
+        @param int vbin: number of pixels to bin vertically.
+        @param int hstart: Start column (inclusive)
+        @param int hend: End column (inclusive)
+        @param int vstart: Start row (inclusive)
+        @param int vend: End row (inclusive).
+        """
         self.image_size = (abs(vend-vstart)+1, abs(hend-hstart)+1, )  # rows, cols
         return 0
 
-    # mock method to get data which is equivalent to kinetic series (n_frames > 1 allowed)
+    # helper method to get data which is equivalent to kinetic series (n_frames > 1 allowed)
     def _data_generator(self, size):
         """ Allows to generate 2D or 3D data
         @param: int tuple size (width, height) or (depth, width, height)
@@ -269,7 +288,12 @@ class CameraDummy(Base, CameraInterface):
         """ Simulates the spooling functionality of the andor camera.
          This function must be available if camera name is set to iXon Ultra 897
          """
-        self.log.info('camera dummy: started spooling')
+        if active == 1:
+            self.log.info('camera dummy: started spooling')
+        elif active == 0:
+            self.log.info('camera dummy: spooling finished')
+        else:
+            pass
 
     def get_kinetic_time(self):
         """ Simulates kinetic time method of andor camera
@@ -277,7 +301,7 @@ class CameraDummy(Base, CameraInterface):
         if self._frame_transfer:
             return self._exposure + 0.123
         else:
-            return self._exposure + 0.765421
+            return self._exposure + 0.7654321
 
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
@@ -290,14 +314,21 @@ class CameraDummy(Base, CameraInterface):
             return n_frames
         return progress
 
-
     def _set_frame_transfer(self, transfer_mode):
+        """ set the frame transfer mode
+
+        @param: int tranfer_mode: 0: off, 1: on
+        @returns: int error code 0 = ok, -1 = error
+        """
         if transfer_mode == 1:
             self._frame_transfer = True
             self.log.info('Camera dummy: activated frame transfer mode, transfer_mode {}'.format(transfer_mode))
+            err = 0
         elif transfer_mode == 0:
             self._frame_transfer = False
             self.log.info('Camera dummy: deactivated frame transfer mode, transfer_mode {}'.format(transfer_mode))
+            err = 0
         else:
             self.log.info('Camera dummy: specify the transfer_mode to set frame transfer, transfer_mode {}'.format(transfer_mode))
-
+            err = -1
+        return err
