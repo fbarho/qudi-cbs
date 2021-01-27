@@ -596,6 +596,7 @@ class BasicGUI(GUIBase):
     def open_save_settings(self):
         """ Opens the settings menu.
         """
+        self.set_default_values()  # this ensures that the sample name from mainwindow is transferred to the dialog window
         self._save_sd.exec_()
 
     # slots for the menu and toolbar actions
@@ -824,7 +825,9 @@ class BasicGUI(GUIBase):
         label = 'filter{}'.format(filterpos)
         metadata['filter'] = filterdict[label]['name']
         metadata['gain'] = self._camera_logic.get_gain()
-        metadata['exposuretime (s)'] = self._camera_logic.get_exposure()
+        metadata['exposure time (s)'] = self._camera_logic.get_exposure()
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            metadata['kinetic time (s)'] = self._camera_logic.get_kinetic_time()
         intensity_dict = self._daq_ao_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
         laser_dict = self._daq_ao_logic.get_laser_dict()

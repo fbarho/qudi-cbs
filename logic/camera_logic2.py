@@ -612,7 +612,11 @@ class CameraLogic(GenericLogic):
         @params: bool activate ?
         """
         if self.get_name() == 'iXon Ultra 897':
+            if self.enabled:  # if live mode is on, interrupt to be able to access frame transfer setting
+                self.interrupt_live()
             self._hardware._set_frame_transfer(int(activate))
+            if self.enabled:  # if live mode was interrupted, restart it
+                self.resume_live()
             self.log.info(f'Frametransfer mode activated: {activate}')
             # we also need to update the indicator on the gui
             exp = self.get_exposure()  # we just need to send the signal sigExposureChanged but it must carry a float

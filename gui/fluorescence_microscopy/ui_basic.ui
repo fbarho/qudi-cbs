@@ -183,7 +183,7 @@
          <item row="2" column="0">
           <widget class="QLabel" name="temp_setpoint_Label">
            <property name="text">
-            <string>Temp. setpoint (°C)</string>
+            <string>Temp. setpoint (°C):</string>
            </property>
           </widget>
          </item>
@@ -197,6 +197,9 @@
            </property>
            <property name="toolTip">
             <string>Options -&gt; Camera settings to modify this value</string>
+           </property>
+           <property name="readOnly">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -616,7 +619,7 @@
          <item row="3" column="0">
           <widget class="QLabel" name="temperature_Label">
            <property name="text">
-            <string>Temperature (°C)</string>
+            <string>Temperature (°C):</string>
            </property>
           </widget>
          </item>
