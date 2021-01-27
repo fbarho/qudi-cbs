@@ -165,8 +165,8 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoSavingStart = QtCore.Signal(str, str, int, bool)
-    sigSpoolingStart = QtCore.Signal(str, str, int, bool)
+    sigVideoSavingStart = QtCore.Signal(str, str, int, bool, dict)
+    sigSpoolingStart = QtCore.Signal(str, str, int, bool, dict)
     
     sigInterruptLive = QtCore.Signal()
     sigResumeLive = QtCore.Signal()
@@ -184,7 +184,6 @@ class BasicGUI(GUIBase):
     _daq_ao_logic = None
     _filterwheel_logic = None
     _mw = None
-    _last_path = None
     region_selector_enabled = False
     imageitem = None
     spinbox_list = None
@@ -282,10 +281,10 @@ class BasicGUI(GUIBase):
         # use the kinetic time for andor camera, exposure time for all others
         if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
-            self._mw.exposure_Label.setText('Kinetic time (s)')
+            self._mw.exposure_Label.setText('Kinetic time (s):')
         else:
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_exposure()))
-            self._mw.exposure_Label.setText('Exposure time (s)')
+            self._mw.exposure_Label.setText('Exposure time (s):')
 
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
         if not self._camera_logic.has_temp:
@@ -540,16 +539,17 @@ class BasicGUI(GUIBase):
         fileformat = str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
-        self._last_path = path  # maintain this variable to make it accessible for metadata saving
 
         display = self._save_sd.enable_display_CheckBox.isChecked()
+
+        metadata = self._create_metadata_dict()
 
         # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
         # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
         if self._video:
-            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display)
+            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display, metadata)
         elif self._spooling:
-            self.sigSpoolingStart.emit(path, fileformat, n_frames, display)
+            self.sigSpoolingStart.emit(path, fileformat, n_frames, display, metadata)
         else:  # to do: write an error message or something like this ???
             pass
 
@@ -596,7 +596,6 @@ class BasicGUI(GUIBase):
     def open_save_settings(self):
         """ Opens the settings menu.
         """
-        self.set_default_values()  # this ensures that the sample name from mainwindow is transferred to the dialog window
         self._save_sd.exec_()
 
     # slots for the menu and toolbar actions
@@ -692,23 +691,14 @@ class BasicGUI(GUIBase):
         filenamestem is generated below, example /home/barho/images/2020-12-16/foldername
         folder_name is taken from the field on GUI. to decide : put it in a dialog as for the save settings dialog ??
         num_type is an incremental number followed by _Image
-
-        Handles the metadata saving. This must be done via the gui module because the camera logic does not have access to all required information
         """
         # save data
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
         folder_name = self._mw.samplename_LineEdit.text()
         filenamestem = os.path.join(default_path, today, folder_name)
-        self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
-        err = self._camera_logic.save_last_image(filenamestem)
-        if err == 0:  # data saving was correctly done. now save also the metadata
-            # save metadata to txt file in the same folder
-            complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
-            metadata = self._create_metadata_dict()
-            with open(complete_path, 'w') as file:
-                file.write(str(metadata))
-            self.log.info('saved metadata to {}'.format(complete_path))
+        metadata = self._create_metadata_dict()
+        self._camera_logic.save_last_image(filenamestem, metadata)
 
     @QtCore.Slot()
     def save_video_clicked(self):
@@ -723,16 +713,7 @@ class BasicGUI(GUIBase):
         self.imageitem.getViewBox().rbScaleBox.hide()
 
     def video_saving_finished(self):
-        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
-        # save metadata to additional txt file in the same folder as the experiment
-        # this needs to be done by the gui because this is where all the parameters are available.
-        # The camera logic has not access to all needed parameters
-        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
-        metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
         # reset the flag
         self._video = False
         # toolbuttons
@@ -754,16 +735,7 @@ class BasicGUI(GUIBase):
         self.imageitem.getViewBox().rbScaleBox.hide()
 
     def spooling_finished(self):
-        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
-        # save metadata to additional txt file in the same folder as the experiment
-        # this needs to be done by the gui because this is where all the parameters are available.
-        # The camera logic has not access to all needed parameters
-        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
-        metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
         # reset the flag
         self._spooling = False
         # enable the toolbuttons
@@ -819,24 +791,28 @@ class BasicGUI(GUIBase):
     def _create_metadata_dict(self):
         """ create a dictionary containing the metadata"""
         metadata = {}
-        metadata['timestamp'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
         filterpos = self._filterwheel_logic.get_position()
         filterdict = self._filterwheel_logic.get_filter_dict()
         label = 'filter{}'.format(filterpos)
         metadata['filter'] = filterdict[label]['name']
         metadata['gain'] = self._camera_logic.get_gain()
-        metadata['exposure time (s)'] = self._camera_logic.get_exposure()
+        metadata['exposure'] = self._camera_logic.get_exposure()
         if self._camera_logic.get_name() == 'iXon Ultra 897':
-            metadata['kinetic time (s)'] = self._camera_logic.get_kinetic_time()
+            metadata['kinetic'] = self._camera_logic.get_kinetic_time()
         intensity_dict = self._daq_ao_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
         laser_dict = self._daq_ao_logic.get_laser_dict()
         metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
-        metadata['intensity (%)'] = [intensity_dict[key] for key in keylist]
+        if metadata['laser'] == []:  # for compliance with fits header conventions ([] is forbidden)
+            metadata['laser'] = None
+        metadata['intens'] = [intensity_dict[key] for key in keylist]
+        if metadata['intens'] == []:
+            metadata['intens'] = None
         if self._camera_logic.has_temp:
-            metadata['sensor temperature'] = self._camera_logic.get_temperature()
+            metadata['temp'] = self._camera_logic.get_temperature()
         else:
-            metadata['sensor temperature'] = 'Not available'
+            metadata['temp'] = 'Not available'
         return metadata
 
     def select_sensor_region(self):

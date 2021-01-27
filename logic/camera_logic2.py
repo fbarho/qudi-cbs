@@ -321,15 +321,15 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, fileformat='tiff'):
+    def save_last_image(self, path, metadata, fileformat='tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
+        @param: dict metadata: dictionary containing the metadata
         @param: str fileformat: default 'tiff' but can be modified if needed.
 
-        @return: error code: image saved ok = 0, data not saved  = -1
+        @return: None
         """
-        err = -1
         if self._last_image is None:
             self.log.warning('No image available to save')
         else:
@@ -337,16 +337,17 @@ class CameraLogic(GenericLogic):
 
             complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
             self._save_to_tiff(1, complete_path, image_data)
-            err = 0
-        return err
+            self._save_metadata_txt_file(path, '_Image', metadata)
 
-    def save_video(self, filenamestem, fileformat, n_frames, display, emit_signal=True):
+
+    def save_video(self, filenamestem, fileformat, n_frames, display, metadata, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: str fileformat
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
+        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
         @param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
                 for example when function is called from ipython console or in a task
                 #leave the default value True when function is called from gui
@@ -375,7 +376,7 @@ class CameraLogic(GenericLogic):
                     # n'th image
 
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
-        self.sigSaving.emit()
+        self.sigSaving.emit()  # for info message on statusbar of GUI
         
         image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
         # of the camera
@@ -387,8 +388,10 @@ class CameraLogic(GenericLogic):
         # create the PIL.Image object and save it to tiff
         if fileformat == 'tiff':
             self._save_to_tiff(n_frames, complete_path, image_data)
+            self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+
         elif fileformat == 'fits':
-            self._save_to_fits(complete_path, image_data)
+            self._save_to_fits(complete_path, image_data, metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
@@ -397,13 +400,14 @@ class CameraLogic(GenericLogic):
             self.sigCleanStatusbar.emit()
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, fileformat, n_frames, display):
+    def do_spooling(self, filenamestem, fileformat, n_frames, display, metadata):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: int n_frames: number of frames to be saved
-        @param: bool display: show images on live display on gui """
+        @param: bool display: show images on live display on gui
+        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)"""
         self.enabled = True  # this attribute is used to disable all the other controls which should not be used in
         # parallel
         # n_proxy helps to limit the number of displayed images during the video saving
@@ -442,7 +446,19 @@ class CameraLogic(GenericLogic):
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
         self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
-        self.log.info('Spooling finished. Saved data to file {}'.format(path))
+        self.log.info('Saved data to file {}{}'.format(path, fileformat))
+        # metadata saving
+        if fileformat == 'tiff':
+            self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+        elif fileformat == 'fits':
+            try:
+                complete_path = path+'fits'
+                self._add_fits_header(complete_path, metadata)
+            except Exception as e:
+                self.log.warn(f'Metadata not saved: {e}.')
+        else:
+            pass  # this case will never be accessed because the same if-elif-else structure was already applied above
+
         self.enabled = False
         self.sigSpoolingFinished.emit()
 
@@ -450,9 +466,11 @@ class CameraLogic(GenericLogic):
         """ helper function that creates a generic filename using the following format:
 
         filenamestem/000_folder/file.tiff example: /home/barho/images/2020-12-16/samplename/000_Movie/movie.tiff
+
         filenamestem is typically generated by the save settings dialog in basic gui but can also entered manually if
         function is called in console
 
+        @params: str filenamestem  (example /home/barho/images/2020-12-16/samplename)
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
         @params: str fileformat: specify the type of file (tiff, txt, ..)
@@ -554,7 +572,23 @@ class CameraLogic(GenericLogic):
             imlist.append(img_out)  # create the list of pillow image objects
         imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
 
-    def _save_to_fits(self, path, data):
+
+    def _save_metadata_txt_file(self, filenamestem, type, metadata):
+        """"helper function to save a txt file containing the metadata
+
+        @params: str filenamestem (example /home/barho/images/2020-12-16/samplename)
+        @parms: str type: string identifier of the data type: _Movie or _Image
+        @params: dict metadata: dictionary containing the annotations
+
+
+        @returns None
+        """
+        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', 'txt', addfile=True)
+        with open(complete_path, 'w') as file:
+            file.write(str(metadata))
+        self.log.info('Saved metadata to {}'.format(complete_path))
+
+    def _save_to_fits(self, path, data, metadata):
         """ helper function to save the image data to a fits file.
         see also https://docs.astropy.org/en/latest/io/fits/index.html#creating-a-new-image-file
 
@@ -566,16 +600,28 @@ class CameraLogic(GenericLogic):
         @returns None
         """
         data = data.astype(np.int16)  # data conversion because 16 bit image shall be saved
-
         hdu = fits.PrimaryHDU(data)  # PrimaryHDU object encapsulates the data
-
-        # create a HDUlist and write to file
+        hdul = fits.HDUList([hdu])
+        # add the header
+        hdr = hdul[0].header
+        for key in metadata:
+            hdr[key] = metadata[key]
+        # write to file
         try:
-            hdul = fits.HDUList([hdu])
             hdul.writeto(path)
             self.log.info('Saved data to file {}'.format(path))
         except Exception as e:
             self.log.warning(f'Data not saved: {e}')
+
+    def _add_fits_header(self, path, dictionary):
+        """ After spooling to fits format, this method accesses the file and adds the metadata in the header
+        @params str path: complete path where the object is saved to, including the suffix .fits
+        @params dict dictionary: containing metadata with fits compatible keys and values
+        """
+        with fits.open(path, mode='update') as hdul:
+            hdr = hdul[0].header
+            for key in dictionary:
+                hdr[key] = dictionary[key]
 
     def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
         """ defines a limited region on the sensor surface, hence accelerating the acquisition
