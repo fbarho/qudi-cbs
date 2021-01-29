@@ -57,7 +57,7 @@ class MotorDummy(Base, MotorInterface):
         self._z_axis = MotorAxisDummy('z')
         self._phi_axis = MotorAxisDummy('phi')
 
-        self._wait_after_movement = 1 #in seconds
+        self._wait_after_movement = 0.1 #in seconds
 
     #TODO: Checks if configuration is set and is reasonable
 
@@ -496,7 +496,7 @@ class MotorDummy(Base, MotorInterface):
             desired_vel = param_dict[self._x_axis.label]
             constr = constraints[self._x_axis.label]
 
-            if not(constr['vel_min'] <= desired_pos <= constr['vel_max']):
+            if not(constr['vel_min'] <= desired_vel <= constr['vel_max']):
                 self.log.warning('Cannot make absolute movement of the axis '
                         '"{0}" to possition {1}, since it exceeds the limits '
                         '[{2},{3}] ! Command is ignored!'.format(
@@ -510,7 +510,7 @@ class MotorDummy(Base, MotorInterface):
             desired_vel = param_dict[self._y_axis.label]
             constr = constraints[self._y_axis.label]
 
-            if not(constr['vel_min'] <= desired_pos <= constr['vel_max']):
+            if not(constr['vel_min'] <= desired_vel <= constr['vel_max']):
                 self.log.warning('Cannot make absolute movement of the axis '
                         '"{0}" to possition {1}, since it exceeds the limits '
                         '[{2},{3}] ! Command is ignored!'.format(
@@ -524,7 +524,7 @@ class MotorDummy(Base, MotorInterface):
             desired_vel = param_dict[self._z_axis.label]
             constr = constraints[self._z_axis.label]
 
-            if not(constr['vel_min'] <= desired_pos <= constr['vel_max']):
+            if not(constr['vel_min'] <= desired_vel <= constr['vel_max']):
                 self.log.warning('Cannot make absolute movement of the axis '
                         '"{0}" to possition {1}, since it exceeds the limits '
                         '[{2},{3}] ! Command is ignored!'.format(
@@ -538,7 +538,7 @@ class MotorDummy(Base, MotorInterface):
             desired_vel = param_dict[self._phi_axis.label]
             constr = constraints[self._phi_axis.label]
 
-            if not(constr['vel_min'] <= desired_pos <= constr['vel_max']):
+            if not(constr['vel_min'] <= desired_vel <= constr['vel_max']):
                 self.log.warning('Cannot make absolute movement of the axis '
                         '"{0}" to possition {1}, since it exceeds the limits '
                         '[{2},{3}] ! Command is ignored!'.format(
