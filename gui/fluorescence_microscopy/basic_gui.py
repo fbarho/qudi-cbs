@@ -791,7 +791,7 @@ class BasicGUI(GUIBase):
             self._camera_logic.reset_sensor_region()
             self._mw.set_sensor_Action.setText('Set sensor region')
 
-    @QtCore.Slot()
+    @QtCore.Slot(QtCore.QRectF)
     def mouse_area_selected(self, rect):
         """ This slot is called when the user has selected an area of the camera image using the rubberband tool
 
