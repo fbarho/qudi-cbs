@@ -128,14 +128,13 @@ class IxonUltra(Base, CameraInterface):
 
     andor_ultra_camera:
         module.Class: 'camera.andor.iXon897_ultra.IxonUltra'
-        dll_location: 'C:\\camera\\andor.dll' # path to library file
-        default_exposure: 1.0
+        dll_location: 'C:\Program Files\Andor SOLIS\Drivers\atmcd64d.dll' # path to library file
+        default_exposure: 0.05  # in seconds
         default_read_mode: 'IMAGE'
         default_temperature: -70
         default_cooler_on: True
-        default_acquisition_mode: 'RUN_TILL_ABORT'     # use a default acquisition mode where frame transfer setting has an effect 
+        default_acquisition_mode: 'RUN_TILL_ABORT'      # use a default acquisition mode where frame transfer setting has an effect
         default_trigger_mode: 'INTERNAL'
-
     """
 
     _dll_location = ConfigOption('dll_location', missing='error')

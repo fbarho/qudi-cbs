@@ -84,6 +84,7 @@ class CameraLogic(GenericLogic):
     timer = None
 
     enabled = False  # indicates if the camera is currently acquiring data
+    saving = False # indicates if the camera is currently saving a movie
 
     has_temp = False
     has_shutter = False
@@ -114,6 +115,7 @@ class CameraLogic(GenericLogic):
         self._hardware = self.hardware()
 
         self.enabled = False
+        self.saving = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
             self.temperature_setpoint = self._hardware._default_temperature
@@ -352,8 +354,7 @@ class CameraLogic(GenericLogic):
                 for example when function is called from ipython console or in a task
                 #leave the default value True when function is called from gui
         """
-        self.enabled = True  # this attribute is used to disable all the other controls which should not be used in
-        # parallel
+        self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
         n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
         # of displayed images (every 5th for an exposure time of 50 ms for example)
@@ -381,7 +382,7 @@ class CameraLogic(GenericLogic):
         image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
         # of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
-        self.enabled = False
+        self.saving = False
 
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
@@ -408,8 +409,7 @@ class CameraLogic(GenericLogic):
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
         @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)"""
-        self.enabled = True  # this attribute is used to disable all the other controls which should not be used in
-        # parallel
+        self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
         n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
         # of displayed images (every 5th for an exposure time of 50 ms for example)
@@ -459,7 +459,7 @@ class CameraLogic(GenericLogic):
         else:
             pass  # this case will never be accessed because the same if-elif-else structure was already applied above
 
-        self.enabled = False
+        self.saving = False
         self.sigSpoolingFinished.emit()
 
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
@@ -571,7 +571,6 @@ class CameraLogic(GenericLogic):
             img_out.frombytes(outpil)  # create pillow object from bytes
             imlist.append(img_out)  # create the list of pillow image objects
         imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
-
 
     def _save_metadata_txt_file(self, filenamestem, type, metadata):
         """"helper function to save a txt file containing the metadata
