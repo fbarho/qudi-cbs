@@ -5,6 +5,7 @@ This module contains a test GUI for controlling a piezo which allows to set the 
 """
 import os
 import sys
+import numpy as np
 
 from qtpy import QtCore
 from qtpy import QtGui
@@ -44,6 +45,8 @@ class FocusGUI(GUIBase):
     sigMoveUp = QtCore.Signal(float)
     sigMoveDown = QtCore.Signal(float)
     sigInitPiezo = QtCore.Signal()
+    sigTimetraceOn = QtCore.Signal()
+    sigTimetraceOff = QtCore.Signal()
 
 
     _mw = None
@@ -62,7 +65,17 @@ class FocusGUI(GUIBase):
         # Windows
         self._mw = FocusWindow()
 
+        # to modify: data for initialization
+        self.y_data = np.zeros(100)
+
+        # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
+        self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data)
+
+        # toolbutton state
         self._mw.piezo_init_Action.setChecked(False)
+        self._mw.tracking_Action.setEnabled(True)  # button can be used # just to be sure, this is the initial state defined in designer
+        self._mw.tracking_Action.setChecked(self._focus_logic.timetrace_enabled)  # checked state takes the same bool value as enabled attribute in logic (enabled = 0: no timetrace running) # button is defined as checkable in designer
+
         # connect signals
         # internal signals
         self._mw.close_MenuAction.triggered.connect(self._mw.close)
@@ -70,12 +83,15 @@ class FocusGUI(GUIBase):
         self._mw.move_up_PushButton.clicked.connect(self.move_up_button_clicked)
         self._mw.move_down_PushButton.clicked.connect(self.move_down_button_clicked)
         self._mw.piezo_init_Action.triggered.connect(self.piezo_init_clicked)
+        self._mw.tracking_Action.triggered.connect(self.start_tracking_clicked)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
         self.sigMoveUp.connect(self._focus_logic.move_up)
         self.sigMoveDown.connect(self._focus_logic.move_down)
         self.sigInitPiezo.connect(self._focus_logic.init_piezo)
+        self.sigTimetraceOn.connect(self._focus_logic.start_tracking)
+        self.sigTimetraceOff.connect(self._focus_logic.stop_tracking)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -85,6 +101,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigStepChanged.connect(self.update_step)
         self._focus_logic.sigPositionChanged.connect(self.update_position)
         self._focus_logic.sigPiezoInitFinished.connect(self.piezo_init_finished)
+        self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -110,7 +127,11 @@ class FocusGUI(GUIBase):
         self._mw.step_doubleSpinBox.setValue(step)
 
     def update_position(self, position):
+        # update the label
         self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
+        # and the timetrace
+        if self._focus_logic.timetrace_enabled:
+            self.update_timetrace()
 
     def move_up_button_clicked(self):
         # the function move_up in the logic module needs to receive the step as parameter
@@ -134,3 +155,22 @@ class FocusGUI(GUIBase):
         self._mw.piezo_init_Action.setEnabled(True)
         self._mw.piezo_init_Action.setChecked(False)
 
+
+    def start_tracking_clicked(self):
+
+        if self._focus_logic.timetrace_enabled:  # timetrace already running
+            self._mw.tracking_Action.setText('Start Tracking')
+            self.sigTimetraceOff.emit()
+        else:
+            self._mw.tracking_Action.setText('Stop Tracking')
+            self.sigTimetraceOn.emit()
+
+    def update_timetrace(self):
+        # t data not needed, only if it is wanted that the axis labels move also. then see variant 2 from pyqtgraph.examples scrolling plot
+        # self.t_data[:-1] = self.t_data[1:] # shift data in the array one position to the left, keeping same array size
+        # self.t_data[-1] += 1 # add the new last element
+        self.y_data[:-1] = self.y_data[1:]  # shfit data one position to the left ..
+        self.y_data[-1] = self._focus_logic.get_position()
+
+        # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
+        self._timetrace.setData(self.y_data)  # x axis values do not move
