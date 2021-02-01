@@ -131,7 +131,7 @@ class HCam(Base, CameraInterface):
         """
         acq_mode = self.get_acquisiton_mode()
 
-        image_array = []
+        image_array = []  # or should this be initialized as an np array ??
         [frames,
          dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_width, image_height]
         if acq_mode == 'run_till_abort':
@@ -261,14 +261,12 @@ class HCam(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
-        # this function should allow to retrieve the most recent image during a fixed length acquisition, in contrast to
-        # get acquired data where all data is retrieved
-        # image_array = []
-        # [frames, dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list
-        # data = frames[-1].getData()  # for tests: get the last frame
-        # image_array = np.reshape(data, (dim[1], dim[0]))
-        # return image_array
-        pass
+        [frame, dim] = self.camera.getMostRecentFrame()  # frame is HCamData object, dim is a list [image_width, image_height]
+        image_array = np.zeros(dim[0] * dim[1])
+        data = frame.getData()
+        image_array = np.reshape(data, (dim[1], dim[0]))
+        return image_array
+
 
     def set_image(self, hbin, vbin, hstart, hend, vstart, vend):
         """ Sets a ROI on the sensor surface
@@ -304,8 +302,7 @@ class HCam(Base, CameraInterface):
 
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
-        return self.camera.last_frame_number
-        # to test if this works
+        return self.camera.check_frame_number()
 
     # non interface functions
     def get_acquisiton_mode(self):

@@ -439,6 +439,49 @@ class HamamatsuCamera(object):
 
         return [frames, [self.frame_x, self.frame_y]]
 
+### for tests ###  # add documentation !!!!
+    def getMostRecentFrame(self):
+        #  it is important to make sure that the program does not try to access the same location in memory multiple times
+        # block waiting for at least one new frame solved this issue
+        captureStatus = ctypes.c_int32(0)
+        self.checkStatus(self.dcam.dcamcap_status(
+            self.camera_handle, ctypes.byref(captureStatus)))
+
+        # Wait for a new frame if the camera is acquiring.
+        if captureStatus.value == DCAMCAP_STATUS_BUSY:
+            paramstart = DCAMWAIT_START(
+                0,
+                0,
+                DCAMWAIT_CAPEVENT_FRAMEREADY | DCAMWAIT_CAPEVENT_STOPPED,
+                100)
+            paramstart.size = ctypes.sizeof(paramstart)
+            self.checkStatus(self.dcam.dcamwait_start(self.wait_handle,
+                                                      ctypes.byref(paramstart)),
+                             "dcamwait_start")
+
+
+        # Check which number has the newest frame
+        paramtransfer = DCAMCAP_TRANSFERINFO(0, DCAMCAP_TRANSFERKIND_FRAME, 0, 0)
+        paramtransfer.size = ctypes.sizeof(paramtransfer)
+        self.checkStatus(self.dcam.dcamcap_transferinfo(self.camera_handle, ctypes.byref(paramtransfer)), "dcamcap_transferinfo")
+        cur_buffer_index = paramtransfer.nNewestFrameIndex  # index of the newest frame
+        print(f'newest frame index: {cur_buffer_index}')
+
+        # copy the data at this index
+        paramlock = DCAMBUF_FRAME(0, 0, 0, cur_buffer_index, None, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        print(paramlock)
+        paramlock.size = ctypes.sizeof(paramlock)
+
+        # Lock the frame in the camera buffer & get address.
+        self.checkStatus(self.dcam.dcambuf_lockframe(self.camera_handle, ctypes.byref(paramlock)), "dcambuf_lockframe")
+
+        # Create storage for one frame & copy into this storage.
+        hc_data = HCamData(self.frame_bytes)
+        hc_data.copyData(paramlock.buf)
+
+        return [hc_data, [self.frame_x, self.frame_y]]
+
+
     def getModelInfo(self, camera_id):
         """
         Returns the model of the camera
@@ -822,6 +865,15 @@ class HamamatsuCamera(object):
             return False
         else:
             return True
+
+
+    def check_frame_number(self):
+        # Check which number has the newest frame
+        paramtransfer = DCAMCAP_TRANSFERINFO(0, DCAMCAP_TRANSFERKIND_FRAME, 0, 0)
+        paramtransfer.size = ctypes.sizeof(paramtransfer)
+        self.checkStatus(self.dcam.dcamcap_transferinfo(self.camera_handle, ctypes.byref(paramtransfer)), "dcamcap_transferinfo")
+        return paramtransfer.nNewestFrameIndex  # index of the newest frame
+
 
 
 
