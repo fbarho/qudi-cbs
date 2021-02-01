@@ -29,67 +29,6 @@ from qtwidgets.scan_plotwidget import ScanImageItem, ScanViewBox
 from gui.validators import NameValidator
 
 
-## adapted the validator from poimangui.py
-#class NameValidator(QtGui.QValidator):
-#    """
-#    This is a validator for strings that should be compatible with filenames.
-#    So no special characters (except '_') and blanks are allowed.
-#    If the flag path = True, / and \ are additionally allowed.
-#    """
-#
-#    name_re = re.compile(r'([\w]+)')
-#    path_re = re.compile(r'([/\\\\\w]+)')  # simple version : allow additionally to words \w / and \\. should be modified for finer control
-#
-#    def __init__(self, *args, empty_allowed=False, path=False, **kwargs):
-#        super().__init__(*args, **kwargs)
-#        self._empty_allowed = bool(empty_allowed)
-#        self._path = bool(path)  # flag that is used to select the path_re instead of name_re
-#
-#    def validate(self, string, position):
-#        """
-#        This is the actual validator. It checks whether the current user input is a valid string
-#        every time the user types a character. There are 3 states that are possible.
-#        1) Invalid: The current input string is invalid. The user input will not accept the last
-#                    typed character.
-#        2) Acceptable: The user input in conform with the regular expression and will be accepted.
-#        3) Intermediate: The user input is not a valid string yet but on the right track. Use this
-#                         return value to allow the user to type fill-characters needed in order to
-#                         complete an expression.
-#        @param string: The current input string (from a QLineEdit for example)
-#        @param position: The current position of the text cursor
-#        @return: enum QValidator::State: the returned validator state,
-#                 str: the input string, int: the cursor position
-#        """
-#        # Return intermediate status when empty string is passed
-#        if not string:
-#            if self._empty_allowed:
-#                return self.Acceptable, '', position
-#            else:
-#                return self.Intermediate, string, position
-#
-#        if self._path:  # flag for path validator
-#            match = self.path_re.match(string)
-#        else:
-#            match = self.name_re.match(string)
-#        if not match:
-#            return self.Invalid, '', position
-#
-#        matched = match.group()
-#        if matched == string:
-#            return self.Acceptable, string, position
-#
-#        return self.Invalid, matched, position
-#
-#    def fixup(self, text):
-#        if self._path:
-#            match = self.path_re.search(text)
-#        else:
-#            match = self.name_re.search(text)
-#        if match:
-#            return match.group()
-#        return ''
-
-
 class CameraSettingDialog(QtWidgets.QDialog):
     """ Create the SettingsDialog window, based on the corresponding *.ui file."""
     def __init__(self):
@@ -129,7 +68,7 @@ class BasicWindow(QtWidgets.QMainWindow):
         super().__init__()
         uic.loadUi(ui_file, self)
 
-        # Statusbar   ## this can not be done in qt designer and must be handcoded
+        # Statusbar   # this can not be done in qt designer and must be handcoded
         # this label is used to display the progress during spooling and video saving
         self.progress_label = QtWidgets.QLabel('')
         self.statusBar().addPermanentWidget(self.progress_label)
@@ -144,7 +83,8 @@ class BasicGUI(GUIBase):
 
     basic_gui:
         module.Class: 'fluorescence_microscopy.basic_gui.BasicGUI'
-        default_path: '/home/barho/images'     # indicate here the default path where data should be saved to # folder with current date will be created automatically therein
+        default_path: '/home/barho/images'     # indicate here the default path where data should be saved to
+                                               # folder with current date will be created automatically therein
         connect:
             camera_logic: 'camera_logic'
             daq_ao_logic: 'daq_logic'
@@ -165,8 +105,8 @@ class BasicGUI(GUIBase):
     sigVideoStop = QtCore.Signal()
     sigImageStart = QtCore.Signal()
 
-    sigVideoSavingStart = QtCore.Signal(str, str, int, bool)
-    sigSpoolingStart = QtCore.Signal(str, str, int, bool)
+    sigVideoSavingStart = QtCore.Signal(str, str, int, bool, dict)
+    sigSpoolingStart = QtCore.Signal(str, str, int, bool, dict)
     
     sigInterruptLive = QtCore.Signal()
     sigResumeLive = QtCore.Signal()
@@ -184,7 +124,6 @@ class BasicGUI(GUIBase):
     _daq_ao_logic = None
     _filterwheel_logic = None
     _mw = None
-    _last_path = None
     region_selector_enabled = False
     imageitem = None
     spinbox_list = None
@@ -196,7 +135,7 @@ class BasicGUI(GUIBase):
     # flags that for rotation settings
     rotation_cw = False
     rotation_ccw = False
-    flip = False
+    rot180 = False
 
     def __init__(self, config, **kwargs):
 
@@ -206,7 +145,6 @@ class BasicGUI(GUIBase):
     def on_activate(self):
         """ Initializes all needed UI files and establishes the connectors.
         """
-
         self._camera_logic = self.camera_logic()
         self._daq_ao_logic = self.daq_ao_logic()
         self._filterwheel_logic = self.filterwheel_logic()
@@ -220,10 +158,10 @@ class BasicGUI(GUIBase):
         # make sure that the flags for image rotation are initially false and toggle buttons in options menu unchecked
         self.rotation_cw = False
         self.rotation_ccw = False
-        self.flip = False
+        self.rot180 = False
         self._mw.rotate_image_cw_MenuAction.setChecked(False)
         self._mw.rotate_image_ccw_MenuAction.setChecked(False)
-        self._mw.flip_image_MenuAction.setChecked(False)
+        self._mw.rot180_image_MenuAction.setChecked(False)
 
         # Menu bar actions
         # File menu
@@ -232,22 +170,26 @@ class BasicGUI(GUIBase):
         self._mw.camera_settings_Action.triggered.connect(self.open_camera_settings)
         self._mw.rotate_image_cw_MenuAction.toggled.connect(self.rotate_image_cw_toggled)
         self._mw.rotate_image_ccw_MenuAction.toggled.connect(self.rotate_image_ccw_toggled)
-        self._mw.flip_image_MenuAction.toggled.connect(self.flip_image_toggled)
+        self._mw.rot180_image_MenuAction.toggled.connect(self.rot180_image_toggled)
         
-        # initialize functionality of the camera dockwidget
+        # initialize functionality of the camera dockwidget and its toolbar
         self.init_camera_dockwidget()
 
         # initialize functionality of the camera status dockwidget
         self.init_camera_status_dockwidget()
 
-        # initialize functinality of the laser dockwidget and its toolbar
+        # initialize functionality of the laser dockwidget and its toolbar
         self.init_laser_dockwidget()
 
         # initialize functionality of the filter dockwidget
         self.init_filter_dockwidget()
 
+        # connect signals for status bar
+        self._camera_logic.sigProgress.connect(self.update_statusbar)
+        self._camera_logic.sigSaving.connect(self.update_statusbar_saving)
+
         # initialize the save settings dialog
-        # this needs to go to the end because the fields on the gui must first be initialized
+        # this needs to come after the initialization of the camera_dockwidget because the fields on the gui must first be initialized
         self.init_save_settings_ui()
 
     def on_deactivate(self):
@@ -262,11 +204,13 @@ class BasicGUI(GUIBase):
         self._mw.activateWindow()
         self._mw.raise_()
 
-    # functions to initialize the functionality for dockwidgets and associated toolbar if there is one
+    # methods to initialize the functionality for dockwidgets and associated toolbar if there is one
     def init_camera_dockwidget(self):
-        """ initializes the display item and the indicators. Connects signals for the camera dockwidget and the camera toolbar"""
+        """ initializes the display item and the indicators.
+        Connects signals for the camera dockwidget and the camera toolbar
+        """
         # initialize the imageitem (display of camera image) qnd its histogram
-        self.imageitem = pg.ImageItem(axisOrder='row-major', invertY=True) # image=data can be set here ..  axisOrder='row-major'
+        self.imageitem = pg.ImageItem(axisOrder='row-major', invertY=True)
         self._mw.camera_ScanPlotWidget.addItem(self.imageitem)
         self._mw.camera_ScanPlotWidget.setAspectLocked(True)
         self._mw.camera_ScanPlotWidget.sigMouseAreaSelected.connect(self.mouse_area_selected)
@@ -277,26 +221,28 @@ class BasicGUI(GUIBase):
         # add validators to the sample name and the default path lineedits
         self._mw.save_path_LineEdit.setValidator(NameValidator(path=True))
         self._mw.samplename_LineEdit.setValidator(NameValidator(empty_allowed=True))
+        # synchronize the samplename_LineEdit with the LineEdit in the save settings dialog
+        self._mw.samplename_LineEdit.textChanged[str].connect(self.update_sample_name)
 
         # initialize the camera setting indicators on the GUI
         # use the kinetic time for andor camera, exposure time for all others
         if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
-            self._mw.exposure_Label.setText('Kinetic time (s)')
+            self._mw.exposure_Label.setText('Kinetic time (s):')
         else:
-            self._mw.exposure_LineEdit.setText(str(self._camera_logic.get_exposure()))
-            self._mw.exposure_Label.setText('Exposure time (s)')
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_exposure()))
+            self._mw.exposure_Label.setText('Exposure time (s):')
 
         self._mw.gain_LineEdit.setText(str(self._camera_logic.get_gain()))
         if not self._camera_logic.has_temp:
-            self._mw.temperature_LineEdit.setText('')
-            self._mw.temperature_LineEdit.setEnabled(False)
-            self._mw.temperature_Label.setEnabled(False)
+            self._mw.temp_setpoint_LineEdit.setText('')
+            self._mw.temp_setpoint_LineEdit.setEnabled(False)
+            self._mw.temp_setpoint_Label.setEnabled(False)
         else:
-            self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
+            self._mw.temp_setpoint_LineEdit.setText(str(self._camera_logic.temperature_setpoint))
 
         # signals from logic
-        # update the camera setting indicators when value changed (via settings window or iPython console for example)
+        # update the camera setting indicators when value changed (via settings window or iPython console)
         self._camera_logic.sigExposureChanged.connect(self.update_exposure)
         self._camera_logic.sigGainChanged.connect(self.update_gain)
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
@@ -314,7 +260,7 @@ class BasicGUI(GUIBase):
         self._mw.save_last_image_Action.triggered.connect(self.save_last_image_clicked)
 
         self._mw.save_video_Action.setEnabled(True)
-        self._mw.save_video_Action.setChecked(self._camera_logic.enabled)  # maybe replace by saving attribute instead
+        self._mw.save_video_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
         self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
 
         # spooling action only available for andor iXon Ultra camera
@@ -322,7 +268,7 @@ class BasicGUI(GUIBase):
             self._mw.spooling_Action.setEnabled(False)
         else:
             self._mw.spooling_Action.setEnabled(True)
-            self._mw.spooling_Action.setChecked(self._camera_logic.enabled)
+            self._mw.spooling_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
         self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
 
         self._mw.set_sensor_Action.setEnabled(True)
@@ -339,7 +285,7 @@ class BasicGUI(GUIBase):
         self.sigResumeLive.connect(self._camera_logic.resume_live)
 
         # signals from logic
-        self._camera_logic.sigUpdateDisplay.connect(self.update_data)  # QtCore.Qt.DirectConnection
+        self._camera_logic.sigUpdateDisplay.connect(self.update_data)
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
@@ -360,8 +306,12 @@ class BasicGUI(GUIBase):
             self._mw.cooler_status_LineEdit.setText('')
             self._mw.cooler_status_LineEdit.setEnabled(False)
             self._mw.cooler_Label.setEnabled(False)
+            self._mw.temperature_LineEdit.setText('')
+            self._mw.temperature_LineEdit.setEnabled(False)
+            self._mw.temperature_Label.setEnabled(False)
         else:
             self._mw.cooler_status_LineEdit.setText(self._camera_logic.get_cooler_state())
+            self._mw.temperature_LineEdit.setText(str(self._camera_logic.get_temperature()))
 
         # signals
         # update the indicators when pushbutton is clicked
@@ -369,8 +319,6 @@ class BasicGUI(GUIBase):
 
         # connect signal from logic
         self._camera_logic.sigUpdateCamStatus.connect(self.update_camera_status_display)
-        self._camera_logic.sigProgress.connect(self.update_statusbar)
-        self._camera_logic.sigSaving.connect(self.update_statusbar_saving)
 
     def init_laser_dockwidget(self):
         """ initializes the labels for the lasers given in config and connects signals for the laser control toolbar"""
@@ -382,7 +330,7 @@ class BasicGUI(GUIBase):
 
         # toolbar actions
         self._mw.laser_on_Action.setEnabled(True)
-        # self._mw.laser_on_Action.setChecked(self._daq_ao_logic.enabled) # is this really needed ?
+        self._mw.laser_on_Action.setChecked(self._daq_ao_logic.enabled)
         self._mw.laser_on_Action.triggered.connect(self.laser_on_clicked)
 
         self._mw.laser_zero_Action.setEnabled(True)
@@ -425,9 +373,11 @@ class BasicGUI(GUIBase):
         # internal signals
         self._mw.filter_ComboBox.activated[str].connect(self.change_filter)
         # remark: signals currentIndexChanged vs activated:
-        # currentIndexChanged is sent regardless of being done programatically or by user interaction whereas activated is only sent on user interaction.
+        # currentIndexChanged is sent regardless of being done programatically or by user interaction whereas
+        # activated is only sent on user interaction.
         # activated seems the better option, then the signal is only sent when a new value is selected,
-        # whereas the slot change_filter is called twice when using currentIndexChanged, once for the old index, once for the new one.
+        # whereas the slot change_filter is called twice when using currentIndexChanged, once for the old index,
+        # once for the new one.
         # comparable to radiobutton toggled vs clicked
 
         # signals to logic
@@ -447,9 +397,8 @@ class BasicGUI(GUIBase):
         # Connect the action of the settings window with the code:
         self._cam_sd.accepted.connect(self.cam_update_settings)  # ok button
         self._cam_sd.rejected.connect(self.cam_keep_former_settings)  # cancel buttons
-        # self._cam_sd.buttonBox.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.cam_update_settings)
         
-        ## to add for the frame transfer settings
+        # frame transfer settings
         self._cam_sd.frame_transfer_CheckBox.toggled[bool].connect(self._camera_logic.set_frametransfer)
         
         if not self._camera_logic.has_temp:
@@ -466,32 +415,34 @@ class BasicGUI(GUIBase):
     def cam_update_settings(self):
         """ Write new settings from the gui to the logic module
         """
+        # interrupt live display if it is on
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
+        self._mw.temp_setpoint_LineEdit.setText(str(self._cam_sd.temp_spinBox.value()))
         if self._camera_logic.enabled:
             self.sigResumeLive.emit()
 
     def cam_keep_former_settings(self):
         """ Keep the old settings and restores them in the gui. 
         """
+        # interrupt live display
+        if self._camera_logic.enabled:  # camera is acquiring
+            self.sigInterruptLive.emit()
         self._cam_sd.exposure_doubleSpinBox.setValue(self._camera_logic._exposure)
         self._cam_sd.gain_spinBox.setValue(self._camera_logic._gain)
         self._cam_sd.temp_spinBox.setValue(self._camera_logic.temperature_setpoint)
         self._cam_sd.frame_transfer_CheckBox.setChecked(False)  # as default value
         if self._camera_logic.enabled:
             self.sigResumeLive.emit()
-        
 
     # slot to open the camerasettingswindow
     def open_camera_settings(self):
         """ Opens the settings menu. 
         """
-        # interrupt live display 
-        if self._camera_logic.enabled:  # camera is acquiring
-            self.sigInterruptLive.emit()
         self._cam_sd.exec_()
-
 
     # Initialisation of the save settings windows
     def init_save_settings_ui(self):
@@ -522,26 +473,27 @@ class BasicGUI(GUIBase):
     # slots of the save settings window
     def save_video_accepted(self):
         """ callback of the ok button.
-        Retrieves the information given by the user and transfers them by the signal which will start the physical measurement
+        Retrieves the information given by the user and transfers them by the signal which will start the physical
+        measurement
         """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
         path = os.path.join(default_path, today, folder_name)
-        # self.log.info('created path: {}'.format(path))
         fileformat = str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
-        self._last_path = path  # maintain this variable to make it accessible for metadata saving
 
         display = self._save_sd.enable_display_CheckBox.isChecked()
+
+        metadata = self._create_metadata_dict()
 
         # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
         # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
         if self._video:
-            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display)
+            self.sigVideoSavingStart.emit(path, fileformat, n_frames, display, metadata)
         elif self._spooling:
-            self.sigSpoolingStart.emit(path, fileformat, n_frames, display)
+            self.sigSpoolingStart.emit(path, fileformat, n_frames, display, metadata)
         else:  # to do: write an error message or something like this ???
             pass
 
@@ -562,7 +514,8 @@ class BasicGUI(GUIBase):
         self._save_sd.file_format_ComboBox.setCurrentIndex(0)
 
     def update_path_label(self):
-        """ generates the informative text indicating the complete path, displayed below the folder name specified by the user """
+        """ generates the informative text indicating the complete path,
+        displayed below the folder name specified by the user """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
@@ -571,14 +524,15 @@ class BasicGUI(GUIBase):
 
     def update_acquisition_time(self):
         """ links the displayed acquisition duration to the number of frames indicated by the user"""
-        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor camera is used, the kinetic_time is retrieved here
+        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor cam is used, the kinetic_time is retrieved here
         n_frames = self._save_sd.n_frames_SpinBox.value()
         acq_time = exp_time * n_frames
         self._save_sd.acquisition_time_DoubleSpinBox.setValue(acq_time)
 
     def update_n_frames(self):
-        """ links the number of frames to the selected total acquisition time, if the user prefers indicating the duration of the video to be saved """
-        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor camera is used, the kinetic_time is retrieved here
+        """ links the number of frames to the selected total acquisition time,
+        if the user prefers indicating the duration of the video to be saved """
+        exp_time = float(self._mw.exposure_LineEdit.text())  # if andor cam is used, the kinetic_time is retrieved here
         acq_time = self._save_sd.acquisition_time_DoubleSpinBox.value()
         n_frames = int(round(acq_time / exp_time))
         self._save_sd.n_frames_SpinBox.setValue(n_frames)
@@ -602,7 +556,7 @@ class BasicGUI(GUIBase):
         if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._mw.exposure_LineEdit.setText('{:0.5f}'.format(self._camera_logic.get_kinetic_time()))
         else:
-            self._mw.exposure_LineEdit.setText(str(exposure))
+            self._mw.exposure_LineEdit.setText('{:0.5f}'.format(exposure))
 
     @QtCore.Slot(float)
     def update_gain(self, gain):
@@ -618,6 +572,12 @@ class BasicGUI(GUIBase):
         @param: float temperature """
         self._mw.temperature_LineEdit.setText(str(temp))
 
+    @QtCore.Slot(str)
+    def update_sample_name(self, samplename):
+        """ updates the folder name lineedit in the save settings dialog when the sample name on the gui was modified"""
+        self._save_sd.foldername_LineEdit.setText(samplename)
+
+    @QtCore.Slot()
     def take_image_clicked(self):
         """ Callback of take_image_Action (take and display a single image, without saving).
         Emits a signal that is connected to the logic module, and disables the tool buttons
@@ -626,15 +586,17 @@ class BasicGUI(GUIBase):
         self.disable_camera_toolbuttons()
         self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
+    @QtCore.Slot()
     def acquisition_finished(self):
         """ Callback of sigAcquisitionFinished. Resets all tool buttons to callable state
         """
         self._mw.take_image_Action.setChecked(False)
         self.enable_camera_toolbuttons()
 
+    @QtCore.Slot()
     def start_video_clicked(self):
         """ Callback of start_video_Action. (start and display a continuous image from the camera, without saving)
-        Handling the Start button to stop and restart the counter.
+        Handles the state of the start button and emits a signal (connected to logic above) to start the acquisition loop.
         """
         # buttons need to be disabled individually as we don't want to disable the start_video_Action
         self._mw.take_image_Action.setDisabled(True)
@@ -652,6 +614,7 @@ class BasicGUI(GUIBase):
             self.sigVideoStart.emit()
         self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
+    @QtCore.Slot()
     def update_data(self):
         """ Callback of sigUpdateDisplay in the camera_logic module.
         Get the image data from the logic and print it on the window
@@ -660,45 +623,37 @@ class BasicGUI(GUIBase):
         # handle the rotation that occurs due to the image formatting conventions (see also https://github.com/pyqtgraph/pyqtgraph/issues/315) 
         # this could be improved by another method ?! though reversing the y axis did not work. 
         image_data = np.rot90(image_data, 3)  # 90 deg clockwise 
-        
-        
+
         # handle the user defined rotation settings
         if self.rotation_cw:
             image_data = np.rot90(image_data, 3)
         if self.rotation_ccw:
             image_data = np.rot90(image_data, 1)  # eventually replace by faster rotation method T and invert
-        if self.flip:  # rotation 180deg
+        if self.rot180:
             image_data = np.rot90(image_data, 2)
-        self.imageitem.setImage(image_data.T)  #
+        self.imageitem.setImage(image_data.T)
         # transposing the data makes the rotations behave as they should when axisOrder row-major is used (set in initialization of ImageItem)
         # see also https://github.com/pyqtgraph/pyqtgraph/issues/315
 
     @QtCore.Slot()
     def save_last_image_clicked(self):
         """ callback of save_last_image_Action.
-        saves the last image (the one currently displayed on the image widget), using the following format (analogously to video saving procedures)
+        saves the last image (the one currently displayed on the image widget), using the following format
+        (analogously to video saving procedures)
         images are saved to:
         filenamestem/num_type/file.tiff
         example: /home/barho/images/2020-12-16/samplename/000_Image/image.tiff
         filenamestem is generated below, example /home/barho/images/2020-12-16/foldername
         folder_name is taken from the field on GUI. to decide : put it in a dialog as for the save settings dialog ??
         num_type is an incremental number followed by _Image
-
-        Handles the metadata saving. This must be done via the gui module because the camera logic does not have access to all required information
         """
         # save data
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
         folder_name = self._mw.samplename_LineEdit.text()
         filenamestem = os.path.join(default_path, today, folder_name)
-        self._last_path = filenamestem  # maintain this variable to make it accessible for metadata saving
-        self._camera_logic.save_last_image(filenamestem)
-        # save metadata to txt file in the same folder
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Image', 'parameters', 'txt', addfile=True)
         metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        self._camera_logic.save_last_image(filenamestem, metadata)
 
     @QtCore.Slot()
     def save_video_clicked(self):
@@ -712,17 +667,9 @@ class BasicGUI(GUIBase):
         # hide the rubberband tool used for roi selection on sensor
         self.imageitem.getViewBox().rbScaleBox.hide()
 
+    @QtCore.Slot()
     def video_saving_finished(self):
-        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
-        # save metadata to additional txt file in the same folder as the experiment
-        # this needs to be done by the gui because this is where all the parameters are available.
-        # The camera logic has not access to all needed parameters
-        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
-        metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
         # reset the flag
         self._video = False
         # toolbuttons
@@ -743,17 +690,9 @@ class BasicGUI(GUIBase):
         # hide the rubberband tool used for roi selection on sensor
         self.imageitem.getViewBox().rbScaleBox.hide()
 
+    @QtCore.Slot()
     def spooling_finished(self):
-        """ handles the saving of the experiment's metadata. resets the toolbuttons to return to callable state """
-        # save metadata to additional txt file in the same folder as the experiment
-        # this needs to be done by the gui because this is where all the parameters are available.
-        # The camera logic has not access to all needed parameters
-        filenamestem = self._last_path  # when the save dialog is called, this variable is generated to keep it accessible for the metadata saving
-        complete_path = self._camera_logic._create_generic_filename(filenamestem, '_Movie', 'parameters', 'txt', addfile=True)
-        metadata = self._create_metadata_dict()
-        with open(complete_path, 'w') as file:
-            file.write(str(metadata))
-        self.log.info('saved metadata to {}'.format(complete_path))
+        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
         # reset the flag
         self._spooling = False
         # enable the toolbuttons
@@ -765,7 +704,8 @@ class BasicGUI(GUIBase):
     @QtCore.Slot(int)
     def update_statusbar(self, number_images):
         # total = self._save_sd.n_frames_SpinBox.value()
-        # progress = number_images / total * 100  # try first with the simple version, then use rescaling in %
+        # progress = number_images / total * 100
+        # try first with the simple version, maybe use later rescaling in %
         self._mw.progress_label.setText('{} images saved'.format(number_images))
         
     @QtCore.Slot()
@@ -807,26 +747,36 @@ class BasicGUI(GUIBase):
             self._mw.spooling_Action.setDisabled(False)
 
     def _create_metadata_dict(self):
-        """ create a dictionary containing the metadata"""
+        """ create a dictionary containing the metadata.
+        For compatibility with fits header: use only keys with 8 letters, no special symbols.
+        """
+        # maybe reformat using tuples of value and comment (good for fits, less adapted for txt).
         metadata = {}
-        metadata['timestamp'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
         filterpos = self._filterwheel_logic.get_position()
         filterdict = self._filterwheel_logic.get_filter_dict()
         label = 'filter{}'.format(filterpos)
         metadata['filter'] = filterdict[label]['name']
         metadata['gain'] = self._camera_logic.get_gain()
-        metadata['exposuretime (s)'] = self._camera_logic.get_exposure()
+        metadata['exposure'] = self._camera_logic.get_exposure()
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            metadata['kinetic'] = self._camera_logic.get_kinetic_time()
         intensity_dict = self._daq_ao_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
         laser_dict = self._daq_ao_logic.get_laser_dict()
         metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
-        metadata['intensity (%)'] = [intensity_dict[key] for key in keylist]
+        if metadata['laser'] == []:  # for compliance with fits header conventions ([] is forbidden)
+            metadata['laser'] = None
+        metadata['intens'] = [intensity_dict[key] for key in keylist]
+        if metadata['intens'] == []:
+            metadata['intens'] = None
         if self._camera_logic.has_temp:
-            metadata['sensor temperature'] = self._camera_logic.get_temperature()
+            metadata['temp'] = self._camera_logic.get_temperature()
         else:
-            metadata['sensor temperature'] = 'Not available'
+            metadata['temp'] = 'Not available'
         return metadata
 
+    @ QtCore.Slot()
     def select_sensor_region(self):
         """ callback of set_sensor_Action.
         Enables or disables (according to initial state) the rubberband selection tool on the camera image."""
@@ -841,13 +791,14 @@ class BasicGUI(GUIBase):
             self._camera_logic.reset_sensor_region()
             self._mw.set_sensor_Action.setText('Set sensor region')
 
+    @QtCore.Slot(QtCore.QRectF)
     def mouse_area_selected(self, rect):
         """ This slot is called when the user has selected an area of the camera image using the rubberband tool
 
         allows to reduce the used area of the camera sensor
         """
         self.log.info('selected an area')
-        self.log.info(rect.getCoords())
+        self.log.debug(rect.getCoords())
         hstart, vstart, hend, vend = rect.getCoords()
         hstart = round(hstart)
         vstart = round(vstart)
@@ -858,54 +809,57 @@ class BasicGUI(GUIBase):
         hend_ = max(hstart, hend)
         vstart_ = min(vstart, vend)
         vend_ = max(vstart, vend)
-        self.log.info('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
+        self.log.debug('hstart={}, hend={}, vstart={}, vend={}'.format(hstart_, hend_, vstart_, vend_))
         # inversion along the y axis: 
         # it is needed to call the function set_sensor_region(hbin, vbin, hstart, hend, vstart, vend)
         # using the following arguments: set_sensor_region(hbin, vbin, start, hend, num_px_y - vend, num_px_y - vstart) ('vstart' needs to be smaller than 'vend')
         num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
-        self.log.info(num_px_y)  # probably needed to always use num_px_y_max (=512 for andor)      
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)   ## this enables the correct selection of the roi ## improve the position where the calculation is performed
-        ##################################################
+        # self.log.debug(num_px_y)
+        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
 
     @QtCore.Slot()
     def rotate_image_cw_toggled(self):
+        """ Callback of the rotate image 90 deg clockwise menu action """
         if self.rotation_cw:  # rotation is already applied. Toggle button has just been unchecked by user
             self.rotation_cw = False
         else:  # rotation not yet applied. Toggle button has just been checked by user
             self.rotation_cw = True
             # automatically uncheck the rotate ccw and rotate 180deg button (make them mutually exclusive)
             self._mw.rotate_image_ccw_MenuAction.setChecked(False)
-            self._mw.flip_image_MenuAction.setChecked(False)
+            self._mw.rot180_image_MenuAction.setChecked(False)
             self.rotation_ccw = False
-            self.flip = False
+            self.rot180 = False
 
     @QtCore.Slot()
     def rotate_image_ccw_toggled(self):
+        """ Callback of the rotate image 90 deg counter clockwise menu action """
         if self.rotation_ccw:  # rotation is already applied. Toggle button has just been unchecked by user
             self.rotation_ccw = False
         else:  # rotation not yet applied. Toggle button has just been checked by user
             self.rotation_ccw = True
             # automatically uncheck the rotate cw button and rotate 180deg button (make them mutually exclusive)
             self._mw.rotate_image_cw_MenuAction.setChecked(False)
-            self._mw.flip_image_MenuAction.setChecked(False)
+            self._mw.rot180_image_MenuAction.setChecked(False)
             self.rotation_cw = False
-            self.flip = False
+            self.rot180 = False
 
     @QtCore.Slot()
-    def flip_image_toggled(self):
-        if self.flip:  # rotation is already applied. Toggle button has just been unchecked by user
-            self.flip = False
+    def rot180_image_toggled(self):
+        """ Callback of the rotate image 180 deg menu action """
+        if self.rot180:  # rotation is already applied. Toggle button has just been unchecked by user
+            self.rot180 = False
         else:  # rotation not yet applied. Toggle button has just been checked by user
-            self.flip = True
+            self.rot180 = True
             # automatically uncheck the rotate cw button and rotate 180deg button (make them mutually exclusive)
             self._mw.rotate_image_cw_MenuAction.setChecked(False)
             self._mw.rotate_image_ccw_MenuAction.setChecked(False)
             self.rotation_cw = False
-            self.rotation_cw = False
+            self.rotation_ccw = False
 
     # camera status dockwidget
     @QtCore.Slot(str, str, str, str)  # temperature already converted into str
     def update_camera_status_display(self, ready_state, shutter_state='', cooler_state='', temperature=''):
+        """ Updates the indicators in the camera status dockwidget using the information retrieved by the logic module"""
         self._mw.camera_status_LineEdit.setText(ready_state)
         self._mw.shutter_status_LineEdit.setText(shutter_state)
         self._mw.cooler_status_LineEdit.setText(cooler_state)
@@ -925,7 +879,6 @@ class BasicGUI(GUIBase):
             self.sigLaserOff.emit()
             # enable filter setting again
             self._mw.filter_ComboBox.setEnabled(True)
-
         else:
             # laser is initially off
             self._mw.laser_zero_Action.setDisabled(True)
@@ -1000,18 +953,3 @@ class BasicGUI(GUIBase):
         self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
         self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
-
-# for testing
-# if __name__ == '__main__':
-#    app = QtWidgets.QApplication(sys.argv)
-#    # it's required to save a reference to MainWindow.
-#    # if it goes out of scope, it will be destroyed.
-#    mw = BasicWindow()
-#    sys.exit(app.exec())
-
-
-
-## fix formating problem tiff
-## size policy in qt designer : camera image should expand to maximum possible
-
-

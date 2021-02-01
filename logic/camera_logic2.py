@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 A module for controlling a camera.
 
@@ -84,14 +83,15 @@ class CameraLogic(GenericLogic):
 
     timer = None
 
-    enabled = False
+    enabled = False  # indicates if the camera is currently acquiring data
+    saving = False # indicates if the camera is currently saving a movie
 
     has_temp = False
     has_shutter = False
 
     _exposure = 1.
     _gain = 1.
-    _temperature = 25  # use any value it will be overwritten during on activate if sensor temperature is available
+    _temperature = 0  # use any value it will be overwritten during on activate if sensor temperature is available
     temperature_setpoint = _temperature
     _last_image = None
     _kinetic_time = None
@@ -103,7 +103,8 @@ class CameraLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        self.threadpool = QtCore.QThreadPool()
+        # uncomment if needed (for worker thread - temperature monitoring)
+        # self.threadpool = QtCore.QThreadPool()
 
         # uncomment if needed:
         # self.threadlock = Mutex()
@@ -114,22 +115,21 @@ class CameraLogic(GenericLogic):
         self._hardware = self.hardware()
 
         self.enabled = False
+        self.saving = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
-            # self.temperature_setpoint = self._hardware.get_temperature() # to initialize
-            self.temperature_setpoint = self._hardware._default_temperature  # to test. this may be more convenient.
+            self.temperature_setpoint = self._hardware._default_temperature
         self.has_shutter = self._hardware.has_shutter()
 
-        # update the private variables _exposure, _gain, _temperature and has_temp
+        # update the private variables _exposure, _gain, _temperature
         self.get_exposure()
         self.get_gain()
         self.get_temperature()
 
-        # timer is used for refreshing the display of the camera image
+        # timer is used for refreshing the display of the camera image at rate fps
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.loop)
-        
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -186,13 +186,13 @@ class CameraLogic(GenericLogic):
                 self._hardware._set_cooler(True)
 
             # hand the new temperature value over to the camera hardware module
-            self.temperature_setpoint = temp  # store the desired temperature value to compare against current temperature value if desired temperature already reached
+            self.temperature_setpoint = temp  # store the desired temperature value to compare against current
+            # temperature value if desired temperature already reached
             self._hardware.set_temperature(temp)
 
-            # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when set_temperature is called via GUI
-            # worker = Worker()
-            # worker.signals.sigFinished.connect(self.update_temperature)
-            # self.threadpool.start(worker)
+            # monitor the current temperature of the sensor, using a worker thread to avoid freezing gui actions when
+            # set_temperature is called via GUI worker = Worker() worker.signals.sigFinished.connect(
+            # self.update_temperature) self.threadpool.start(worker)
 
     def get_temperature(self):
         """ Get temperature of hardware, if accessible """
@@ -207,6 +207,7 @@ class CameraLogic(GenericLogic):
             else:
                 return temp
 
+    # to be removed in a future version
     @QtCore.Slot()
     def update_temperature(self):
         """ helper function to update the display on GUI after a waiting time defined in the Worker class"""
@@ -229,10 +230,9 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
 
-#  #################################################
-# the following functions concern the live display # might be modified when the save video methods are validated
+# the following functions concern the live display
     def start_loop(self):
-        """ Start the data recording loop.
+        """ Start the live display loop.
         """
         self.enabled = True
         self.timer.start(1000*1/self._fps)
@@ -243,7 +243,7 @@ class CameraLogic(GenericLogic):
             self._hardware.start_single_acquisition()
 
     def stop_loop(self):
-        """ Stop the data recording loop.
+        """ Stop the live display loop.
         """
         self.timer.stop()
         self.enabled = False
@@ -251,7 +251,7 @@ class CameraLogic(GenericLogic):
         self.sigVideoFinished.emit()
 
     def loop(self):
-        """ Execute step in the data recording loop: save one of each control and process values
+        """ Execute step in the live display loop: save one of each control and process values
         """
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
@@ -259,13 +259,15 @@ class CameraLogic(GenericLogic):
             self.timer.start(1000 * 1 / self._fps) 
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
-#  #########################################################
+
     def interrupt_live(self):
+        """ Interrupt the live display loop, for example to update camera settings """
         self._hardware.stop_acquisition()
+        # note that enabled attribute is not modified, to resume the state of the live display
         
     def resume_live(self):
+        """ Restart the live display loop """
         self._hardware.start_live_acquisition()
-        
 
     def get_last_image(self):
         """ Return last acquired image """
@@ -311,8 +313,8 @@ class CameraLogic(GenericLogic):
                     return 'On'
 
     def update_camera_status(self):
-        """ retrieves an ensemble of camera status values
-        ready: if camera is idle, shutter open / closed if available, cooler on / off if available, temperature value
+        """ retrieves an ensemble of camera status values:
+        ready: if camera is idle, shutter: open / closed if available, cooler: on / off if available, temperature value.
         emits a signal containing the 4 retrieved status informations as str
         """
         ready_state = self.get_ready_state()
@@ -321,35 +323,41 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, fileformat='tiff'):
+    def save_last_image(self, path, metadata, fileformat='tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
+        @param: dict metadata: dictionary containing the metadata
         @param: str fileformat: default 'tiff' but can be modified if needed.
-        """
 
+        @return: None
+        """
         if self._last_image is None:
             self.log.warning('No image available to save')
-            return
-        image_data = self._last_image  # alternatively it could use self._hardware.get_acquired_data() .. to check which option is better
+        else:
+            image_data = self._last_image
 
-        complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
-        self._save_to_tiff(1, complete_path, image_data)
+            complete_path = self._create_generic_filename(path, '_Image', 'image', fileformat, addfile=False)
+            self._save_to_tiff(1, complete_path, image_data)
+            self._save_metadata_txt_file(path, '_Image', metadata)
 
-    def save_video(self, filenamestem, fileformat, n_frames, display, emit_signal=True):
+
+    def save_video(self, filenamestem, fileformat, n_frames, display, metadata, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: str fileformat
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
+        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
         @param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
                 for example when function is called from ipython console or in a task
                 #leave the default value True when function is called from gui
         """
-        self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
-        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
+        # of displayed images (every 5th for an exposure time of 50 ms for example)
         n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
@@ -359,66 +367,67 @@ class CameraLogic(GenericLogic):
         while not ready:
             progress = self._hardware.get_progress()
             self.sigProgress.emit(progress)
-            ready =  self._hardware.get_ready_state()
+            ready = self._hardware.get_ready_state()
             if display:
                 if progress % n_proxy == 0:  # to limit the number of displayed images 
                     self._last_image = self._hardware.get_most_recent_image()
                     self.sigUpdateDisplay.emit()
-                    #sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there is a better way to do this ? not needed in case the modulo operation is used to take only every n'th image
+                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
+                    # is a better way to do this ? not needed in case the modulo operation is used to take only every
+                    # n'th image
 
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
-        self.sigSaving.emit()
+        self.sigSaving.emit()  # for info message on statusbar of GUI
         
-        image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode of the camera
+        image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
+        # of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
-        self.enabled = False
+        self.saving = False
 
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
         if fileformat == 'tiff':
             self._save_to_tiff(n_frames, complete_path, image_data)
+            self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+
         elif fileformat == 'fits':
-            self._save_to_fits(complete_path, image_data)
+            self._save_to_fits(complete_path, image_data, metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
             self.sigVideoSavingFinished.emit()
         else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
             self.sigCleanStatusbar.emit()
-            
-        
-        
-        
-        
-        
-
-
-#  #########################################################
-        
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, fileformat, n_frames, display):
+    def do_spooling(self, filenamestem, fileformat, n_frames, display, metadata):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: int n_frames: number of frames to be saved
-        @param: bool display: show images on live display on gui """
-        self.enabled = True  # this attribute is used to disable all the other controls which should not be used in parallel
+        @param: bool display: show images on live display on gui
+        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)"""
+        self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
-        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number of displayed images (every 5th for an exposure time of 50 ms for example)
+        n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
+        # of displayed images (every 5th for an exposure time of 50 ms for example)
         n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
-        path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty string for fileformat. this will be handled by the camera itself
+        path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty
+        # string for fileformat. this will be handled by the camera itself
         if fileformat == 'tiff':
             method = 7
         elif fileformat == 'fits':
             method = 5
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
+            return
 
-        self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff), filenamestem, framebuffersize
-        err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure everything is ready for an acquisition
+        self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff,
+        # 5 save as fits), filenamestem, framebuffersize
+        err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure
+        # everything is ready for an acquisition
         if not err:
             self.log.warning('Spooling did not start')
         
@@ -426,28 +435,42 @@ class CameraLogic(GenericLogic):
         while not ready:
             spoolprogress = self._hardware.get_progress()
             self.sigProgress.emit(spoolprogress)
-            ready =  self._hardware.get_ready_state()
+            ready = self._hardware.get_ready_state()
             if display:
                 if spoolprogress % n_proxy == 0:  # to limit the number of displayed images 
                     self._last_image = self._hardware.get_most_recent_image()
                     self.sigUpdateDisplay.emit()
-                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted (even though it is a QtCore.Qt.DirectConnection). maybe there is a better way to do this ?
+                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
+                    # is a better way to do this ?
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
         self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
-        self.log.info('Spooling finished. Saved data to file {}'.format(path))
-        self.enabled = False
-        self.sigSpoolingFinished.emit()
+        self.log.info('Saved data to file {}{}'.format(path, fileformat))
+        # metadata saving
+        if fileformat == 'tiff':
+            self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+        elif fileformat == 'fits':
+            try:
+                complete_path = path+'fits'
+                self._add_fits_header(complete_path, metadata)
+            except Exception as e:
+                self.log.warn(f'Metadata not saved: {e}.')
+        else:
+            pass  # this case will never be accessed because the same if-elif-else structure was already applied above
 
+        self.saving = False
+        self.sigSpoolingFinished.emit()
 
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
         """ helper function that creates a generic filename using the following format:
 
-        filenamestem/000_folder/file.tiff
-        example: /home/barho/images/2020-12-16/samplename/000_Movie/movie.tiff
-        filenamestem is typically generated by the save settings dialog in basic gui but can also entered manually if function is called in console
+        filenamestem/000_folder/file.tiff example: /home/barho/images/2020-12-16/samplename/000_Movie/movie.tiff
 
+        filenamestem is typically generated by the save settings dialog in basic gui but can also entered manually if
+        function is called in console
+
+        @params: str filenamestem  (example /home/barho/images/2020-12-16/samplename)
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
         @params: str fileformat: specify the type of file (tiff, txt, ..)
@@ -471,7 +494,8 @@ class CameraLogic(GenericLogic):
         folder_name = prefix + folder
         path = os.path.join(filenamestem, folder_name)
         # now create this folder
-        if not os.path.exists(path):  # we need this condition because metadata will be written in the same folder so the folder may already exist
+        if not os.path.exists(path):  # we need this condition because metadata will be written in the same folder so
+            # the folder may already exist
             try:
                 os.makedirs(path)
             except Exception as e:
@@ -479,46 +503,6 @@ class CameraLogic(GenericLogic):
         filename = '{0}.{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
-    #
-    # def _save_to_tiff(self, n_frames, path, data):
-    #     """ helper function to save the image data to a tiff file
-    #
-    #     creates the PIL.Image object and saves it to tiff
-    #
-    #     @params int n_frames: number of frames (needed to distinguish between 2D and 3D data)
-    #     @params str path: complete path where the object is saved to
-    #     @params data: np.array
-    #
-    #     @returns None
-    #     """
-    #     # 2D data case (no stack)
-    #     if n_frames == 1:  # formatting of this case needs special treatment .. remove later if not needed
-    #         im = Image.fromarray(data)
-    #         try:
-    #             # conversion to 16 bit tiff
-    #             im.convert('I;16').save(path, format='tiff')
-    #             # unconverted version (32 bit) im.save(path, format='tiff')
-    #             self.log.info('Saved data to file {}'.format(path))
-    #         except:
-    #             self.log.warning('Data not saved')
-    #         return None
-    #
-    #     # 3D data (note: z stack is the first dimension)
-    #     else:
-    #         # create the PIL.Image object and save it to tiff
-    #         imlist = []
-    #         for i in range(n_frames):
-    #             im = Image.fromarray(data[i])
-    #             imlist.append(im)
-    #         try:
-    #             # conversion to 16 bit tiff
-    #             # im.convert('I;16').save(path, format='tiff')
-    #             # unconverted version (32 bit)
-    #             imlist[0].save(path, format='tiff', save_all=True, append_images=imlist[1:])
-    #             self.log.info('Saved data to file {}'.format(path))
-    #         except:
-    #             self.log.warning('Data not saved')
-    #         return None
 
     def _save_to_tiff(self, n_frames, path, data):
         """ helper function to save the image data to a tiff file
@@ -560,10 +544,10 @@ class CameraLogic(GenericLogic):
 
         modified version for numpy array only
 
-        @param u16int: np.array with dtype int16 to be saved as tiff. 
-             make sure that the data is in int16 format ! otherwise th conversion to bytes will not give the right result
+        @param u16int: np.array with dtype int16 to be saved as tiff. make sure that the data is in int16 format !
+        otherwise th conversion to bytes will not give the right result
         @param size: size of the data
-        @param str tiff_filename including the suffix '.tiff'
+        @param str tiff_filename: including the suffix '.tiff'
         """
         # write 16-bit TIFF image
         # PIL interprets mode 'I;16' as "uint16, little-endian"
@@ -588,7 +572,22 @@ class CameraLogic(GenericLogic):
             imlist.append(img_out)  # create the list of pillow image objects
         imlist[0].save(tiff_filename, save_all=True, append_images=imlist[1:])
 
-    def _save_to_fits(self, path, data):
+    def _save_metadata_txt_file(self, filenamestem, type, metadata):
+        """"helper function to save a txt file containing the metadata
+
+        @params: str filenamestem (example /home/barho/images/2020-12-16/samplename)
+        @parms: str type: string identifier of the data type: _Movie or _Image
+        @params: dict metadata: dictionary containing the annotations
+
+
+        @returns None
+        """
+        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', 'txt', addfile=True)
+        with open(complete_path, 'w') as file:
+            file.write(str(metadata))
+        self.log.info('Saved metadata to {}'.format(complete_path))
+
+    def _save_to_fits(self, path, data, metadata):
         """ helper function to save the image data to a fits file.
         see also https://docs.astropy.org/en/latest/io/fits/index.html#creating-a-new-image-file
 
@@ -600,16 +599,28 @@ class CameraLogic(GenericLogic):
         @returns None
         """
         data = data.astype(np.int16)  # data conversion because 16 bit image shall be saved
-
         hdu = fits.PrimaryHDU(data)  # PrimaryHDU object encapsulates the data
-
-        # create a HDUlist and write to file
+        hdul = fits.HDUList([hdu])
+        # add the header
+        hdr = hdul[0].header
+        for key in metadata:
+            hdr[key] = metadata[key]
+        # write to file
         try:
-            hdul = fits.HDUList([hdu])
             hdul.writeto(path)
             self.log.info('Saved data to file {}'.format(path))
         except Exception as e:
             self.log.warning(f'Data not saved: {e}')
+
+    def _add_fits_header(self, path, dictionary):
+        """ After spooling to fits format, this method accesses the file and adds the metadata in the header
+        @params str path: complete path where the object is saved to, including the suffix .fits
+        @params dict dictionary: containing metadata with fits compatible keys and values
+        """
+        with fits.open(path, mode='update') as hdul:
+            hdr = hdul[0].header
+            for key in dictionary:
+                hdr[key] = dictionary[key]
 
     def set_sensor_region(self, hbin, vbin, hstart, hend, vstart, vend):
         """ defines a limited region on the sensor surface, hence accelerating the acquisition
@@ -625,36 +636,41 @@ class CameraLogic(GenericLogic):
         if err < 0:
             self.log.warn('Sensor region not set')
         else:
-            self.log.info('Sensor region set to {} x {}'.format(hend-hstart+1, vend-vstart+1))
+            self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
     def reset_sensor_region(self):
         """ reset to full sensor size """
-        width = self._hardware._full_width  # store the full_width in the hardware moduel because _width is overwritten when image is set
+        width = self._hardware._full_width  # store the full_width in the hardware module because _width is
+        # overwritten when image is set
         height = self._hardware._full_height  # same goes for height
         err = self._hardware.set_image(1, 1, 1, width, 1, height)
         if err < 0:
             self.log.warn('Sensor region not reset to default')
         else:
-            self.log.info('Sensor region reset to default: {} x {}'.format(width, height))
+            self.log.info('Sensor region reset to default: {} x {}'.format(height, width))
 
     @QtCore.Slot(bool)
     def set_frametransfer(self, activate):
-        """ Activate frametransfer mode for ixon ultra camera:
-        the boolean activate is stored in a variable in the camera module. When an acquisition is started, frame transfer is set accordingly.
+        """ Activate frametransfer mode for ixon ultra camera: the boolean activate is stored in a variable in the
+        camera module. When an acquisition is started, frame transfer is set accordingly.
 
         @params: bool activate ?
         """
         if self.get_name() == 'iXon Ultra 897':
+            if self.enabled:  # if live mode is on, interrupt to be able to access frame transfer setting
+                self.interrupt_live()
             self._hardware._set_frame_transfer(int(activate))
+            if self.enabled:  # if live mode was interrupted, restart it
+                self.resume_live()
             self.log.info(f'Frametransfer mode activated: {activate}')
             # we also need to update the indicator on the gui
-            exp = self.get_exposure()  # we just need to send the signal sigExposureChanged but it must carry a float so we send exp as argument
+            exp = self.get_exposure()  # we just need to send the signal sigExposureChanged but it must carry a float
+            # so we send exp as argument
             self.sigExposureChanged.emit(exp)
         # do nothing in case of cameras that do not support frame transfer
         else:
             pass
-        
-        
+
     def get_size(self):
         """ Retrieve size of the image in pixel
 
@@ -663,8 +679,8 @@ class CameraLogic(GenericLogic):
         return self._hardware.get_size()
     
     def get_max_size(self):
-        return self._hardware._full_width, self._hardware._full_height
-    
-    
-    
+        """ Retrieve maximum size of the sensor in pixel
 
+        @return tuple: Size (width, height)
+        """
+        return self._hardware._full_width, self._hardware._full_height

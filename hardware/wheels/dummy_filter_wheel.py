@@ -43,6 +43,9 @@ class FilterWheelDummy(Base, FilterwheelInterface):
             - [True, False, True, True]
 
             # please specify for all elements corresponding information in the same order.
+            # allowed lasers:
+            # entries corresponding to [laser1_allowed, laser2_allowed, laser3_allowed, laser4_allowed, ..]
+            # see also the config for the daq ao output to associate a laser number to a wavelength
     """
 
     _num_filters = ConfigOption('num_filters', 6)
@@ -50,10 +53,13 @@ class FilterWheelDummy(Base, FilterwheelInterface):
     _positions = ConfigOption('filterpositions', missing='error')
     _allowed_lasers = ConfigOption('allowed_lasers', missing='error')
 
-    position = np.random.randint(1, 7) # generate an arbitrary start value from 1 to 6
+    position = np.random.randint(1, 7)  # generate an arbitrary start value from 1 to 6
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def on_activate(self):
+        """ Module activation method """
         if len(self._filternames) != self._num_filters or len(self._positions) != self._num_filters or len(self._allowed_lasers) != self._num_filters:
             self.log.warning('Please specify name, position, and allowed lasers for each filter')
 
@@ -61,7 +67,7 @@ class FilterWheelDummy(Base, FilterwheelInterface):
         pass
 
     def get_position(self):
-        """ Get the current position, from 1 to 6 (or 12) """
+        """ Get the current position. """
         return self.position
 
     def set_position(self, value):
@@ -71,11 +77,11 @@ class FilterWheelDummy(Base, FilterwheelInterface):
 
         @ returns: int: error code: ok = 0
         """
-        if value in range(1, 7):
+        if value in range(1, self._num_filters + 1):
             self.position = value
             err = 0
         else:  
-            self.log.error('Can not go to filter {}. Filterwheel has only 6 positions'.format(value))
+            self.log.error(f'Can not go to filter {value}. Filterwheel has only {self._num_filters} positions')
             err = -1
         return err
 
@@ -86,7 +92,8 @@ class FilterWheelDummy(Base, FilterwheelInterface):
                     ...
                     }
 
-                    # to be modified: using position as label suffix can lead to problems when not all positions are used and gives some constraints
+                    # to be modified: using position as label suffix can lead to problems when not all positions are
+                    used and gives some constraints
 
         @returns: filter_dict
         """

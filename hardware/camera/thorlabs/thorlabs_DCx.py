@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-
 """
 This hardware module implement the camera interface to use an Thorlabs Camera.
 It use a dll to inteface with the instruments via USB (only available physical interface)
-This module does aim at replacing ThorCam.
-
+This module aims at replacing ThorCam.
 ---
 
 Qudi is free software: you can redistribute it and/or modify
@@ -86,19 +84,19 @@ class CameraThorlabs(Base, CameraInterface):
 
         """
         if code != IS_SUCCESS:
-                self.log.error(message)
-                return False
+            self.log.error(message)
+            return False
         else:
             return True
 
-    def _check_int_range(self, value, mini, maxi ,message):
+    def _check_int_range(self, value, mini, maxi, message):
         """
         Check that value is in the range [mini, maxi] and log message as error if not. Return True if OK.
 
         """
         if value < mini or value > maxi:
-                self.log.error('{} - Value {} must be between {} and {}'.format(message, value, mini, maxi))
-                return False
+            self.log.error('{} - Value {} must be between {} and {}'.format(message, value, mini, maxi))
+            return False
         else:
             return True
 
@@ -205,7 +203,6 @@ class CameraThorlabs(Base, CameraInterface):
         code = self._dll.is_SetImagePos(self._camera_handle, ctypes.c_int(self._pos_x), ctypes.c_int(self._pos_y))
         return self._check_error(code, "Could not set image position")
 
-
     def on_deactivate(self):
         """
         Deinitialisation performed during deactivation of the module.
@@ -237,7 +234,7 @@ class CameraThorlabs(Base, CameraInterface):
         Set the camera in live mode
         """
         if self.get_ready_state():
-            self._acquiring = True
+            self._acquiring = True  # possibly a mistake ?
             self._live = True
             code = self._dll.is_CaptureVideo(self._camera_handle, c_int(IS_DONT_WAIT))
             no_error = self._check_error(code, "Could not start live acquisition")
@@ -319,7 +316,7 @@ class CameraThorlabs(Base, CameraInterface):
         """
         Return whether or not the camera is ready for an acquisition
         """
-        if self.module_state()!='idle':
+        if self.module_state() != 'idle':
             return False
         return not self._acquiring
 
@@ -334,10 +331,8 @@ class CameraThorlabs(Base, CameraInterface):
         Get the gain
         """
         return self._gain
-    
-    
-    
-    ### new interface functions
+
+    # new interface functions
     def has_temp(self):
         """ Does the camera support setting of the temperature?
 
@@ -421,11 +416,4 @@ class CameraThorlabs(Base, CameraInterface):
 #            return 0
 #        except:
 #            return -1
-        pass 
-    
-    
- 
-
-
-
-
+        pass

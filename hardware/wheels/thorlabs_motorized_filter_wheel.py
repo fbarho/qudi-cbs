@@ -23,7 +23,6 @@ from interface.filterwheel_interface import FilterwheelInterface
 from core.configoption import ConfigOption
 
 
-
 class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
     """ This class is implements communication with Thorlabs Motorized Filter Wheels
 
@@ -56,6 +55,9 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
             - [True, False, True, True]
 
             # please specify for all elements corresponding information in the same order
+            # allowed lasers:
+            # entries corresponding to [laser1_allowed, laser2_allowed, laser3_allowed, laser4_allowed, ..]
+            # see also the config for the daq ao output to associate a laser number to a wavelength
 
     Description of the hardware provided by Thorlabs:
         These stepper-motor-driven filter wheels are designed for use in a host of automated applications including
@@ -65,7 +67,7 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
         by the user.
     """
 
-    interface = ConfigOption('interface', 'COM3', missing='error')
+    interface = ConfigOption('interface', 'COM6', missing='error')
     
     _num_filters = ConfigOption('num_filters', 6)
     _filternames = ConfigOption('filters', missing='error')
@@ -87,6 +89,9 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
             self.log.debug('Connected to : {}'.format(idn))
         except visa.VisaIOError:
             self.log.error('Could not connect to device')
+
+        if len(self._filternames) != self._num_filters or len(self._positions) != self._num_filters or len(self._allowed_lasers) != self._num_filters:
+            self.log.warning('Please specify name, position, and allowed lasers for each filter')
 
     def on_deactivate(self):
         """ Disconnect from hardware on deactivation. """
@@ -126,8 +131,7 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
             self.log.error('Can not go to filter {0}. Filterwheel has only {1} positions'.format(value, self._num_filters))
             err = -1
         return err 
-            
-        
+
     def get_filter_dict(self):
         """ Retrieves a dictionary with the following entries:
                     {'filter1': {'name': str(name), 'position': 1, 'lasers': bool list},
@@ -137,7 +141,7 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
 
                     # to be modified: using position as label suffix can lead to problems when not all positions are used and gives some constraints
 
-        @returns: laser_dict
+        @returns: filter_dict
         """
         filter_dict = {}
 
@@ -153,4 +157,3 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
             filter_dict[dic_entry['label']] = dic_entry
 
         return filter_dict
-

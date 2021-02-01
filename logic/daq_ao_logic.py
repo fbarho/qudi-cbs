@@ -30,7 +30,10 @@ class DAQaoLogic(GenericLogic):
 
     # signals
     sigIntensityChanged = QtCore.Signal() # if intensity dict is changed programatically, this updates the GUI
-    
+
+    # attributes
+    enabled = False
+
     # private attributes
     _intensity_dict = {}
     _laser_dict = {}
