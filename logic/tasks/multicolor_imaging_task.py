@@ -25,6 +25,7 @@ import json
 from datetime import datetime
 import os
 import numpy as np
+import time
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
@@ -53,18 +54,26 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         #     return
 
         # else:
+        
+        
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
         # use only one filter. do not allow changing filter because this will be too slow
 
         # prepare the camera
-        self.ref['camera'].set_trigger_mode('EXTERNAL')
+        self.ref['camera'].set_trigger_mode('EXTERNAL')  
+        # add eventually other settings that may be read from user config .. frame transfer etc. 
 
         # set the exposure time
-        self.ref['camera'].set_exposure(0.05)   # to be read from user config
+        self.ref['camera'].set_exposure(0.05)   # to be read from user config instead
 
         # initialize the data structure
-        self.image_data = np.empty((4, 512, 512))  # to be read from camera and config (nb channels)
+        width, height = self.ref['camera'].get_size()
+        frames = len(self.imaging_sequence)
+        self.image_data = np.empty((frames, height, width))  
+        
+        # initialize the digital output channel for trigger
+        self.ref['daq'].set_up_do_channel()
 
 
     def runTaskStep(self):
@@ -83,23 +92,28 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
-
+            self.ref['daq'].send_trigger()  
+            time.sleep(0.05)
             # laser off or just apply_voltage for a given duration ??
+            self.ref['daq'].voltage_off()
+            
 
 
             # data handling: we want to add the images to create a 3D numpy array
             # then we can call one of the methods to save this 3D array to fits or tiff using the methods from the camera logic
-            image_data = self.ref['camera'].get_last_image()
+            # image_data = self.ref['camera'].get_last_image()
 
-            self.image_data[i,:,:] = image_data
+            # self.image_data[i,:,:] = image_data
 
         # define save path
-        path = '/home/barho/images/testmulticolorstack.fits'
+        path = 'C:/Users/admin/imagetest/testmulticolorstack.fits'
         # retrieve the metadata
         metadata = {'info1': 1, 'info2': 2}
 
         # allow to specify file format and put in if structure
         self.ref['camera']._save_to_fits(path, self.image_data, metadata)
+        
+        return False
 
     def pauseTask(self):
         """ """
@@ -113,6 +127,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ """
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
+        self.ref['daq'].close_do_task()
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
@@ -133,9 +148,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.filter_pos = 1
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
         # use a list with tuples, or a a list with dicts ?)
-        self.imaging_sequence = [('laser1', 10), ('laser1', 20), ('laser3', 10)]
+        self.imaging_sequence = [('laser3', 10), ('laser3', 20), ('laser3', 10)]
         # or rather
-        # self.imaging_sequence = [('405nm', 10), ('405nm', 20), ('512nm', 10)]
+        # self.imaging_sequence = [('488nm', 10), ('488nm', 20), ('512nm', 10)]
 
 
         # try:
@@ -148,18 +163,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # except:
         #     self.log.warning('Could not load user parameters for task {}'.format(self.name))
 
-    def _control_user_parameters(self):
-        """ this function checks if the specified laser is allowed given the filter setting
-        @return bool: valid ?"""
-        filterpos = self.filter_pos
-        key = 'filter{}'.format(filterpos)
-        filterdict = self.ref['filter'].get_filter_dict()
-        laserlist = filterdict[key]['lasers']  # returns a list of boolean elements, laser allowed ?
-        # this part should be improved using a correct addressing of the element
-        laser = self.lightsource
-        laser_index = int(laser.strip('laser'))-1
-        ##########
-        return laserlist[laser_index]
+#    def _control_user_parameters(self):
+#        """ this function checks if the specified laser is allowed given the filter setting
+#        @return bool: valid ?"""
+#        filterpos = self.filter_pos
+#        key = 'filter{}'.format(filterpos)
+#        filterdict = self.ref['filter'].get_filter_dict()
+#        laserlist = filterdict[key]['lasers']  # returns a list of boolean elements, laser allowed ?
+#        # this part should be improved using a correct addressing of the element
+#        laser = self.lightsource
+#        laser_index = int(laser.strip('laser'))-1
+#        ##########
+#        return laserlist[laser_index]
 
 
 

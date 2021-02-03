@@ -19,6 +19,7 @@ import PyDAQmx as daq # this only runs on systems where the niDAQmx library is a
 from core.module import Base
 from interface.daq_interface import DaqInterface
 from core.configoption import ConfigOption
+import numpy as np
 
 
 class NIDAQMSeries(Base, DaqInterface):
@@ -59,6 +60,10 @@ class NIDAQMSeries(Base, DaqInterface):
     def on_activate(self):
         """ Initialization steps when module is called.
         """
+        # 
+        self.ao_taskhandles = list()
+        self.digital_out_task = None
+        
         # control if the config was correctly specified
         if (len(self._ao_channels) != len(self._ao_voltage_ranges)) or (len(self._ao_channels) != len(self._wavelengths)):
             self.log.error('Specify equal numbers of ao channels, voltage ranges and OTF input channels!')
@@ -92,36 +97,32 @@ class NIDAQMSeries(Base, DaqInterface):
             for n, channel in enumerate(self._ao_channels): # use enumerate to access the equivalent list element 
                 daq.DAQmxCreateTask('', daq.byref(taskhandles[channel])) 
                 daq.DAQmxCreateAOVoltageChan(taskhandles[channel], channel, '', self._ao_voltage_ranges[n][0], self._ao_voltage_ranges[n][1], daq.DAQmx_Val_Volts, None) 
-                # to do : acces min and max value and replace it above
-            self.taskhandles = taskhandles
+            self.ao_taskhandles = taskhandles
             
         except:
             self.log.exception('Error starting analog output task.')
             return -1
         return 0
-
-
+    
+    
     def on_deactivate(self):
         """ Shut down the NI card.
         """
         # clear the task
         try:
             for channel in self._ao_channels:
-                daq.DAQmxClearTask(self.taskhandles[channel])
-                self.taskhandles[channel].value = None  # reset it to nullpointer
-            print(self.taskhandles)
+                daq.DAQmxClearTask(self.ao_taskhandles[channel])
+                self.ao_taskhandles[channel].value = None  # reset it to nullpointer
+            print(self.ao_taskhandles)
         except:
             self.log.exception('Could not clear AO Out Task.')
-
-
-        
+       
     def apply_voltage(self, voltage, channel, autostart=True, timeout=10): # autostart = False can only be used if timing is configured. to be done later when working on synchronization with camera acquisition
         """        
         """
-        daq.WriteAnalogScalarF64(self.taskhandles[channel], autostart, timeout, voltage, None)#parameters passed in: taskHandle, autoStart, timeout, value, reserved
-        daq.DAQmxStartTask(self.taskhandles[channel])
-        daq.DAQmxStopTask(self.taskhandles[channel])
-
+        daq.WriteAnalogScalarF64(self.ao_taskhandles[channel], autostart, timeout, voltage, None)#parameters passed in: taskHandle, autoStart, timeout, value, reserved
+        daq.DAQmxStartTask(self.ao_taskhandles[channel])
+        daq.DAQmxStopTask(self.ao_taskhandles[channel])
 
     def get_dict(self):
         """ Retrieves the channel name and the corresponding voltage range for each analog output and associates it to
@@ -150,7 +151,44 @@ class NIDAQMSeries(Base, DaqInterface):
             laser_dict[dic_entry['label']] = dic_entry
 
         return laser_dict
-
+    
+    
+    def set_up_do_channel(self):
+        """ create a task and its virtual channel for the digital output
+        
+        @return: int error code: ok = 0
+        """
+        if self.digital_out_task is not None:
+            self.log.info('Digital output already set')
+            return -1
+        else:
+            task = daq.TaskHandle()
+            daq.DAQmxCreateTask('DigitalOut', daq.byref(task))
+            daq.DAQmxCreateDOChan(task, 'Dev1/port0/line2', '', daq.DAQmx_Val_ChanForAllLines)  # last argument: line grouping
+            self.digital_out_task = task  # keep the taskhandle accessible
+            return 0
+        # modify later to take channel from config     
+        
+    def close_do_task(self):
+        """ close the digital output task if there is one """
+        if self.digital_out_task is not None:
+            task = self.digital_out_task
+            try:
+                daq.DAQmxStopTask(task)
+                daq.DAQmxClearTask(task)
+                self.digital_out_task = None
+            except:
+                self.log.exception('Could not close digital output task')
+        else:
+            pass
+        
+    def send_trigger(self):
+        """ use the digital output as trigger """
+        daq.DAQmxStartTask(self.digital_out_task)
+        daq.DAQmxWriteDigitalU32(self.digital_out_task, 1, True, 15, daq.DAQmx_Val_GroupByChannel, np.array(daq.c_uint32()), daq.c_int32(), None) 
+        daq.DAQmxStopTask(self.digital_out_task)
+    
+    
         
 # simple version for tests       
 #    def apply_voltage_test(self, value, channel): # specify channel in format '/Dev1/ao1'

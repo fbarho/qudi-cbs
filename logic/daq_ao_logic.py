@@ -111,6 +111,19 @@ class DAQaoLogic(GenericLogic):
         # if laser is already on, the new value must be written to the daq output
         if self.enabled:
             self.apply_voltage()
+            
+            
+    def send_trigger(self):
+        """ """
+        self._daq.send_trigger()
+        
+    def set_up_do_channel(self):
+        self._daq.set_up_do_channel() 
+        
+    def close_do_task(self):
+        self._daq.close_do_task()
+
+
 
 
 
