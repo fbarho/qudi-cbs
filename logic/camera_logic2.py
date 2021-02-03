@@ -591,10 +591,10 @@ class CameraLogic(GenericLogic):
         """ helper function to save the image data to a fits file.
         see also https://docs.astropy.org/en/latest/io/fits/index.html#creating-a-new-image-file
 
-        Workes for 2D data and stacks
+        Works for 2D data and stacks
 
         @params str path: complete path where the object is saved to, including the suffix .fits
-        @params data: np.array
+        @params data: np.array (2D or 3D)
 
         @returns None
         """
@@ -684,3 +684,9 @@ class CameraLogic(GenericLogic):
         @return tuple: Size (width, height)
         """
         return self._hardware._full_width, self._hardware._full_height
+
+    # new functions to be tested for synchronized measurements
+    # _set_trigger_mode not (yet) on camera interface !!
+    def set_trigger_mode(self, mode):
+        self._hardware._set_trigger_mode(mode)   # specific for andor in this version. homogenize when completing other camera's code
+        # add return value for error check if needed.. _set_trigger_mode returns 0 if ok, -1 if not

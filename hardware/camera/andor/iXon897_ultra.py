@@ -731,6 +731,7 @@ class IxonUltra(Base, CameraInterface):
         """
         @param string mode: string corresponding to certain TriggerMode
         @return string: answer from the camera
+        @return int check_val: ok: 0, not ok: -1
         """
         check_val = 0
         if hasattr(TriggerMode, mode):

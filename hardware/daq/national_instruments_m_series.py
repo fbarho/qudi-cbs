@@ -113,6 +113,7 @@ class NIDAQMSeries(Base, DaqInterface):
         except:
             self.log.exception('Could not clear AO Out Task.')
 
+
         
     def apply_voltage(self, voltage, channel, autostart=True, timeout=10): # autostart = False can only be used if timing is configured. to be done later when working on synchronization with camera acquisition
         """        
