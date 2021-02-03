@@ -105,7 +105,7 @@ class PIFOC(Base, MotorInterface):
 
         @param dict param_dict: Dictionary with axis name and step (in um units) as key - value pairs
 
-        @return int: error code (True: ok, False: not ok)   or modify to return position ??
+        @return bool: error code (True: ok, False: not ok)   or modify to return position ??
         """
         constraints = self.get_constraints()
         position = self.get_pos()  # check the return format of this call
@@ -133,7 +133,7 @@ class PIFOC(Base, MotorInterface):
 
         @param dict param_dict: Dictionary with axis name and target position (in um units) as key - value pairs
 
-        @return int: error code (True: ok, False: error)       - or modify to return the new position ??
+        @return bool: error code (True: ok, False: error)       - or modify to return the new position ??
         """
         constraints = self.get_constraints()
         err = False
@@ -158,7 +158,7 @@ class PIFOC(Base, MotorInterface):
     def abort(self):
         """ Stops movement of the stage
 
-        @return int: error code (True: ok, False: error)
+        @return bool: error code (True: ok, False: error)
         """
         # err = self.pidevice.HLT()  # needs eventually controller ID as argument  # HLT or STP ?
         # errorcode = self.pidevice.GetError()
