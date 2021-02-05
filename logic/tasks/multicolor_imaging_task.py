@@ -145,12 +145,16 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             n_frames: 5
             activate_display: 1
         """
+        laser_dict = self.ref['daq'].get_laser_dict()
         self.filter_pos = 1
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        # use a list with tuples, or a a list with dicts ?)
-        self.imaging_sequence = [('laser3', 10), ('laser3', 20), ('laser3', 10)]
-        # or rather
-        # self.imaging_sequence = [('488nm', 10), ('488nm', 20), ('512nm', 10)]
+        self.imaging_sequence = [('488 nm', 10), ('488 nm', 20), ('512 nm', 10)]
+        # now we need to access the corresponding labels
+        imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
+        self.log.info(imaging_sequence)
+        self.imaging_sequence = imaging_sequence
+        # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
+
 
 
         # try:
@@ -179,6 +183,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
 
 
+def get_entry_nested_dict(nested_dict, val, entry):
+    """ helper function that searches for 'val' as value in a nested dictionary and returns the corresponding value in the category 'entry'
+    example: search in laser_dict (nested_dict) for the label (entry) corresponding to a given wavelength (val)
+    search in filter_dict (nested_dict) for the label (entry) corresponding to a given filter position (val)
 
+    @param: dict nested dict
+    @param: val: any data type, value that is searched for in the dictionary
+    @param: str entry: key in the inner dictionary whose value needs to be accessed
 
-
+    note that this function is not the typical way how dictionaries should be used. due to the unambiguity in the dictionaries used here,
+    it can however be useful to try to find a key given a value.
+    so in practical cases, list will consist of a single element only. """
+    list = []
+    for outer_key in nested_dict:
+        item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
+        if item != []:
+            list.append(*item)
+    return list
