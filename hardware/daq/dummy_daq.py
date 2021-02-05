@@ -34,12 +34,14 @@ class DummyDaq(Base, DaqInterface):
     _ao_voltage_ranges = ConfigOption('ao_voltage_ranges', missing='error')  # list of lists [[0, 10], [0, 10], ..]
     _wavelengths = ConfigOption('wavelengths', missing='error')
 
+    def __init__(self, config, **kwargs):
+        super().__init__(config=config, **kwargs)
 
     def on_activate(self):
         """ Initialization steps when module is called.
         """
-        if len(self._ao_channels) > len(self._ao_voltage_ranges):
-            self.log.error('Specify at least as many ao_voltage_ranges as ao_channels!')
+        if (len(self._ao_channels) != len(self._ao_voltage_ranges)) or (len(self._ao_channels) != len(self._wavelengths)):
+            self.log.error('Specify equal numbers of ao channels, voltage ranges and OTF input channels!')
 
     def on_deactivate(self):
         """ Required deactivation.
@@ -54,7 +56,6 @@ class DummyDaq(Base, DaqInterface):
 
         @returns: laser_dict
         """
-
         laser_dict = {}
 
         for i, item in enumerate(
@@ -74,3 +75,18 @@ class DummyDaq(Base, DaqInterface):
         """
         """
         print(f'Applied {voltage} V to channel {channel}.')
+
+    def set_up_do_channel(self):
+        """ create a task and its virtual channel for the digital output
+
+        @return: int error code: ok = 0, error = -1
+        """
+        return 0
+
+    def close_do_task(self):
+        """ close the digital output task if there is one
+        """
+        pass
+
+    def send_trigger(self):
+        self.log.info('Send trigger called')
