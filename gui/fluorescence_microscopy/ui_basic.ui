@@ -72,6 +72,7 @@
    <addaction name="save_last_image_Action"/>
    <addaction name="save_video_Action"/>
    <addaction name="spooling_Action"/>
+   <addaction name="video_quickstart_Action"/>
    <addaction name="separator"/>
    <addaction name="set_sensor_Action"/>
   </widget>
@@ -823,6 +824,11 @@
    </property>
    <property name="text">
     <string>Rotate image 180deg</string>
+   </property>
+  </action>
+  <action name="video_quickstart_Action">
+   <property name="text">
+    <string>Quickstart Video</string>
    </property>
   </action>
  </widget>
