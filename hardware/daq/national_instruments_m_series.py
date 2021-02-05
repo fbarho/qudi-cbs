@@ -125,7 +125,7 @@ class NIDAQMSeries(Base, DaqInterface):
         @params: float voltage: voltage value to be applied
         @params: str channel: analog output line such as /Dev1/AO0
         @params: bool autostart: True = task started immediately on call of start task. autostart = False can only be used if timing is configured.
-        @param: int? float? timeout: RW timeout in seconds
+        @param: float timeout: RW timeout in seconds
 
         @returns: None
         """
@@ -161,7 +161,7 @@ class NIDAQMSeries(Base, DaqInterface):
         
         @return: int error code: ok = 0, error = -1
         """
-        if self.digital_out_task is not None:
+        if self.digital_out_taskhandle is not None:
             self.log.info('Digital output already set')
             return -1
         else:
@@ -187,8 +187,21 @@ class NIDAQMSeries(Base, DaqInterface):
         
     def send_trigger(self):
         """ use the digital output as trigger """
+        num_samples_per_channel = daq.c_int32(1)   # write 1 samples per channel
+        # digital_write = np.array((daq.c_uint32(1), daq.c_uint32(0)))
+        digital_write = np.array(daq.c_uint(1))
+        digital_read = daq.c_int32()
+        # self.log.info(digital_read.value)
         daq.DAQmxStartTask(self.digital_out_taskhandle)
-        daq.DAQmxWriteDigitalU32(self.digital_out_taskhandle, 1, True, self._RWTimeout, daq.DAQmx_Val_GroupByChannel, np.array(daq.c_uint32()), daq.c_int32(), None)
+        daq.DAQmxWriteDigitalU32(self.digital_out_taskhandle,  # taskhandle
+                                num_samples_per_channel,   # number of samples to write per channel
+                                True,   # autostart 
+                                self._RWTimeout,   # time to wait to write all the samples
+                                daq.DAQmx_Val_GroupByChannel,   # dataLayout: non-interleaved: all samples for first channel, all samples for second channel, ...
+                                digital_write,   # array of 32 bit integer samples to write to the task  
+                                digital_read,  # samples per channel successfully written
+                                None)  # reserved for futur use
+        self.log.info(f'wrote {digital_read.value} samples')
         daq.DAQmxStopTask(self.digital_out_taskhandle)
 
         # check the last few arguments of DAQmxWriteDigitalU32. Taken similar to x_series module..

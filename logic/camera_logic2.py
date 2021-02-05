@@ -229,6 +229,22 @@ class CameraLogic(GenericLogic):
         self.sigUpdateDisplay.emit()
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
+        
+    ### low level methods for tasks ###     
+    def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
+        # need to think of how to organize this and how this method should be called .. 
+        self._hardware._start_acquisition()
+        
+    def set_acquisition_mode(self, mode):
+        self._hardware._set_acquisition_mode(mode)
+        
+    def get_acquired_data(self):
+        return self._hardware.get_acquired_data()
+    
+    def wait_for_acquisition(self):
+        self._hardware.wait_for_acquisition()
+        
+    ##########################
 
 # the following functions concern the live display
     def start_loop(self):

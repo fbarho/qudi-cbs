@@ -60,7 +60,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['filter'].set_position(self.filter_pos)
         # use only one filter. do not allow changing filter because this will be too slow
 
-        # prepare the camera
+        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
+        self.ref['camera'].set_acquisition_mode('SINGLE_SCAN')
         self.ref['camera'].set_trigger_mode('EXTERNAL')  
         # add eventually other settings that may be read from user config .. frame transfer etc. 
 
@@ -81,37 +82,48 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @return bool: True if the task should continue running, False if it should finish.
         """
         # this task only has one step until a data set is prepared and saved (but loops over the channels)
-        for i in range(len(self.imaging_sequence)):
+        for i in range(1):  #range(len(self.imaging_sequence)):
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
+            self.log.info(f'will apply {self.imaging_sequence[i][1]/10} volts to channel {self.imaging_sequence[i][0]}')
 
             # start the acquisition. Camera waits for trigger
-            self.ref['camera'].start_single_acquistion()   # watch out for the typo
-            # or is it needed to rewrite another method so that we avoid switching so often between the acquisition modes ?
-            # because start_single_acquisition will first set to single_scan and then back to run till abort when finished
+            self.ref['camera'].start_acquisition()   
+#            # or is it needed to rewrite another method so that we avoid switching so often between the acquisition modes ?
+#            # because start_single_acquisition will first set to single_scan and then back to run till abort when finished
 
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
+            self.log.info('voltage on')
             self.ref['daq'].send_trigger()  
-            time.sleep(0.05)
+            self.log.info('send trigger')
+            self.ref['camera'].wait_for_acquisition()   # wait for acquisition event
+ 
+            #time.sleep(0.05)
             # laser off or just apply_voltage for a given duration ??
             self.ref['daq'].voltage_off()
+            
+            self.log.info('voltage off')
+            
+            
+            
             
 
 
             # data handling: we want to add the images to create a 3D numpy array
             # then we can call one of the methods to save this 3D array to fits or tiff using the methods from the camera logic
-            # image_data = self.ref['camera'].get_last_image()
-
-            # self.image_data[i,:,:] = image_data
-
-        # define save path
-        path = 'C:/Users/admin/imagetest/testmulticolorstack.fits'
-        # retrieve the metadata
-        metadata = {'info1': 1, 'info2': 2}
-
-        # allow to specify file format and put in if structure
-        self.ref['camera']._save_to_fits(path, self.image_data, metadata)
+            image_data = self.ref['camera'].get_acquired_data()
+            self.log.info(image_data[0:5:5])
+#
+#            # self.image_data[i,:,:] = image_data
+#
+#        # define save path
+#        path = 'C:/Users/admin/imagetest/testmulticolorstack.fits'
+#        # retrieve the metadata
+#        metadata = {'info1': 1, 'info2': 2}
+#
+#        # allow to specify file format and put in if structure
+#        self.ref['camera']._save_to_fits(path, self.image_data, metadata)
         
         return False
 
@@ -128,6 +140,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
+        self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
