@@ -376,14 +376,16 @@ class PIFOCV2(Base, MotorInterface):
             if axis in self.axes and abs(step) <= constraints[axis]['max_step'] and constraints[axis][
                 'pos_min'] <= cur_pos + step <= constraints[axis][
                 'pos_max']:  # and condition that position stays in allowed range
-                self.pidevice.MVR(axis, step)
-                err = True
-                if not err:
-                    error_code = self.pidevice.GetError()
-                    error_msg = self.pidevice.TranslateError(error_code)
-                    self.log.warning(f'Could not move axis {axis} by {step}: {error_msg}.')
-                    # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
-                    # that is, if the error does not come from the controller but due to the coded conditions
+                with self.pidevice:
+                    self.pidevice.ConnectUSB(serialnum=self._serialnum)
+                    self.pidevice.MVR(axis, step)
+                    err = True
+                    if not err:
+                        error_code = self.pidevice.GetError()
+                        error_msg = self.pidevice.TranslateError(error_code)
+                        self.log.warning(f'Could not move axis {axis} by {step}: {error_msg}.')
+                        # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
+                        # that is, if the error does not come from the controller but due to the coded conditions
         return err
         # note that there is a different function available for simultaneous multi axes movement.
 
@@ -403,14 +405,15 @@ class PIFOCV2(Base, MotorInterface):
             # self.log.info(f'axis: {axis}; target: {target}')
             if axis in self.axes and constraints[axis]['pos_min'] <= target <= constraints[axis][
                 'pos_max']:  # control if the right axis is addressed
-                self.pidevice.MOV(axis, target)  # MOV has no return value
-                err = True
-                if not err:
-                    error_code = self.pidevice.GetError()
-                    error_msg = self.pidevice.TranslateError(error_code)
-                    self.log.warning(f'Could not move axis {axis} to {target} : {error_msg}.')
-                    # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
-                    # that is, if the error does not come from the controller but due to the coded conditions
+                with self.pidevice:
+                    self.pidevice.MOV(axis, target)  # MOV has no return value
+                    err = True
+                    if not err:
+                        error_code = self.pidevice.GetError()
+                        error_msg = self.pidevice.TranslateError(error_code)
+                        self.log.warning(f'Could not move axis {axis} to {target} : {error_msg}.')
+                        # it might be needed to print a pertinent error message in case the movement was not performed because the conditions above were not met,
+                        # that is, if the error does not come from the controller but due to the coded conditions
         return err
 
         # note that there is a different function available for simultaneous multi axes movement. (MVE)
@@ -442,7 +445,9 @@ class PIFOCV2(Base, MotorInterface):
 
                       update docstring after tests !
         """
-        pos = self.pidevice.qPOS(self.axes)  # this returns an OrderedDict
+        with self.pidevice:
+            self.pidevice.ConnectUSB(serialnum=self._serialnum)
+            pos = self.pidevice.qPOS(self.axes)  # this returns an OrderedDict
 
         # do some formatting if needed -- this is done in logic module !
 
@@ -462,7 +467,8 @@ class PIFOCV2(Base, MotorInterface):
 
         @return bool err
         """
-        err = self.pidevice.IsControllerReady()
+        with self.pidevice:
+            err = self.pidevice.IsControllerReady()
         return err
 
     def calibrate(self, param_list=None):
