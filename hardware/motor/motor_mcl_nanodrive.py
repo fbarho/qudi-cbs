@@ -35,6 +35,10 @@ class MCLNanoDrive(Base, MotorInterface):
     mcl:
         module.Class: 'motor.motor_mcl_nanodrive.MCLNanoDrive'
         dll_location: 'C:\\Program Files\\Mad City Labs\\NanoDrive\\Madlib.dll'   # path to library file
+
+
+    found help with return type of MCL_SingleReadZ here:
+    https://github.com/ScopeFoundry/HW_mcl_stage/blob/master/mcl_nanodrive.py
     """
 
     dll_location = ConfigOption('dll_location', missing='error')
@@ -46,6 +50,9 @@ class MCLNanoDrive(Base, MotorInterface):
 
     def on_activate(self):
         self.dll = ctypes.cdll.LoadLibrary(self.dll_location)
+
+        # set return types of certain functions
+        self.dll.MCL_SingleReadZ.restype = ctypes.c_double
 
         # get handle of connected Nanodrive
         handle = self.dll.MCL_InitHandle()
