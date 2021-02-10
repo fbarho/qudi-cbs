@@ -99,7 +99,6 @@ class MCLNanoDrive(Base, MotorInterface):
 
         return constraints
 
-
     def move_rel(self, param_dict):
         """ Moves stage in given direction (relative movement)
 
@@ -110,14 +109,15 @@ class MCLNanoDrive(Base, MotorInterface):
         # this version works for a param_dict with one entry.
         constraints = self.get_constraints()
         # this is not the good return format ..
-        position = self.get_pos().values()  # get_pos returns a dict {axis_label: position}
+        (_, position) = self.get_pos().popitem()  # get_pos returns a dict {axis_label: position}
+        # self.log.info(f'Position: {position}')
 
         (axis, step) = param_dict.popitem()
 
         if axis == self._axis_label and abs(step) <= constraints[axis]['max_step'] and constraints[axis]['pos_min'] <= position + step <= constraints[axis]['pos_max']:
             new_pos = ctypes.c_double(position + step)
             err = self.dll.MCL_SingleWriteZ(new_pos, self.handle)
-            if err == 'MCL_SUCCESS':
+            if err == MCL_SUCCESS:
                 return True
             else:
                 self.log.warning(f'Could not move axis {axis} by {step}: {err}.')
