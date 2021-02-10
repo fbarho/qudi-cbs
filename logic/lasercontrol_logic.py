@@ -5,11 +5,11 @@ Created on Wed Feb 10 2021
 
 @author: fbarho
 
-A module to control the lasers via a DAQ (analog output and digital output line for triggering) or via a FPGA.
+A module to control the lasers via a DAQ (analog output and digital output line for triggering) or via an FPGA.
 
 The DAQ / FPGA is used to control the OTF to select the laser wavelength
 
-modified version of daq_ao_logic. daq_ao_logic will be removed in the following and replaced by lasercontrol_logic.
+Modified version of daq_ao_logic. daq_ao_logic will be removed in the following and replaced by lasercontrol_logic.
 """
 
 from core.connector import Connector
@@ -20,7 +20,8 @@ from core.configoption import ConfigOption
 
 
 class LaserControlLogic(GenericLogic):
-    """ Controls the DAQ analog output and allows to set a digital output line for triggering or controls the FPGA
+    """ Controls the DAQ analog output and allows to set a digital output line for triggering
+    or controls the FPGA output
 
     Example config for copy-paste:
         lasercontrol_logic:
@@ -33,7 +34,7 @@ class LaserControlLogic(GenericLogic):
     controllertype = ConfigOption('controllertype', missing='error')  # something similar to a flag indicating daq or fpga
 
     # declare connectors
-    controller = Connector(interface='DaqInterface')  # can be a daq or an fpga # rename this interface in LasercontrolInterface
+    controller = Connector(interface='LaserControlInterface')  # can be a daq or an fpga # rename this interface in LasercontrolInterface
 
     # signals
     sigIntensityChanged = QtCore.Signal()  # if intensity dict is changed programmatically, this updates the GUI
@@ -96,6 +97,11 @@ class LaserControlLogic(GenericLogic):
         self.sigIntensityChanged.emit()
 
     def apply_voltage(self):
+        """ applies the intensities defined in the _intensity_dict to the belonging channels.
+
+        This method is used to switch lasers on from the GUI, for this reason it iterates over all defined channels
+        (no individual laser on / off button but one button for all).
+        """
         self.enabled = True
 
         if self.controllertype == 'daq':
@@ -107,20 +113,23 @@ class LaserControlLogic(GenericLogic):
                 # self.apply_voltage_single_channel(self._intensity_dict[key] * self._laser_dict[key]['ao_voltage_range'][1] / 100, self._laser_dict[key]['channel'])
                 # does the delay due to iteration matter ? (laser 4 switched on slightly after laser 1 ? ..)
         elif self.controllertype == 'fpga':
-            self._controller.write_value(self._intensity_dict['laser3'])  # replace later by a method using apply_voltage method of fpga
+            for key in self._laser_dict:
+                self._controller.apply_voltage(self._intensity_dict[key], self._laser_dict[key]['channel'])
         else:
             self.log.warning('your controller type is currently not covered')
 
     def voltage_off(self):
+        """ Switches all lasers off. """
         self.enabled = False
-        for key in self._laser_dict:
-            if self.controllertype == 'daq':
+        if self.controllertype == 'daq':
+            for key in self._laser_dict:
                 self._controller.apply_voltage(0.0, self._laser_dict[key]['channel'])
             # note that the intensity dict is intentionally not reset to allow easy on off switching without need to rewrite the value
-            elif self.controllertype == 'fpga':
-                self._controller.write_value(0)
-            else:
-                self.log.warning('your controller type is currently not covered')
+        elif self.controllertype == 'fpga':
+            for key in self._laser_dict:
+                self._controller.apply_voltage(0, self._laser_dict[key]['channel'])
+        else:
+            self.log.warning('your controller type is currently not covered')
 
     @QtCore.Slot(str, int)  # should the decorator be removed when this method is called in a task ???
     def update_intensity_dict(self, key, value):
@@ -142,7 +151,6 @@ class LaserControlLogic(GenericLogic):
                 self.apply_voltage()
         except KeyError:
             self.log.info('Specified identifier not available')
-
 
 
     # maybe put this part on daq specific interface # keep right now the daq compatible version as is

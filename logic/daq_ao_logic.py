@@ -8,6 +8,8 @@ Created on Fri Oct 30 11:09:20 2020
 A module to control the DAQ analog output and digital output line for triggering.
 
 The DAQ is used here to control the OTF to select the laser wavelength
+
+Deprecated; replaced by lasercontrol_logic. Keep it until it is checked everywhere that lasercontrol_logic works.
 """
 
 from core.connector import Connector
