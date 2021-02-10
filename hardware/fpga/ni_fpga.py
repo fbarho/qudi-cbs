@@ -1,62 +1,134 @@
 from nifpga import Session
 import numpy as np
 import ctypes
+from time import sleep
 
-# initialize bitfile
-# bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAinitialize_WOZhc21U0uw.lvbitx'  # specify path
-# laser control bitfile
-bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_o8wg7Z4+KAQ.lvbitx'
-# bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_rVrWu38G2Ac.lvbitx'
-# bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA_Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_rVrWu38G2Ac.lvbitx'
-resource = 'RIO0'
+# # initialize bitfile
+# # bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAinitialize_WOZhc21U0uw.lvbitx'  # specify path
+# # laser control bitfile
+# bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_o8wg7Z4+KAQ.lvbitx'
+# # bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_rVrWu38G2Ac.lvbitx'
+# # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA_Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_rVrWu38G2Ac.lvbitx'
+# resource = 'RIO0'
+#
+# with Session(bitfile=bitfile, resource=resource) as session:
+#     laser3_control = session.registers['561']
+#     control_val = session.registers['value']
+#     data = np.array([20], dtype=np.int16)
+#     print(type(data))
+#     laser3_control.write(data)
+#     print(control_val.read())
 
-with Session(bitfile=bitfile, resource=resource) as session:
-    # Reset stops the logic on the FPGA and puts it in the default state.
-    # May substitue reset with download if your bitfile doesn't support it.
-    session.reset()
 
-    # Add initialization code here!
-    # Write initial values to controls while the FPGA logic is stopped.
-    # laser1_control = session.registers['405']
-    # laser2_control = session.registers['488']
-    laser3_control = session.registers['561']
-    # laser4_control = session.registers['640']
-    control_val = session.registers['value']
-    print(session.registers)
 
-    # reset_counter = session.registers['Reset counter']
-    # count = session.registers['Count(uSec)']
-    conversion_factor = 2**16 /100
-    data = 10 * conversion_factor
-    print(type(data))
-    data = np.int16(0 * conversion_factor)
-    print(data)
-    print(type(data))
-    laser3_control.write(data)
-    val = control_val.read()
-    print(type(val))
-    print(val)
-
-    # Start the logic on the FPGA
-    session.run()
-
-    # for i in range(10):
-    #     print(i)
-    #     data = np.int16(i * conversion_factor)
-    #     laser3_control.write(data)
-    #     print(control_val.read())
-    print(control_val.read())
-
-    # # Add code that interacts with the FPGA while it is running here
-    # print(laser1_control.datatype)
-    # print(laser1_control.__len__())
-    # print(laser1_control.name)
-    # print(laser1_control._read_func)
-    # print(laser1_control._write_func)
+    # # Reset stops the logic on the FPGA and puts it in the default state.
+    # # May substitue reset with download if your bitfile doesn't support it.
+    # session.reset()
     #
-    # data = np.uint32(0)
-    # laser1_control.write(data)
+    # # Add initialization code here!
+    # # Write initial values to controls while the FPGA logic is stopped.
+    # laser3_control = session.registers['561']
+    # control_val = session.registers['value']
+    # print(session.registers)
+    #
+    # conversion_factor = 2**16 /100
+    # data = np.int16(0 * conversion_factor)
+    # print(data)
+    # print(type(data))
+    # laser3_control.write(data)
+    # val = control_val.read()
+    # print(type(val))
+    # print(val)
+    #
+    #
+    #
+    #
+    # # value1 = np.int16(10 * conversion_factor)
+    # # laser3_control.write(value1)
+    # # print('set value 1')
+    # # sleep(1)
+    # # value2 = np.int16(20 * conversion_factor)
+    # # laser3_control.write(value2)
+    # # print('set value 2')
+    # # sleep(1)
+    # # value3 = np.int16(30 * conversion_factor)
+    # # laser3_control.write(value3)
+    # # sleep(1)
+    # # print('set value 3')
+    # # # Start the logic on the FPGA
+    # session.run()
+    # values1 = (np.array([0, 10, 20, 30, 40]) * conversion_factor).astype(np.int16)
+    # # values1 = np.int16(10 * conversion_factor)
+    # laser3_control.write(values1)
+    # print('set value 1')
+    # sleep(5)
+    # # # Add code that interacts with the FPGA while it is running here
+    # print(control_val.read())
+    # session.close()
+    #
+    #
+    #
+    #
+    # print(laser3_control.datatype)
+    # print(laser3_control.__len__())
+    # print(laser3_control.name)
+    # print(laser3_control._read_func)
+    # print(laser3_control._write_func)
 
 
 # just some basic tests on communication with FPGA
 # transform it later into a qudi compatible format
+
+
+class Nifpga(object):
+
+    def __init__(self, bitfile, resource, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bitfile = bitfile
+        self.resource = resource
+
+    def on_activate(self):
+        self.session = Session(bitfile=self.bitfile, resource=self.resource)
+        self.laser3_control = self.session.registers['561']
+        self.control_val = self.session.registers['value']
+
+    def on_deactivate(self):
+        self.write_value(0)  # make sure to switch the laser off before closing the session
+        self.session.close()
+
+    def write_value(self, value):
+        """
+        @param: any numeric type, (recommended int) value: percent of maximal volts to be applied
+
+        if value < 0 or value > 100, value will be rescaled to be in the allowed range """
+        value = max(0, value)  # make sure only positive values allowed, reset to zero in case negative value entered
+        conv_value = self.convert_value(value)
+        self.laser3_control.write(conv_value)
+        self.session.run()
+
+    def read_value(self):
+        return self.laser3_control.read()
+        #return self.control_val.read()  # this is finally not needed because we can read directly the value of laser3_control register
+
+    def convert_value(self, value):
+        """ fpga needs int16 (-32768 to + 32767) data format: do rescaling of value to apply in percent of max value
+
+        apply min function to limit the allowed range """
+        return min(int(value/100*(2**15-1)), 36767)  # set to maximum in case value > 100
+
+
+if __name__ == '__main__':
+    bitfile = 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_o8wg7Z4+KAQ.lvbitx'
+    resource = 'RIO0'
+    nifpga = Nifpga(bitfile, resource)
+    nifpga.on_activate()
+    nifpga.write_value(10)
+    print(nifpga.read_value())
+    sleep(2)
+    nifpga.write_value(0)
+    print(nifpga.read_value())
+    sleep(2)
+    nifpga.write_value(5)
+    print(nifpga.read_value())
+    sleep(2)
+    nifpga.on_deactivate()
