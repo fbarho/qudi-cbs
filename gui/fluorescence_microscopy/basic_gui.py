@@ -271,6 +271,8 @@ class BasicGUI(GUIBase):
             self._mw.spooling_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
         self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
 
+        self._mw.video_quickstart_Action.triggered.connect(self.video_quickstart_clicked)
+
         self._mw.set_sensor_Action.setEnabled(True)
         self._mw.set_sensor_Action.setChecked(self.region_selector_enabled)
         self._mw.set_sensor_Action.triggered.connect(self.select_sensor_region)
@@ -600,10 +602,11 @@ class BasicGUI(GUIBase):
         """
         # buttons need to be disabled individually as we don't want to disable the start_video_Action
         self._mw.take_image_Action.setDisabled(True)
-        self._mw.save_last_image_Action.setDisabled(True)
+        # self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
+        self._mw.video_quickstart_Action.setDisabled(True)
         if self._camera_logic.enabled:  # video already running
             self._mw.start_video_Action.setText('Live')
             self._mw.start_video_Action.setToolTip('Start live video')
@@ -701,6 +704,20 @@ class BasicGUI(GUIBase):
         # clear the statusbar
         self._mw.progress_label.setText('')
 
+    @QtCore.Slot()
+    def video_quickstart_clicked(self):
+        """ callback of video quickstart action (uses last parameters written in the settings dialog which will not be opened again)
+        handles toolbutton state and calls the save_video_accepted method """
+        # disable camera related toolbuttons
+        self.disable_camera_toolbuttons()
+        # decide depending on camera which signal has to be emitted in save_video_accepted method
+        # same approach can later be used to regroup save_video and save_long_video buttons into one action
+        if self._camera_logic.get_name == 'iXon Ultra 897':
+            self._spooling = True
+        else:
+            self._video = True
+        self.save_video_accepted()
+
     @QtCore.Slot(int)
     def update_statusbar(self, number_images):
         # total = self._save_sd.n_frames_SpinBox.value()
@@ -731,6 +748,7 @@ class BasicGUI(GUIBase):
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
+        self._mw.video_quickstart_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
 
     def enable_camera_toolbuttons(self):
@@ -742,6 +760,7 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
+        self._mw.video_quickstart_Action.setDisabled(False)
         self._mw.set_sensor_Action.setDisabled(False)
         if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
             self._mw.spooling_Action.setDisabled(False)

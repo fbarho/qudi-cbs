@@ -41,8 +41,8 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  # 'Dummy camera' 'iXon Ultra 897'
-    _resolution = ConfigOption('resolution', (720, 1280))  # indicate (nb rows, nb cols) because row-major config is used in gui module
+    _camera_name = ConfigOption('camera_name', 'Dummy camera')  # 'Dummy camera' 'iXon Ultra 897'
+    _resolution = ConfigOption('resolution', (720, 1280))  # (720, 1280) indicate (nb rows, nb cols) because row-major config is used in gui module
 
     _live = False  # attribute indicating if the camera is currently in live mode
     _acquiring = False  # attribute indicating if the camera is currently acquiring  an image
