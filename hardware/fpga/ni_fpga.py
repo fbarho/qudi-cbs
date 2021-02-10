@@ -17,10 +17,10 @@ import ctypes
 from time import sleep
 
 from core.module import Base
-# from interface.daq_interface import DaqInterface
+from interface.daq_interface import DaqInterface
 from core.configoption import ConfigOption
 
-class Nifpga(Base):  # do not use an interface for this first draft version
+class Nifpga(Base, DaqInterface):  # rename the DAQInterface into lasercontrolinterface ..
     """ National Instruments FPGA that controls the lasers via an OTF.
 
     Example config for copy-paste:
@@ -28,12 +28,18 @@ class Nifpga(Base):  # do not use an interface for this first draft version
             module.Class: 'fpga.ni_fpga.Nifpga'
             resource: 'RIO0'
             default_bitfile: 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_o8wg7Z4+KAQ.lvbitx'
+            wavelengths:
+                - '405 nm'
+                - '488 nm'
+                - '561 nm'
+                - '641 nm'
 
             # copy the bitfile to another location later on..
     """
     # config
     resource = ConfigOption('resource', missing='error')
     default_bitfile = ConfigOption('default_bitfile', missing='error')
+    _wavelengths = ConfigOption('wavelengths', missing='error')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -73,28 +79,29 @@ class Nifpga(Base):  # do not use an interface for this first draft version
         apply min function to limit the allowed range """
         return min(int(value/100*(2**15-1)), 36767)  # set to maximum in case value > 100
 
-    # def get_dict(self):
-    #     """ Retrieves the register name (and the corresponding voltage range???) for each analog output from the
-    #     configuration file and associates it to the laser wavelength which is controlled by this channel.
-    #
-    #     @returns: laser_dict
-    #     """
-    #     laser_dict = {}
-    #
-    #     for i, item in enumerate(
-    #             self._wavelengths):  # use any of the lists retrieved as config option, just to have an index variable
-    #         label = 'laser{}'.format(i + 1)  # create a label for the i's element in the list starting from 'laser1'
-    #
-    #         dic_entry = {'label': label,
-    #                      'wavelength': self._wavelengths[i],
-    #                      'channel': self._ao_channels[i]
-    #                      }
-    #                      # 'ao_voltage_range': self._ao_voltage_ranges[i]
-    #
-    #
-    #         laser_dict[dic_entry['label']] = dic_entry
-    #
-    #     return laser_dict
+    def get_dict(self):
+        """ Retrieves the register name (and the corresponding voltage range???) for each analog output from the
+        configuration file and associates it to the laser wavelength which is controlled by this channel.
+
+        @returns: laser_dict
+        """
+        laser_dict = {}
+
+        for i, item in enumerate(
+                self._wavelengths):  # use any of the lists retrieved as config option, just to have an index variable
+            label = 'laser{}'.format(i + 1)  # create a label for the i's element in the list starting from 'laser1'
+
+            dic_entry = {'label': label,
+                         'wavelength': self._wavelengths[i]
+                         }
+                         #'channel': self._ao_channels[i]
+                         # }
+                         # 'ao_voltage_range': self._ao_voltage_ranges[i]
+
+
+            laser_dict[dic_entry['label']] = dic_entry
+
+        return laser_dict
 
 
 # if __name__ == '__main__':

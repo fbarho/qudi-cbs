@@ -93,7 +93,7 @@ class BasicGUI(GUIBase):
     
     # Define connectors to logic modules
     camera_logic = Connector(interface='CameraLogic')
-    daq_ao_logic = Connector(interface='DAQaoLogic')
+    daq_ao_logic = Connector(interface='LaserControlLogic')    # rename maybe in lasercontrol logic later
     filterwheel_logic = Connector(interface='FilterwheelLogic')
 
     # set the default save path (stem) from config
