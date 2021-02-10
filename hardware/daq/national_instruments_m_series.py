@@ -5,23 +5,25 @@ Created on Fri Oct 23 08:00:40 2020
 
 @author: barho
 
+This file contains a class for the NI-DAQ M series.
 
-This file contains a class for the NI-DAQ M series. 
-
-It is used to control the analog output channels of the DAQ.
+It is used to control the analog output channels of the DAQ
+and allows to set up a digital output that can be used as trigger for a connected device.
 
 This module is an extension to the hardware code base of Qudi software 
 obtained from <https://github.com/Ulm-IQO/qudi/> 
 """
 
-#import nidaqmx
-import PyDAQmx as daq # this only runs on systems where the niDAQmx library is available 
+# import nidaqmx
+import PyDAQmx as daq  # this only runs on systems where the niDAQmx library is available
 from core.module import Base
 from interface.daq_interface import DaqInterface
+from interface.lasercontrol_interface import LaserControlInterface
 from core.configoption import ConfigOption
+import numpy as np
 
 
-class NIDAQMSeries(Base, DaqInterface):
+class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
     """ National Instruments DAQ that controls the lasers via an OTF.
     
     Example config for copy-paste:
@@ -43,8 +45,9 @@ class NIDAQMSeries(Base, DaqInterface):
                 - [0, 10]
                 - [0, 10]
             read_write_timeout: 10
+            do_channel: '/Dev1/port0/line2'  # 'Dev1/port0/line2'
             
-            # please indicate belonging elements in the same order in each category ao_channels, voltage_ranges, wavelengths
+            # please indicate belonging elements in the same order in each category wavelengths, ao_channels, voltage_ranges
             # order preferentially by increasing wavelength (this will result in an ordered gui)
     """
     
@@ -52,13 +55,20 @@ class NIDAQMSeries(Base, DaqInterface):
     _wavelengths = ConfigOption('wavelengths', missing='error')
     _ao_channels = ConfigOption('ao_channels', missing='error')
     _ao_voltage_ranges = ConfigOption('ao_voltage_ranges', missing='error')
+    _do_channel = ConfigOption('do_channel', missing='warn')
     # timeout for the Read or/and write process in s
     _RWTimeout = ConfigOption('read_write_timeout', default=10)
 
-    
+    # def __init__(self, config, **kwargs):
+    #     super().__init__(config=config, **kwargs)
+
     def on_activate(self):
         """ Initialization steps when module is called.
         """
+        # initialize taskhandles for ao and do tasks
+        self.ao_taskhandles = list()
+        self.digital_out_taskhandle = None
+        
         # control if the config was correctly specified
         if (len(self._ao_channels) != len(self._ao_voltage_ranges)) or (len(self._ao_channels) != len(self._wavelengths)):
             self.log.error('Specify equal numbers of ao channels, voltage ranges and OTF input channels!')
@@ -68,11 +78,10 @@ class NIDAQMSeries(Base, DaqInterface):
             self.log.error('Failed to start analog output')
             raise Exception('Failed to start analog output')
 
-
     def _start_analog_output(self):
         """ Creates for each physical channel a task and its virtual channel
 
-        @returns: error code: ok = 0 
+        @returns: error code: ok = 0, error = -1
         """
         try:
             # create a dictionary with physical channel name as key and a pointer as value {'/Dev1/AO0': c_void_p(None), ... }
@@ -89,46 +98,43 @@ class NIDAQMSeries(Base, DaqInterface):
                     taskhandles[channel].value = None
             
             # create an individual task and a channel per analog output 
-            for n, channel in enumerate(self._ao_channels): # use enumerate to access the equivalent list element 
+            for n, channel in enumerate(self._ao_channels):
                 daq.DAQmxCreateTask('', daq.byref(taskhandles[channel])) 
                 daq.DAQmxCreateAOVoltageChan(taskhandles[channel], channel, '', self._ao_voltage_ranges[n][0], self._ao_voltage_ranges[n][1], daq.DAQmx_Val_Volts, None) 
-                # to do : acces min and max value and replace it above
-            self.taskhandles = taskhandles
-            
+            self.ao_taskhandles = taskhandles
         except:
             self.log.exception('Error starting analog output task.')
             return -1
         return 0
-
 
     def on_deactivate(self):
         """ Shut down the NI card.
         """
         # clear the task
         try:
+            self.close_do_task()  # ends the digital output task in case one was still configured
             for channel in self._ao_channels:
-                daq.DAQmxClearTask(self.taskhandles[channel])
-                self.taskhandles[channel].value = None  # reset it to nullpointer
-            print(self.taskhandles)
+                daq.DAQmxClearTask(self.ao_taskhandles[channel])
+                self.ao_taskhandles[channel].value = None  # reset it to nullpointer
+            # print(self.ao_taskhandles)
         except:
             self.log.exception('Could not clear AO Out Task.')
+       
+    def apply_voltage(self, voltage, channel, autostart=True, timeout=10):
+        """ Writes a voltage to the specified channel.
 
+        @params: float voltage: voltage value to be applied
+        @params: str channel: analog output line such as /Dev1/AO0
+        @params: bool autostart: True = task started immediately on call of start task. autostart = False can only be used if timing is configured.
+        @param: float timeout: RW timeout in seconds
 
-        
-    def apply_voltage(self, voltage, channel, autostart=True, timeout=10): # autostart = False can only be used if timing is configured. to be done later when working on synchronization with camera acquisition
-        """        
+        @returns: None
         """
-        daq.WriteAnalogScalarF64(self.taskhandles[channel], autostart, timeout, voltage, None)#parameters passed in: taskHandle, autoStart, timeout, value, reserved
-        daq.DAQmxStartTask(self.taskhandles[channel])
-        daq.DAQmxStopTask(self.taskhandles[channel])
-
+        daq.WriteAnalogScalarF64(self.ao_taskhandles[channel], autostart, timeout, voltage, None)  # parameters passed in: taskHandle, autoStart, timeout, value, reserved
+        daq.DAQmxStartTask(self.ao_taskhandles[channel])
+        daq.DAQmxStopTask(self.ao_taskhandles[channel])
 
     def get_dict(self):
-        """ Retrieves the channel name and the corresponding voltage range for each analog output and associates it to
-        the laser wavelength which is controlled by this channel.
-
-        @returns: laser_dict
-        """
         """ Retrieves the channel name and the corresponding voltage range for each analog output from the
         configuration file and associates it to the laser wavelength which is controlled by this channel.
 
@@ -151,22 +157,53 @@ class NIDAQMSeries(Base, DaqInterface):
 
         return laser_dict
 
+    def set_up_do_channel(self):
+        """ create a task and its virtual channel for the digital output
         
-# simple version for tests       
-#    def apply_voltage_test(self, value, channel): # specify channel in format '/Dev1/ao1'
-#        """ simple method to apply a voltage to a channel.
-#        """
-#        
-#        # simple version similar to PyDAQmx doc but using TaskHandle instead of creating a Task object        
-#        self._ao_task = daq.TaskHandle()
-#        daq.DAQmxCreateTask('AO Task', daq.byref(self._ao_task))
-#        # replace physical channel with correct location
-#        daq.DAQmxCreateAOVoltageChan(self._ao_task, channel, 'AO Channel', 0, 10, daq.DAQmx_Val_Volts, None)
-#        daq.DAQmxStartTask(self._ao_task)
-#        daq.WriteAnalogScalarF64(self._ao_task, True, 5.0, value, None) #parameters passed in: taskHandle, autoStart, timeout, value, reserved
-#        daq.DAQmxStopTask(self._ao_task)
-#        daq.DAQmxClearTask(self._ao_task) # clean up after stopping the task
-#        self._ao_task = None # set task handle to None as safety
+        @return: int error code: ok = 0, error = -1
+        """
+        if self.digital_out_taskhandle is not None:
+            self.log.info('Digital output already set')
+            return -1
+        else:
+            task = daq.TaskHandle()
+            daq.DAQmxCreateTask('DigitalOut', daq.byref(task))
+            daq.DAQmxCreateDOChan(task, self._do_channel, '', daq.DAQmx_Val_ChanForAllLines)  # last argument: line grouping
+            self.digital_out_taskhandle = task  # keep the taskhandle accessible
+            return 0
+        
+    def close_do_task(self):
+        """ close the digital output task if there is one
+        """
+        if self.digital_out_taskhandle is not None:
+            task = self.digital_out_taskhandle
+            try:
+                daq.DAQmxStopTask(task)
+                daq.DAQmxClearTask(task)
+                self.digital_out_taskhandle = None
+            except:
+                self.log.exception('Could not close digital output task')
+        else:
+            pass
+        
+    def send_trigger(self):
+        """ use the digital output as trigger """
+        num_samples_per_channel = daq.c_int32(1)   # write 1 samples per channel
+        # digital_write = np.array((daq.c_uint32(1), daq.c_uint32(0)))
+        digital_write = np.array(daq.c_uint(1))
+        digital_read = daq.c_int32()
+        # self.log.info(digital_read.value)
+        daq.DAQmxStartTask(self.digital_out_taskhandle)
+        daq.DAQmxWriteDigitalU32(self.digital_out_taskhandle,  # taskhandle
+                                num_samples_per_channel,   # number of samples to write per channel
+                                True,   # autostart 
+                                self._RWTimeout,   # time to wait to write all the samples
+                                daq.DAQmx_Val_GroupByChannel,   # dataLayout: non-interleaved: all samples for first channel, all samples for second channel, ...
+                                digital_write,   # array of 32 bit integer samples to write to the task  
+                                digital_read,  # samples per channel successfully written
+                                None)  # reserved for futur use
+        self.log.info(f'wrote {digital_read.value} samples')
+        daq.DAQmxStopTask(self.digital_out_taskhandle)
 
-
-
+        # check the last few arguments of DAQmxWriteDigitalU32. Taken similar to x_series module..
+        # possible that it is needed to write two values: on - off to reset the trigger channel to 0 after sending a signal

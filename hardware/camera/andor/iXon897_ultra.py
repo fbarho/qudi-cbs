@@ -673,7 +673,8 @@ class IxonUltra(Base, CameraInterface):
 
     def _start_acquisition(self):
         error_code = self.dll.StartAcquisition()
-        self.dll.WaitForAcquisition()
+        if self._trigger_mode == 'INTERNAL':
+            self.dll.WaitForAcquisition()
         return ERROR_DICT[error_code]
 
     # setter functions
@@ -1137,3 +1138,11 @@ class IxonUltra(Base, CameraInterface):
         number = c_int(number)
         error_code = self.dll.SetNumberKinetics(number)
         return ERROR_DICT[error_code]
+    
+    def wait_for_acquisition(self):
+        error_code = self.dll.WaitForAcquisition()
+        if ERROR_DICT[error_code] != 'DRV_SUCCESS':
+            self.log.info('non-acquisition event occured')
+        return ERROR_DICT[error_code]
+            
+        

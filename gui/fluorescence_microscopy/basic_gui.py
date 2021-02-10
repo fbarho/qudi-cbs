@@ -87,13 +87,13 @@ class BasicGUI(GUIBase):
                                                # folder with current date will be created automatically therein
         connect:
             camera_logic: 'camera_logic'
-            daq_ao_logic: 'daq_logic'
+            laser_logic: 'lasercontrol_logic'
             filterwheel_logic: 'filterwheel_logic'
     """
     
     # Define connectors to logic modules
     camera_logic = Connector(interface='CameraLogic')
-    daq_ao_logic = Connector(interface='DAQaoLogic')
+    laser_logic = Connector(interface='LaserControlLogic')
     filterwheel_logic = Connector(interface='FilterwheelLogic')
 
     # set the default save path (stem) from config
@@ -121,7 +121,7 @@ class BasicGUI(GUIBase):
     # attributes
     _image = []
     _camera_logic = None
-    _daq_ao_logic = None
+    _laser_logic = None
     _filterwheel_logic = None
     _mw = None
     region_selector_enabled = False
@@ -146,7 +146,7 @@ class BasicGUI(GUIBase):
         """ Initializes all needed UI files and establishes the connectors.
         """
         self._camera_logic = self.camera_logic()
-        self._daq_ao_logic = self.daq_ao_logic()
+        self._laser_logic = self.laser_logic()
         self._filterwheel_logic = self.filterwheel_logic()
 
         # Windows
@@ -271,6 +271,8 @@ class BasicGUI(GUIBase):
             self._mw.spooling_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
         self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
 
+        self._mw.video_quickstart_Action.triggered.connect(self.video_quickstart_clicked)
+
         self._mw.set_sensor_Action.setEnabled(True)
         self._mw.set_sensor_Action.setChecked(self.region_selector_enabled)
         self._mw.set_sensor_Action.triggered.connect(self.select_sensor_region)
@@ -323,14 +325,14 @@ class BasicGUI(GUIBase):
     def init_laser_dockwidget(self):
         """ initializes the labels for the lasers given in config and connects signals for the laser control toolbar"""
         # set the labels of the laser control spinboxes according to specified wavelengths from config
-        self._mw.laser1_Label.setText(self._daq_ao_logic._laser_dict['laser1']['wavelength'])
-        self._mw.laser2_Label.setText(self._daq_ao_logic._laser_dict['laser2']['wavelength'])
-        self._mw.laser3_Label.setText(self._daq_ao_logic._laser_dict['laser3']['wavelength'])
-        self._mw.laser4_Label.setText(self._daq_ao_logic._laser_dict['laser4']['wavelength'])
+        self._mw.laser1_Label.setText(self._laser_logic._laser_dict['laser1']['wavelength'])
+        self._mw.laser2_Label.setText(self._laser_logic._laser_dict['laser2']['wavelength'])
+        self._mw.laser3_Label.setText(self._laser_logic._laser_dict['laser3']['wavelength'])
+        self._mw.laser4_Label.setText(self._laser_logic._laser_dict['laser4']['wavelength'])
 
         # toolbar actions
         self._mw.laser_on_Action.setEnabled(True)
-        self._mw.laser_on_Action.setChecked(self._daq_ao_logic.enabled)
+        self._mw.laser_on_Action.setChecked(self._laser_logic.enabled)
         self._mw.laser_on_Action.triggered.connect(self.laser_on_clicked)
 
         self._mw.laser_zero_Action.setEnabled(True)
@@ -338,24 +340,24 @@ class BasicGUI(GUIBase):
 
         # Signals to logic
         # starting / stopping the analog output
-        self.sigLaserOn.connect(self._daq_ao_logic.apply_voltage)
-        self.sigLaserOff.connect(self._daq_ao_logic.voltage_off)
+        self.sigLaserOn.connect(self._laser_logic.apply_voltage)
+        self.sigLaserOff.connect(self._laser_logic.voltage_off)
 
         # actions on changing laser spinbox values
         self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox,
                              self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
         # actualize the laser intensity dictionary
         self._mw.laser1_control_SpinBox.valueChanged.connect(
-            lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser1']['label'],
+            lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser1']['label'],
                                                              self._mw.laser1_control_SpinBox.value()))
         self._mw.laser2_control_SpinBox.valueChanged.connect(
-            lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser2']['label'],
+            lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser2']['label'],
                                                              self._mw.laser2_control_SpinBox.value()))
         self._mw.laser3_control_SpinBox.valueChanged.connect(
-            lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser3']['label'],
+            lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser3']['label'],
                                                              self._mw.laser3_control_SpinBox.value()))
         self._mw.laser4_control_SpinBox.valueChanged.connect(
-            lambda: self._daq_ao_logic.update_intensity_dict(self._daq_ao_logic._laser_dict['laser4']['label'],
+            lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser4']['label'],
                                                              self._mw.laser4_control_SpinBox.value()))
         # lambda function is used to pass in an additional argument. See also the decorator @QtCore.Slot(str, int).
         # in case lambda does not work well on runtime, check functools.partial
@@ -363,7 +365,7 @@ class BasicGUI(GUIBase):
 
         # Signals from logic
         # update GUI when intensity is changed programatically
-        self._daq_ao_logic.sigIntensityChanged.connect(self.update_laser_spinbox)
+        self._laser_logic.sigIntensityChanged.connect(self.update_laser_spinbox)
 
     def init_filter_dockwidget(self):
         """ initializes the filter selection combobox and connects signals"""
@@ -600,10 +602,11 @@ class BasicGUI(GUIBase):
         """
         # buttons need to be disabled individually as we don't want to disable the start_video_Action
         self._mw.take_image_Action.setDisabled(True)
-        self._mw.save_last_image_Action.setDisabled(True)
+        # self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
+        self._mw.video_quickstart_Action.setDisabled(True)
         if self._camera_logic.enabled:  # video already running
             self._mw.start_video_Action.setText('Live')
             self._mw.start_video_Action.setToolTip('Start live video')
@@ -701,6 +704,20 @@ class BasicGUI(GUIBase):
         # clear the statusbar
         self._mw.progress_label.setText('')
 
+    @QtCore.Slot()
+    def video_quickstart_clicked(self):
+        """ callback of video quickstart action (uses last parameters written in the settings dialog which will not be opened again)
+        handles toolbutton state and calls the save_video_accepted method """
+        # disable camera related toolbuttons
+        self.disable_camera_toolbuttons()
+        # decide depending on camera which signal has to be emitted in save_video_accepted method
+        # same approach can later be used to regroup save_video and save_long_video buttons into one action
+        if self._camera_logic.get_name == 'iXon Ultra 897':
+            self._spooling = True
+        else:
+            self._video = True
+        self.save_video_accepted()
+
     @QtCore.Slot(int)
     def update_statusbar(self, number_images):
         # total = self._save_sd.n_frames_SpinBox.value()
@@ -731,6 +748,7 @@ class BasicGUI(GUIBase):
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
         self._mw.spooling_Action.setDisabled(True)
+        self._mw.video_quickstart_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
 
     def enable_camera_toolbuttons(self):
@@ -742,6 +760,7 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
+        self._mw.video_quickstart_Action.setDisabled(False)
         self._mw.set_sensor_Action.setDisabled(False)
         if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
             self._mw.spooling_Action.setDisabled(False)
@@ -761,9 +780,9 @@ class BasicGUI(GUIBase):
         metadata['exposure'] = self._camera_logic.get_exposure()
         if self._camera_logic.get_name() == 'iXon Ultra 897':
             metadata['kinetic'] = self._camera_logic.get_kinetic_time()
-        intensity_dict = self._daq_ao_logic._intensity_dict
+        intensity_dict = self._laser_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
-        laser_dict = self._daq_ao_logic.get_laser_dict()
+        laser_dict = self._laser_logic.get_laser_dict()
         metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
         if metadata['laser'] == []:  # for compliance with fits header conventions ([] is forbidden)
             metadata['laser'] = None
@@ -872,7 +891,7 @@ class BasicGUI(GUIBase):
         Handles the state of the toolbutton and emits a signal that is in turn connected to the physical output.
         Hanles also the state of the filter selection combobox to avoid changing filter while lasers are on
         """
-        if self._daq_ao_logic.enabled:
+        if self._laser_logic.enabled:
             # laser is initially on
             self._mw.laser_zero_Action.setDisabled(False)
             self._mw.laser_on_Action.setText('Laser On')
@@ -898,7 +917,7 @@ class BasicGUI(GUIBase):
         """ update values in laser spinboxes if the intensity dictionary in the logic module was changed """
         for index, item in enumerate(self.spinbox_list):
             label = 'laser'+str(index + 1)  # create the label to address the corresponding laser
-            item.setValue(self._daq_ao_logic._intensity_dict[label])
+            item.setValue(self._laser_logic._intensity_dict[label])
 
     # filter dockwidget
     def init_filter_selection(self):

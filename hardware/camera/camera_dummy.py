@@ -41,8 +41,8 @@ class CameraDummy(Base, CameraInterface):
     """
 
     _support_live = ConfigOption('support_live', True)
-    _camera_name = ConfigOption('camera_name', 'iXon Ultra 897')  # 'Dummy camera' 'iXon Ultra 897'
-    _resolution = ConfigOption('resolution', (10, 25))  # (720, 1280) indicate (nb rows, nb cols) because row-major config is used in gui module
+    _camera_name = ConfigOption('camera_name', 'Dummy camera')  # 'Dummy camera' 'iXon Ultra 897'
+    _resolution = ConfigOption('resolution', (720, 1280))  # (720, 1280) indicate (nb rows, nb cols) because row-major config is used in gui module
 
     _live = False  # attribute indicating if the camera is currently in live mode
     _acquiring = False  # attribute indicating if the camera is currently acquiring  an image
@@ -281,10 +281,6 @@ class CameraDummy(Base, CameraInterface):
         @return: np.array(float) data
         """
         data = np.random.normal(size=size)
-        # dim = size[0] * size[1]
-        # data = np.zeros(dim)
-        # data = [data[i] + i for i in range(dim)]
-        # data = np.reshape(data, size)
         return data
 
     # just for tests of the gui  # pseudo-interface functions specific to andor camera

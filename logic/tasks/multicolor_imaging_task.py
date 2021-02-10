@@ -25,6 +25,7 @@ import json
 from datetime import datetime
 import os
 import numpy as np
+import time
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
@@ -53,18 +54,27 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         #     return
 
         # else:
+        
+        
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
         # use only one filter. do not allow changing filter because this will be too slow
 
-        # prepare the camera
-        self.ref['camera'].set_trigger_mode('EXTERNAL')
+        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
+        self.ref['camera'].set_acquisition_mode('SINGLE_SCAN')
+        self.ref['camera'].set_trigger_mode('EXTERNAL')  
+        # add eventually other settings that may be read from user config .. frame transfer etc. 
 
         # set the exposure time
-        self.ref['camera'].set_exposure(0.05)   # to be read from user config
+        self.ref['camera'].set_exposure(0.05)   # to be read from user config instead
 
         # initialize the data structure
-        self.image_data = np.empty((4, 512, 512))  # to be read from camera and config (nb channels)
+        width, height = self.ref['camera'].get_size()
+        frames = len(self.imaging_sequence)
+        self.image_data = np.empty((frames, height, width))  
+        
+        # initialize the digital output channel for trigger
+        self.ref['daq'].set_up_do_channel()
 
 
     def runTaskStep(self):
@@ -72,34 +82,50 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @return bool: True if the task should continue running, False if it should finish.
         """
         # this task only has one step until a data set is prepared and saved (but loops over the channels)
-        for i in range(len(self.imaging_sequence)):
+        for i in range(1):  #range(len(self.imaging_sequence)):
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
+            self.log.info(f'will apply {self.imaging_sequence[i][1]/10} volts to channel {self.imaging_sequence[i][0]}')
 
             # start the acquisition. Camera waits for trigger
-            self.ref['camera'].start_single_acquistion()   # watch out for the typo
-            # or is it needed to rewrite another method so that we avoid switching so often between the acquisition modes ?
-            # because start_single_acquisition will first set to single_scan and then back to run till abort when finished
+            self.ref['camera'].start_acquisition()   
+#            # or is it needed to rewrite another method so that we avoid switching so often between the acquisition modes ?
+#            # because start_single_acquisition will first set to single_scan and then back to run till abort when finished
 
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
-
+            self.log.info('voltage on')
+            self.ref['daq'].send_trigger()  
+            self.log.info('send trigger')
+            self.ref['camera'].wait_for_acquisition()   # wait for acquisition event
+ 
+            #time.sleep(0.05)
             # laser off or just apply_voltage for a given duration ??
+            self.ref['daq'].voltage_off()
+            
+            self.log.info('voltage off')
+            
+            
+            
+            
 
 
             # data handling: we want to add the images to create a 3D numpy array
             # then we can call one of the methods to save this 3D array to fits or tiff using the methods from the camera logic
-            image_data = self.ref['camera'].get_last_image()
-
-            self.image_data[i,:,:] = image_data
-
-        # define save path
-        path = '/home/barho/images/testmulticolorstack.fits'
-        # retrieve the metadata
-        metadata = {'info1': 1, 'info2': 2}
-
-        # allow to specify file format and put in if structure
-        self.ref['camera']._save_to_fits(path, self.image_data, metadata)
+            image_data = self.ref['camera'].get_acquired_data()
+            self.log.info(image_data[0:5:5])
+#
+#            # self.image_data[i,:,:] = image_data
+#
+#        # define save path
+#        path = 'C:/Users/admin/imagetest/testmulticolorstack.fits'
+#        # retrieve the metadata
+#        metadata = {'info1': 1, 'info2': 2}
+#
+#        # allow to specify file format and put in if structure
+#        self.ref['camera']._save_to_fits(path, self.image_data, metadata)
+        
+        return False
 
     def pauseTask(self):
         """ """
@@ -113,6 +139,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ """
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
+        self.ref['daq'].close_do_task()
+        self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
@@ -130,12 +158,16 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             n_frames: 5
             activate_display: 1
         """
+        laser_dict = self.ref['daq'].get_laser_dict()
         self.filter_pos = 1
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        # use a list with tuples, or a a list with dicts ?)
-        self.imaging_sequence = [('laser1', 10), ('laser1', 20), ('laser3', 10)]
-        # or rather
-        # self.imaging_sequence = [('405nm', 10), ('405nm', 20), ('512nm', 10)]
+        self.imaging_sequence = [('488 nm', 10), ('488 nm', 20), ('512 nm', 10)]
+        # now we need to access the corresponding labels
+        imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
+        self.log.info(imaging_sequence)
+        self.imaging_sequence = imaging_sequence
+        # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
+
 
 
         # try:
@@ -148,22 +180,37 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # except:
         #     self.log.warning('Could not load user parameters for task {}'.format(self.name))
 
-    def _control_user_parameters(self):
-        """ this function checks if the specified laser is allowed given the filter setting
-        @return bool: valid ?"""
-        filterpos = self.filter_pos
-        key = 'filter{}'.format(filterpos)
-        filterdict = self.ref['filter'].get_filter_dict()
-        laserlist = filterdict[key]['lasers']  # returns a list of boolean elements, laser allowed ?
-        # this part should be improved using a correct addressing of the element
-        laser = self.lightsource
-        laser_index = int(laser.strip('laser'))-1
-        ##########
-        return laserlist[laser_index]
+#    def _control_user_parameters(self):
+#        """ this function checks if the specified laser is allowed given the filter setting
+#        @return bool: valid ?"""
+#        filterpos = self.filter_pos
+#        key = 'filter{}'.format(filterpos)
+#        filterdict = self.ref['filter'].get_filter_dict()
+#        laserlist = filterdict[key]['lasers']  # returns a list of boolean elements, laser allowed ?
+#        # this part should be improved using a correct addressing of the element
+#        laser = self.lightsource
+#        laser_index = int(laser.strip('laser'))-1
+#        ##########
+#        return laserlist[laser_index]
 
 
 
 
+def get_entry_nested_dict(nested_dict, val, entry):
+    """ helper function that searches for 'val' as value in a nested dictionary and returns the corresponding value in the category 'entry'
+    example: search in laser_dict (nested_dict) for the label (entry) corresponding to a given wavelength (val)
+    search in filter_dict (nested_dict) for the label (entry) corresponding to a given filter position (val)
 
+    @param: dict nested dict
+    @param: val: any data type, value that is searched for in the dictionary
+    @param: str entry: key in the inner dictionary whose value needs to be accessed
 
-
+    note that this function is not the typical way how dictionaries should be used. due to the unambiguity in the dictionaries used here,
+    it can however be useful to try to find a key given a value.
+    so in practical cases, list will consist of a single element only. """
+    list = []
+    for outer_key in nested_dict:
+        item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
+        if item != []:
+            list.append(*item)
+    return list
