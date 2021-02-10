@@ -31,7 +31,7 @@ class PIFOC(Base, MotorInterface):
         serialnumber: '110059675'
         pos_min: 0  # in um
         pos_max: 100  # in um
-        max_step: 5  # in um
+        max_step: 1  # in um
 
 
     """
@@ -448,11 +448,6 @@ class PIFOCV2(Base, MotorInterface):
         with self.pidevice:
             self.pidevice.ConnectUSB(serialnum=self._serialnum)
             pos = self.pidevice.qPOS(self.axes)  # this returns an OrderedDict
-
-        # do some formatting if needed -- this is done in logic module !
-
-        #        with GCSDevice(self._controllername) as pidevice:
-        #            pos = pidevice.qPOS(self.axis)
 
         return pos
 
