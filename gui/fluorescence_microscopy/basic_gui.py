@@ -296,6 +296,9 @@ class BasicGUI(GUIBase):
 
     def init_camera_status_dockwidget(self):
         """ initializes the indicators and connects signals for the camera status dockwidget"""
+        # add the camera name to the status dockwidget
+        # name = self._camera_logic.get_name()
+        # self._mw.camera_status_Label.setText(f'Camera status: {name}')
         # initialize the camera status indicators on the GUI
         self._mw.camera_status_LineEdit.setText(self._camera_logic.get_ready_state())
         if not self._camera_logic.has_shutter:

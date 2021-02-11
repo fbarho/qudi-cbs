@@ -24,6 +24,7 @@ from time import sleep
 import os
 from PIL import Image
 from astropy.io import fits
+import yaml
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -620,7 +621,8 @@ class CameraLogic(GenericLogic):
         """
         complete_path = self._create_generic_filename(filenamestem, type, 'parameters', 'txt', addfile=True)
         with open(complete_path, 'w') as file:
-            file.write(str(metadata))
+            # file.write(str(metadata))  # for standard txt file
+            yaml.dump(metadata, file, default_flow_style=False)  # yaml file. can use suffix .txt. change if .yaml preferred.
         self.log.info('Saved metadata to {}'.format(complete_path))
 
     def _save_to_fits(self, path, data, metadata):
