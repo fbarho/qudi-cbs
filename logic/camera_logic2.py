@@ -370,6 +370,11 @@ class CameraLogic(GenericLogic):
                 for example when function is called from ipython console or in a task
                 #leave the default value True when function is called from gui
         """
+        if self.enabled:  # live mode is on
+            self.timer.stop()  # display is handled differently during video saving
+            self._hardware.stop_acquisition()
+            # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
+
         self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
         n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
@@ -400,6 +405,10 @@ class CameraLogic(GenericLogic):
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.saving = False
 
+        # restart live in case it was activated
+        if self.enabled:
+            self.start_loop()
+
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
@@ -416,6 +425,7 @@ class CameraLogic(GenericLogic):
         else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
             self.sigCleanStatusbar.emit()
 
+
     # this function is specific for andor ixon ultra camera
     def do_spooling(self, filenamestem, fileformat, n_frames, display, metadata):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
@@ -424,7 +434,13 @@ class CameraLogic(GenericLogic):
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
-        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)"""
+        @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
+        """
+        if self.enabled:  # live mode is on
+            self.timer.stop()  # display is handled differently during video saving
+            self._hardware.stop_acquisition()
+            # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
+
         self.saving = True
         # n_proxy helps to limit the number of displayed images during the video saving
         n_proxy = int(250/(self._exposure*1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
@@ -476,6 +492,11 @@ class CameraLogic(GenericLogic):
             pass  # this case will never be accessed because the same if-elif-else structure was already applied above
 
         self.saving = False
+
+        # restart live in case it was activated
+        if self.enabled:
+            self.start_loop()
+
         self.sigSpoolingFinished.emit()
 
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
@@ -647,22 +668,35 @@ class CameraLogic(GenericLogic):
         @param int vstart: Start row (inclusive)
         @param int vend: End row (inclusive).
         """
+        if self.enabled:  # live mode is on
+            self.interrupt_live()  # interrupt live to allow access to camera settings
+
         err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
         if err < 0:
             self.log.warn('Sensor region not set')
         else:
             self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
+        if self.enabled:
+            self.resume_live()
+
     def reset_sensor_region(self):
         """ reset to full sensor size """
         width = self._hardware._full_width  # store the full_width in the hardware module because _width is
         # overwritten when image is set
         height = self._hardware._full_height  # same goes for height
+
+        if self.enabled:  # live mode is on
+            self.interrupt_live()  # interrupt live to allow access to camera settings
+
         err = self._hardware.set_image(1, 1, 1, width, 1, height)
         if err < 0:
             self.log.warn('Sensor region not reset to default')
         else:
             self.log.info('Sensor region reset to default: {} x {}'.format(height, width))
+
+        if self.enabled:
+            self.resume_live()
 
     @QtCore.Slot(bool)
     def set_frametransfer(self, activate):

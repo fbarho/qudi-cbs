@@ -600,13 +600,8 @@ class BasicGUI(GUIBase):
         """ Callback of start_video_Action. (start and display a continuous image from the camera, without saving)
         Handles the state of the start button and emits a signal (connected to logic above) to start the acquisition loop.
         """
-        # buttons need to be disabled individually as we don't want to disable the start_video_Action
-        self._mw.take_image_Action.setDisabled(True)
-        # self._mw.save_last_image_Action.setDisabled(True)
-        self._mw.save_video_Action.setDisabled(True)
-        self._mw.spooling_Action.setDisabled(True)
-        self._mw.set_sensor_Action.setDisabled(True)
-        self._mw.video_quickstart_Action.setDisabled(True)
+        self._mw.take_image_Action.setDisabled(True)  # snap and live are mutually exclusive
+        # self._mw.set_sensor_Action.setDisabled(True)  # check later if this should be left active
         if self._camera_logic.enabled:  # video already running
             self._mw.start_video_Action.setText('Live')
             self._mw.start_video_Action.setToolTip('Start live video')
@@ -756,7 +751,8 @@ class BasicGUI(GUIBase):
 
         serves also as callback of SigVideoFinished.
         """
-        self._mw.take_image_Action.setDisabled(False)
+        if not self._camera_logic.enabled:  # do not reset to active state if live mode is on
+            self._mw.take_image_Action.setDisabled(False)
         self._mw.start_video_Action.setDisabled(False)
         self._mw.save_last_image_Action.setDisabled(False)
         self._mw.save_video_Action.setDisabled(False)
@@ -835,6 +831,8 @@ class BasicGUI(GUIBase):
         num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
         # self.log.debug(num_px_y)
         self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
+        if self._camera_logic.enabled:  # if live mode is on hide rubberband selector directly
+            self.imageitem.getViewBox().rbScaleBox.hide()
 
     @QtCore.Slot()
     def rotate_image_cw_toggled(self):
