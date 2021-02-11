@@ -891,14 +891,12 @@ class BasicGUI(GUIBase):
         """
         if self._laser_logic.enabled:
             # laser is initially on
-            self._mw.laser_zero_Action.setDisabled(False)
             self._mw.laser_on_Action.setText('Laser On')
             self.sigLaserOff.emit()
             # enable filter setting again
             self._mw.filter_ComboBox.setEnabled(True)
         else:
             # laser is initially off
-            self._mw.laser_zero_Action.setDisabled(True)
             self._mw.laser_on_Action.setText('Laser Off')
             self.sigLaserOn.emit()
             # do not change filters while laser is on
