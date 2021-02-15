@@ -110,6 +110,9 @@ class BasicGUI(GUIBase):
     
     sigInterruptLive = QtCore.Signal()
     sigResumeLive = QtCore.Signal()
+    
+    sigSetSensor = QtCore.Signal(int, int, int, int, int, int)
+    sigResetSensor = QtCore.Signal()
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -285,6 +288,8 @@ class BasicGUI(GUIBase):
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
         self.sigInterruptLive.connect(self._camera_logic.interrupt_live)
         self.sigResumeLive.connect(self._camera_logic.resume_live)
+        self.sigSetSensor.connect(self._camera_logic.set_sensor_region)
+        self.sigResetSensor.connect(self._camera_logic.reset_sensor_region)
 
         # signals from logic
         self._camera_logic.sigUpdateDisplay.connect(self.update_data)
@@ -806,7 +811,8 @@ class BasicGUI(GUIBase):
         else:  # area selection is initially on:
             self._mw.camera_ScanPlotWidget.toggle_selection(False)
             self.region_selector_enabled = False
-            self._camera_logic.reset_sensor_region()
+#            self._camera_logic.reset_sensor_region()
+            self.sigResetSensor.emit()
             self._mw.set_sensor_Action.setText('Set sensor region')
 
     @QtCore.Slot(QtCore.QRectF)
@@ -833,7 +839,15 @@ class BasicGUI(GUIBase):
         # using the following arguments: set_sensor_region(hbin, vbin, start, hend, num_px_y - vend, num_px_y - vstart) ('vstart' needs to be smaller than 'vend')
         num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
         # self.log.debug(num_px_y)
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
+        
+        # version where set sensor region is only possible when live mode is stopped 
+#        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
+        
+        # new version allowing set sensor region during live: it is needed to send a signal to camera
+        # logic otherwise the start loop / stop loop functionality cannot be used 
+        # (timers cannot be started / stopped from another thread)
+        # send the 6 arguments for camera_logic.set_sensor_region via the signal
+        self.sigSetSensor.emit(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
         if self._camera_logic.enabled:  # if live mode is on hide rubberband selector directly
             self.imageitem.getViewBox().rbScaleBox.hide()
 

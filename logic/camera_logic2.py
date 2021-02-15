@@ -674,7 +674,10 @@ class CameraLogic(GenericLogic):
         @param int vend: End row (inclusive).
         """
         if self.enabled:  # live mode is on
-            self.interrupt_live()  # interrupt live to allow access to camera settings
+#            self.interrupt_live()  # interrupt live to allow access to camera settings
+            # new version to avoid display problem 
+            self.timer.stop() 
+            self._hardware.stop_acquisition()
 
         err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
         if err < 0:
@@ -683,16 +686,18 @@ class CameraLogic(GenericLogic):
             self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
         if self.enabled:
-            self.resume_live()
+#            self.resume_live() # restart live in case it was activated
+            self.start_loop()
 
     def reset_sensor_region(self):
         """ reset to full sensor size """
+        if self.enabled:  # live mode is on
+            self.timer.stop() 
+            self._hardware.stop_acquisition()  # interrupt live to allow access to camera settings
+            
         width = self._hardware._full_width  # store the full_width in the hardware module because _width is
         # overwritten when image is set
         height = self._hardware._full_height  # same goes for height
-
-        if self.enabled:  # live mode is on
-            self.interrupt_live()  # interrupt live to allow access to camera settings
 
         err = self._hardware.set_image(1, 1, 1, width, 1, height)
         if err < 0:
@@ -701,7 +706,8 @@ class CameraLogic(GenericLogic):
             self.log.info('Sensor region reset to default: {} x {}'.format(height, width))
 
         if self.enabled:
-            self.resume_live()
+            self.start_loop()
+            
 
     @QtCore.Slot(bool)
     def set_frametransfer(self, activate):
