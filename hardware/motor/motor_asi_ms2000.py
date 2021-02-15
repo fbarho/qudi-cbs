@@ -29,6 +29,7 @@ class MS2000(Base, MotorInterface):
         first_axis_label: 'x'
         second_axis_label: 'y'
         third_axis_label: 'z'
+        LED connected: False
     """
 
     _com_port = ConfigOption("com_port", missing="error")
@@ -40,6 +41,8 @@ class MS2000(Base, MotorInterface):
    
     _conversion_factor = 10.0  # user will send positions in um, stage uses 0.1 um
     axis_list = None
+
+    _has_led = ConfigOption("LED connected", False, missing="warn")
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -276,6 +279,17 @@ class MS2000(Base, MotorInterface):
         cmd = "Z \r"
         self.write(cmd)
         return 0
+
+    def led_control(self, intens):
+        """ sets the intensity of the LED to the value intens (0-99)"""
+        if self._has_led:
+            # truncate to allowed range
+            intens = int(min(max(intens, 0), 99))
+            cmd = "LED {intens}?"
+            self.write(cmd)
+            return 0
+        else:
+            pass
 
     # helper functions
 

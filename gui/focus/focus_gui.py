@@ -65,6 +65,10 @@ class FocusGUI(GUIBase):
         # Windows
         self._mw = FocusWindow()
 
+        # actualize the position
+        position = self._focus_logic.get_position()
+        self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
+
         # to modify: data for initialization
         self.y_data = np.zeros(100)
 

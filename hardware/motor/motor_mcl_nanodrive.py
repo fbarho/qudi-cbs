@@ -35,17 +35,33 @@ class MCLNanoDrive(Base, MotorInterface):
     mcl:
         module.Class: 'motor.motor_mcl_nanodrive.MCLNanoDrive'
         dll_location: 'C:\\Program Files\\Mad City Labs\\NanoDrive\\Madlib.dll'   # path to library file
+        pos_min: 0  # in um
+        pos_max: 80  # in um
+        max_step: 1  # in um
+
+        found help with return type of MCL_SingleReadZ here:
+        https://github.com/ScopeFoundry/HW_mcl_stage/blob/master/mcl_nanodrive.py
     """
 
     dll_location = ConfigOption('dll_location', missing='error')
 
     handle = None
 
+    # attributes for get_constraints method
+    _axis_label = None
+    _axis_ID = None
+    _pos_min = ConfigOption('pos_min', 0, missing='warn')  # in um
+    _pos_max = ConfigOption('pos_max', 80, missing='warn')  # in um
+    _max_step = ConfigOption('max_step', 1, missing='warn')  # in um
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
         self.dll = ctypes.cdll.LoadLibrary(self.dll_location)
+
+        # set return types of certain functions
+        self.dll.MCL_SingleReadZ.restype = ctypes.c_double
 
         # get handle of connected Nanodrive
         handle = self.dll.MCL_InitHandle()
@@ -57,6 +73,9 @@ class MCLNanoDrive(Base, MotorInterface):
         num = self.dll.MCL_NumberOfCurrentHandles()
         self.log.debug(f'{num} Nanodrives connected.')
 
+        self._axis_label = 'Z'  # one axis controller. Set this arbitrarily to be conform with motor interface
+        self._axis_ID = self.handle  # not really needed .. just for conformity with pifoc get_constraints function. maybe remove ..
+
     def on_deactivate(self):
         handle = ctypes.c_int(self.handle)
         self.dll.MCL_ReleaseHandle(handle)
@@ -66,21 +85,19 @@ class MCLNanoDrive(Base, MotorInterface):
 
         @return dict constraints
         """
-        # constraints = {}
-        #
-        # axis0 = {'label': self._axis_label,
-        #          'ID': self._axis_ID,
-        #          'unit': 'um',
-        #          'pos_min': self._pos_min,
-        #          'pos_max': self._pos_max,
-        #          'max_step': self._max_step}
-        #
-        # # assign the parameter container for to a name which will identify it
-        # constraints[axis0['label']] = axis0
-        #
-        # return constraints
-        # this function should later be implemented to fit the interface.. see which information is useful
-        pass
+        constraints = {}
+
+        axis0 = {'label': self._axis_label,
+                 'ID': self._axis_ID,
+                 'unit': 'um',
+                 'pos_min': self._pos_min,
+                 'pos_max': self._pos_max,
+                 'max_step': self._max_step}
+
+        # assign the parameter container for to a name which will identify it
+        constraints[axis0['label']] = axis0
+
+        return constraints
 
     def move_rel(self, param_dict):
         """ Moves stage in given direction (relative movement)
@@ -89,7 +106,21 @@ class MCLNanoDrive(Base, MotorInterface):
 
         @return bool: error code (True: ok, False: not ok)   or modify to return position ??
         """
-        pass
+        # this version is for a param_dict with one entry.
+        constraints = self.get_constraints()
+        (_, position) = self.get_pos().popitem()  # get_pos returns a dict {axis_label: position}
+        # self.log.info(f'Position: {position}')
+
+        (axis, step) = param_dict.popitem()
+
+        if axis == self._axis_label and abs(step) <= constraints[axis]['max_step'] and constraints[axis]['pos_min'] <= position + step <= constraints[axis]['pos_max']:
+            new_pos = ctypes.c_double(position + step)
+            err = self.dll.MCL_SingleWriteZ(new_pos, self.handle)
+            if err == MCL_SUCCESS:
+                return True
+            else:
+                self.log.warning(f'Could not move axis {axis} by {step}: {err}.')
+                return False
 
     def move_abs(self, param_dict):
         """ Moves stage to absolute position (absolute movement)
@@ -98,7 +129,21 @@ class MCLNanoDrive(Base, MotorInterface):
 
         @return bool: error code (True: ok, False: error)       - or modify to return the new position ??
         """
-        pass
+        # this version is for a param_dict with one entry.
+        constraints = self.get_constraints()
+        (_, position) = self.get_pos().popitem()  # get_pos returns a dict {axis_label: position}
+
+        (axis, new_pos) = param_dict.popitem()
+
+        if axis == self._axis_label and constraints[axis]['pos_min'] <= new_pos <= constraints[axis]['pos_max']:
+            new_pos = ctypes.c_double(new_pos)
+            err = self.dll.MCL_SingleWriteZ(new_pos, self.handle)
+            if err == MCL_SUCCESS:
+                return True
+            else:
+                self.log.warning(f'Could not move axis {axis} to position {position}: {err}.')
+                return False
+        # use preferably the relative movement. move_abs does not implement a safety check if a too big step will be done.
 
     def abort(self):
         """ Stops movement of the stage
@@ -107,23 +152,19 @@ class MCLNanoDrive(Base, MotorInterface):
         """
         pass
 
-    def get_pos(self, param_list=None):
-        """ Gets current position of the controller
+    def get_pos(self):
+        """ Gets current position of the stage
 
-        @param list param_list: optional, if a specific position of an axis
-                                is desired, then the labels of the needed
-                                axis should be passed in the param_list.
-                                If nothing is passed, then from each axis the
-                                position is asked.
-
-        @return OrderedDict: with keys being the axis labels and item the current
-                      position.
-
-                      update docstring after tests !
+        @return dict: with keys being the axis labels and item the current position.
         """
-        pos = self.dll.MCL_SingleReadZ(self.handle)
-        return pos
-        # add check that pos is not an error code and convert to dict format (add axis: pos)
+        cur_pos = self.dll.MCL_SingleReadZ(self.handle)
+        if cur_pos < 0:  # then this corresponds to an error code
+            self.log.warn(f'error reading position: {cur_pos}')
+        else:
+            pos = {}
+            pos[self._axis_label] = cur_pos
+            return pos
+        # note that pifoc returns ordered dict. check if this gives problems for interface.
 
     def get_status(self, param_list=None):
         """ Get the status of the position

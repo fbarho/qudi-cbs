@@ -20,7 +20,7 @@ class FilterwheelLogic(GenericLogic):
 
     # declare connectors
     wheel = Connector(interface='FilterwheelInterface')
-    lasercontrol = Connector(interface='DAQaoLogic')
+    lasercontrol = Connector(interface='LaserControlLogic')
     
     # signals
     sigNewFilterSetting = QtCore.Signal(int)  # if position changed using the iPython console, use this signal to update GUI
