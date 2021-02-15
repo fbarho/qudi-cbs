@@ -113,6 +113,8 @@ class BasicGUI(GUIBase):
     
     sigSetSensor = QtCore.Signal(int, int, int, int, int, int)
     sigResetSensor = QtCore.Signal()
+    
+    sigReadTemperature = QtCore.Signal()
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -290,6 +292,7 @@ class BasicGUI(GUIBase):
         self.sigResumeLive.connect(self._camera_logic.resume_live)
         self.sigSetSensor.connect(self._camera_logic.set_sensor_region)
         self.sigResetSensor.connect(self._camera_logic.reset_sensor_region)
+        self.sigReadTemperature.connect(self._camera_logic.get_temperature)
 
         # signals from logic
         self._camera_logic.sigUpdateDisplay.connect(self.update_data)
@@ -609,7 +612,6 @@ class BasicGUI(GUIBase):
         Handles the state of the start button and emits a signal (connected to logic above) to start the acquisition loop.
         """
         self._mw.take_image_Action.setDisabled(True)  # snap and live are mutually exclusive
-        # self._mw.set_sensor_Action.setDisabled(True)  # check later if this should be left active
         if self._camera_logic.enabled:  # video already running
             self._mw.start_video_Action.setText('Live')
             self._mw.start_video_Action.setToolTip('Start live video')
@@ -794,7 +796,10 @@ class BasicGUI(GUIBase):
         if metadata['intens'] == []:
             metadata['intens'] = None
         if self._camera_logic.has_temp:
-            metadata['temp'] = self._camera_logic.get_temperature()
+#            metadata['temp'] = self._camera_logic.get_temperature()  # old version with missing metadata entry when live mode is running and save is clicked
+            # new version allowing temperature reading during live (short interruption of live mode)
+            self.sigReadTemperature.emit()
+            metadata['temp'] = self._camera_logic._temperature
         else:
             metadata['temp'] = 'Not available'
         return metadata

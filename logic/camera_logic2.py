@@ -199,14 +199,29 @@ class CameraLogic(GenericLogic):
         """ Get temperature of hardware, if accessible """
         if not self.has_temp:
             self.log.warn('Sensor temperature control not available')
+        # version without acces to temperature while live is on    
+#        else:
+#            temp = self._hardware.get_temperature()
+#            self._temperature = temp
+#            idle = self._hardware.get_ready_state()
+#            if not idle:
+#                return 'NA'
+#            else:
+#                return temp
         else:
+            if self.enabled:  # live mode on
+#                self.interrupt_live()
+                self.timer.stop() 
+                self._hardware.stop_acquisition()
+                
             temp = self._hardware.get_temperature()
             self._temperature = temp
-            idle = self._hardware.get_ready_state()
-            if not idle:
-                return 'NA'
-            else:
-                return temp
+            
+            if self.enabled:  # restart live mode
+#                self.resume_live()
+                self.start_loop()
+            return temp
+                
 
     # to be removed in a future version
     @QtCore.Slot()
