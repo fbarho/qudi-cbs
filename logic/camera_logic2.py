@@ -262,6 +262,15 @@ class CameraLogic(GenericLogic):
         
     def abort_acquisition(self):
         self._hardware._abort_acquisition()
+    
+    def set_number_kinetics(self, n_frames):
+        self._hardware._set_number_kinetics(n_frames)
+        
+    def set_spool(self, active, method, path, framebuffersize): 
+        self._hardware._set_spool(active, method, path, framebuffersize)  
+    
+    def get_progress(self):
+        return self._hardware.get_progress()
         
     ##########################
 
@@ -319,6 +328,8 @@ class CameraLogic(GenericLogic):
         # return 'No'
         # version with true false display
         return str(self._hardware.get_ready_state())
+        # for tests: 
+#        return self._hardware.get_ready_state()
 
     def get_shutter_state(self):
         """ retrieves the status of the shutter if there is one

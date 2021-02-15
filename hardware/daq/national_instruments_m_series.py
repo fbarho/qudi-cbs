@@ -217,7 +217,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         self.write_to_do_channel(1, np.array([1], dtype=np.uint8))
         sleep(0.001)  # waiting time in s
         self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
-        sleep(0.1)  # waiting time in s
+        sleep(0.05)  # waiting time in s
         
         
         

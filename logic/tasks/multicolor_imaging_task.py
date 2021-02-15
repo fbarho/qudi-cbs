@@ -25,8 +25,9 @@ import json
 from datetime import datetime
 import os
 import numpy as np
-import time
+from time import sleep
 import numpy as np
+
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
@@ -60,22 +61,43 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
         # use only one filter. do not allow changing filter because this will be too slow
+        # wait until filter position set
+        pos = self.ref['filter'].get_position()
+        while not pos == self.filter_pos:
+            sleep(1)
+            pos = self.ref['filter'].get_position()
+
 
         # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
-        self.ref['camera'].set_acquisition_mode('SINGLE_SCAN')
+        self.ref['camera'].abort_acquisition()  # as safety
+        self.ref['camera'].set_acquisition_mode('KINETICS')
         self.ref['camera'].set_trigger_mode('EXTERNAL')  
         # add eventually other settings that may be read from user config .. frame transfer etc. 
-
+        # .. 
         # set the exposure time
-        self.ref['camera'].set_exposure(self.exposure)   # to be read from user config instead
-
-        # initialize the data structure
-        width, height = self.ref['camera'].get_size()
+        self.ref['camera'].set_exposure(self.exposure)   
+        # set the number of frames
         frames = len(self.imaging_sequence)
-        self.image_data = np.empty((frames, height, width))  
+        self.ref['camera'].set_number_kinetics(frames)  # lets assume a single image per channel for this first version
+        
+        # set spooling
+        # define save path
+        path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
+        complete_path = self.ref['camera']._create_generic_filename(path, '_Stack', 'testimg', '', False)
+        self.ref['camera'].set_spool(1, 5, complete_path, 10)
+        
+        # start the acquisition. Camera waits for trigger
+        self.ref['camera'].start_acquisition() 
+
+#        # initialize the data structure
+#        width, height = self.ref['camera'].get_size()
+#        self.image_data = np.empty((frames, height, width))  
         
         # initialize the digital output channel for trigger
         self.ref['daq'].set_up_do_channel()
+        
+        # initialize the analog input channel that reads the fire
+        self.ref['daq'].set_up_ai_channel()
 
 
     def runTaskStep(self):
@@ -86,35 +108,46 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         for i in range(len(self.imaging_sequence)):
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
-            # self.log.info(f'will apply {self.imaging_sequence[i][1]/10} volts to channel {self.imaging_sequence[i][0]}')
-
-            # start the acquisition. Camera waits for trigger
-            self.ref['camera'].start_acquisition()   
+                   
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
             self.ref['daq'].send_trigger()  
-            # self.ref['camera'].wait_for_acquisition()   # wait for acquisition event  # when using this fucntion and trigger is not received by camera this makes program run till infinity
-            time.sleep(self.exposure)
-            # eventually read fire signal of camera and switch of when low signal
-#            if self.ref['daq'].read_ai() == 0:
-#                self.ref['daq'].voltage_off()
+
+            
+            # simple version
+            # sleep(self.kinetic)
+            
+            # read fire signal of camera and switch of when low signal
+            ai_read = self.ref['daq'].read_ai_channel()
+            counter = 0
+            # self.log.info(f'(1) analog input value: {ai_read}')
+            while not ai_read <= 2.5:
+                sleep(0.001)  # read every ms
+                counter += 1
+                ai_read = self.ref['daq'].read_ai_channel() 
+            # self.log.info(f'(2) analog input value: {ai_read}')
             self.ref['daq'].voltage_off()
             
+            num = self.ref['camera'].get_progress()
+            count = 0
+            while not num == i + 1:
+                sleep(0.001)
+                num = self.ref['camera'].get_progress()
+                count += 1
+                if count == 200: 
+                    self.log.warning('not all data acquired')
+                    break
+                
+#            self.log.info(f'spoolprogress: {num}')
+            
 
-            # data handling: we want to add the images to create a 3D numpy array
-            # then we can call one of the methods to save this 3D array to fits or tiff using the methods from the camera logic
-            image_data = self.ref['camera'].get_acquired_data()
 
-            self.image_data[i,:,:] = image_data
-
-        # define save path
-        path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
-        complete_path = self.ref['camera']._create_generic_filename(path, 'Stack', 'testimg', 'fits', False)
         # retrieve the metadata
-        metadata = {'info1': 1, 'info2': 2}
-
-        # allow to specify file format and put in if structure
-        self.ref['camera']._save_to_fits(complete_path, self.image_data, metadata)
+#        metadata = {'info1': 1, 'info2': 2}
+        # add metadata as header if fits format
+#
+#        # allow to specify file format and put in if structure
+#        self.ref['camera']._save_to_fits(complete_path, self.image_data, metadata)
         
         return False
 
@@ -131,8 +164,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
+        self.ref['daq'].close_ai_task()
         self.ref['camera'].abort_acquisition()
         self.ref['camera'].set_trigger_mode('INTERNAL') 
+        self.ref['camera'].set_spool(0, 7, '', 10)
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
@@ -153,13 +188,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         laser_dict = self.ref['daq'].get_laser_dict()
         self.filter_pos = 1
         self.exposure = 0.05  # in s
+        self.kinetic = self.ref['camera'].get_kinetic_time()
+        self.log.info(f'kinetic time: {self.kinetic}')
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        self.imaging_sequence = [('512 nm', 10), ('512 nm', 5), ('512 nm', 10)]
+        self.imaging_sequence = [('512 nm', 10), ('512 nm', 5), ('512 nm', 10), ('512 nm', 10), ('512 nm', 5), ('512 nm', 10), ('512 nm', 3)]
         # now we need to access the corresponding labels
         imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
         self.log.info(imaging_sequence)
         self.imaging_sequence = imaging_sequence
         # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
+        
+        
 
 
 
