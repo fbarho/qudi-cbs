@@ -26,6 +26,7 @@ from datetime import datetime
 import os
 import numpy as np
 import time
+import numpy as np
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
@@ -66,7 +67,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # add eventually other settings that may be read from user config .. frame transfer etc. 
 
         # set the exposure time
-        self.ref['camera'].set_exposure(0.05)   # to be read from user config instead
+        self.ref['camera'].set_exposure(self.exposure)   # to be read from user config instead
 
         # initialize the data structure
         width, height = self.ref['camera'].get_size()
@@ -82,48 +83,38 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @return bool: True if the task should continue running, False if it should finish.
         """
         # this task only has one step until a data set is prepared and saved (but loops over the channels)
-        for i in range(1):  #range(len(self.imaging_sequence)):
+        for i in range(len(self.imaging_sequence)):
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
-            self.log.info(f'will apply {self.imaging_sequence[i][1]/10} volts to channel {self.imaging_sequence[i][0]}')
+            # self.log.info(f'will apply {self.imaging_sequence[i][1]/10} volts to channel {self.imaging_sequence[i][0]}')
 
             # start the acquisition. Camera waits for trigger
             self.ref['camera'].start_acquisition()   
-#            # or is it needed to rewrite another method so that we avoid switching so often between the acquisition modes ?
-#            # because start_single_acquisition will first set to single_scan and then back to run till abort when finished
-
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
-            self.log.info('voltage on')
             self.ref['daq'].send_trigger()  
-            self.log.info('send trigger')
-            self.ref['camera'].wait_for_acquisition()   # wait for acquisition event
- 
-            #time.sleep(0.05)
-            # laser off or just apply_voltage for a given duration ??
+            # self.ref['camera'].wait_for_acquisition()   # wait for acquisition event  # when using this fucntion and trigger is not received by camera this makes program run till infinity
+            time.sleep(self.exposure)
+            # eventually read fire signal of camera and switch of when low signal
+#            if self.ref['daq'].read_ai() == 0:
+#                self.ref['daq'].voltage_off()
             self.ref['daq'].voltage_off()
             
-            self.log.info('voltage off')
-            
-            
-            
-            
-
 
             # data handling: we want to add the images to create a 3D numpy array
             # then we can call one of the methods to save this 3D array to fits or tiff using the methods from the camera logic
             image_data = self.ref['camera'].get_acquired_data()
-            self.log.info(image_data[0:5:5])
-#
-#            # self.image_data[i,:,:] = image_data
-#
-#        # define save path
-#        path = 'C:/Users/admin/imagetest/testmulticolorstack.fits'
-#        # retrieve the metadata
-#        metadata = {'info1': 1, 'info2': 2}
-#
-#        # allow to specify file format and put in if structure
-#        self.ref['camera']._save_to_fits(path, self.image_data, metadata)
+
+            self.image_data[i,:,:] = image_data
+
+        # define save path
+        path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
+        complete_path = self.ref['camera']._create_generic_filename(path, 'Stack', 'testimg', 'fits', False)
+        # retrieve the metadata
+        metadata = {'info1': 1, 'info2': 2}
+
+        # allow to specify file format and put in if structure
+        self.ref['camera']._save_to_fits(complete_path, self.image_data, metadata)
         
         return False
 
@@ -140,6 +131,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
+        self.ref['camera'].abort_acquisition()
         self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.log.info('cleanupTask called')
 
@@ -160,8 +152,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         laser_dict = self.ref['daq'].get_laser_dict()
         self.filter_pos = 1
+        self.exposure = 0.05  # in s
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        self.imaging_sequence = [('488 nm', 10), ('488 nm', 20), ('512 nm', 10)]
+        self.imaging_sequence = [('512 nm', 10), ('512 nm', 5), ('512 nm', 10)]
         # now we need to access the corresponding labels
         imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
         self.log.info(imaging_sequence)

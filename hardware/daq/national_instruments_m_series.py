@@ -20,6 +20,7 @@ from core.module import Base
 from interface.daq_interface import DaqInterface
 from core.configoption import ConfigOption
 import numpy as np
+from time import sleep
 
 
 class NIDAQMSeries(Base, DaqInterface):
@@ -45,6 +46,7 @@ class NIDAQMSeries(Base, DaqInterface):
                 - [0, 10]
             read_write_timeout: 10
             do_channel: '/Dev1/port0/line2'  # 'Dev1/port0/line2'
+            ai_channel: '/Dev1/AI0'
             
             # please indicate belonging elements in the same order in each category wavelengths, ao_channels, voltage_ranges
             # order preferentially by increasing wavelength (this will result in an ordered gui)
@@ -55,6 +57,7 @@ class NIDAQMSeries(Base, DaqInterface):
     _ao_channels = ConfigOption('ao_channels', missing='error')
     _ao_voltage_ranges = ConfigOption('ao_voltage_ranges', missing='error')
     _do_channel = ConfigOption('do_channel', missing='warn')
+    _ai_channel = ConfigOption('ai_channel', missing='warn')
     # timeout for the Read or/and write process in s
     _RWTimeout = ConfigOption('read_write_timeout', default=10)
 
@@ -67,6 +70,7 @@ class NIDAQMSeries(Base, DaqInterface):
         # initialize taskhandles for ao and do tasks
         self.ao_taskhandles = list()
         self.digital_out_taskhandle = None
+        self.analog_in_taskhandle = None
         
         # control if the config was correctly specified
         if (len(self._ao_channels) != len(self._ao_voltage_ranges)) or (len(self._ao_channels) != len(self._wavelengths)):
@@ -185,24 +189,80 @@ class NIDAQMSeries(Base, DaqInterface):
         else:
             pass
         
-    def send_trigger(self):
+    def write_to_do_channel(self, num_samp, digital_write):
         """ use the digital output as trigger """
-        num_samples_per_channel = daq.c_int32(1)   # write 1 samples per channel
-        # digital_write = np.array((daq.c_uint32(1), daq.c_uint32(0)))
-        digital_write = np.array(daq.c_uint(1))
+        num_samples_per_channel = daq.c_int32(num_samp)   # write 2 samples per channel
+#        digital_write1 = np.array([1,1,1,1,1,1,1,1], dtype=np.uint8)
         digital_read = daq.c_int32()
-        # self.log.info(digital_read.value)
         daq.DAQmxStartTask(self.digital_out_taskhandle)
-        daq.DAQmxWriteDigitalU32(self.digital_out_taskhandle,  # taskhandle
+        daq.DAQmxWriteDigitalLines(self.digital_out_taskhandle,  # taskhandle
                                 num_samples_per_channel,   # number of samples to write per channel
                                 True,   # autostart 
                                 self._RWTimeout,   # time to wait to write all the samples
                                 daq.DAQmx_Val_GroupByChannel,   # dataLayout: non-interleaved: all samples for first channel, all samples for second channel, ...
                                 digital_write,   # array of 32 bit integer samples to write to the task  
-                                digital_read,  # samples per channel successfully written
-                                None)  # reserved for futur use
-        self.log.info(f'wrote {digital_read.value} samples')
+                                daq.byref(digital_read),  # samples per channel successfully written
+                                None)  # reserved for futur use       
         daq.DAQmxStopTask(self.digital_out_taskhandle)
-
-        # check the last few arguments of DAQmxWriteDigitalU32. Taken similar to x_series module..
-        # possible that it is needed to write two values: on - off to reset the trigger channel to 0 after sending a signal
+        
+    def send_trigger(self):
+        """ sends a sequence of digital output values [0, 1, 0] as trigger
+        
+        This method uses a waiting time to ensure that the signal can be received 
+        (typical application: camera acquisition triggered by daq)
+        """
+        self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
+        sleep(0.001)  # waiting time in s
+        self.write_to_do_channel(1, np.array([1], dtype=np.uint8))
+        sleep(0.001)  # waiting time in s
+        self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
+        sleep(0.1)  # waiting time in s
+        
+        
+        
+    def set_up_ai_channel(self):
+        """ create a task and its virtual channel for the analog input
+        
+        @return: int error code: ok = 0, error = -1
+        """
+        if self.analog_in_taskhandle is not None:
+            self.log.info('Analog input already open')
+            return -1
+        else:
+            task = daq.TaskHandle()
+            daq.DAQmxCreateTask('AnalogIn', daq.byref(task))
+            daq.DAQmxCreateAIVoltageChan(task, self._ai_channel, '' ,daq.DAQmx_Val_RSE, 0.0, 10.0, daq.DAQmx_Val_Volts, None) 
+            self.analog_in_taskhandle = task  # keep the taskhandle accessible
+            return 0
+        
+    def close_ai_task(self):
+        """ close the analog input task if there is one
+        """
+        if self.analog_in_taskhandle is not None:
+            task = self.analog_in_taskhandle
+            try:
+                daq.DAQmxStopTask(task)
+                daq.DAQmxClearTask(task)
+                self.analog_in_taskhandle = None
+            except:
+                self.log.exception('Could not close analog input task')
+        else:
+            pass
+        
+    def read_ai_channel(self):
+        """
+        """
+        data = np.zeros((1,), dtype=np.float64)
+        read = daq.c_int32()
+        daq.DAQmxStartTask(self.analog_in_taskhandle)
+        daq.DAQmxReadAnalogF64(self.analog_in_taskhandle,   # taskhandle
+                           1,  # num_samples per channel # default value -1: all available samples
+                           self._RWTimeout,  # timeout
+                           daq.DAQmx_Val_GroupByChannel,  # fillMode
+                           data,  # the array to rea samples into, organized according to fillMode
+                           1,  # the size of the array in samples into which samples are read
+                           daq.byref(read), # the actual number of samples read from each channel
+                           None)  # reserved
+        daq.DAQmxStopTask(self.analog_in_taskhandle)
+        return data[0]
+        

@@ -230,7 +230,7 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
         
-    ### low level methods for tasks ###     
+    ### low level methods for tasks ###       # specific to andor camera for the moment
     def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
         # need to think of how to organize this and how this method should be called .. 
         self._hardware._start_acquisition()
@@ -243,6 +243,9 @@ class CameraLogic(GenericLogic):
     
     def wait_for_acquisition(self):
         self._hardware.wait_for_acquisition()
+        
+    def abort_acquisition(self):
+        self._hardware._abort_acquisition()
         
     ##########################
 
