@@ -176,8 +176,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].close_do_task()
         self.ref['daq'].close_ai_task()
         self.ref['camera'].abort_acquisition()
-        self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.ref['camera'].set_spool(0, 7, '', 10)
+        self.ref['camera'].set_acquisition_mode('RUN_TILL_ABORT')
+        self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
         self.log.info('cleanupTask called')
 
