@@ -271,6 +271,9 @@ class CameraLogic(GenericLogic):
     
     def get_progress(self):
         return self._hardware.get_progress()
+    
+    def set_shutter(self, typ, mode, closingtime, openingtime):
+        self._hardware._set_shutter(typ, mode, closingtime, openingtime)
         
     ##########################
 
@@ -369,12 +372,12 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, metadata, fileformat='tiff'):
+    def save_last_image(self, path, metadata, fileformat='.tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
         @param: dict metadata: dictionary containing the metadata
-        @param: str fileformat: default 'tiff' but can be modified if needed.
+        @param: str fileformat: default '.tiff' but can be modified if needed.
 
         @return: None
         """
@@ -392,7 +395,7 @@ class CameraLogic(GenericLogic):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
-        @param: str fileformat
+        @param: str fileformat (including the dot, such as '.tiff', '.fits')
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
         @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
@@ -442,11 +445,11 @@ class CameraLogic(GenericLogic):
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             self._save_to_tiff(n_frames, complete_path, image_data)
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
 
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             self._save_to_fits(complete_path, image_data, metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
@@ -478,9 +481,9 @@ class CameraLogic(GenericLogic):
         n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty
         # string for fileformat. this will be handled by the camera itself
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             method = 7
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             method = 5
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
@@ -510,11 +513,11 @@ class CameraLogic(GenericLogic):
         self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
         self.log.info('Saved data to file {}{}'.format(path, fileformat))
         # metadata saving
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             try:
-                complete_path = path+'fits'
+                complete_path = path+'.fits'
                 self._add_fits_header(complete_path, metadata)
             except Exception as e:
                 self.log.warn(f'Metadata not saved: {e}.')
@@ -540,7 +543,7 @@ class CameraLogic(GenericLogic):
         @params: str filenamestem  (example /home/barho/images/2020-12-16/samplename)
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
-        @params: str fileformat: specify the type of file (tiff, txt, ..)
+        @params: str fileformat: specify the type of file (.tiff, .txt, ..) including the dot ! 
         @params: bool addfile: if True, the last created folder will again be accessed (needed for metadata saving)
 
         @returns str complete path
@@ -567,7 +570,7 @@ class CameraLogic(GenericLogic):
                 os.makedirs(path)
             except Exception as e:
                 self.log.error('Error creating the target folder: {}'.format(e))
-        filename = '{0}.{1}'.format(file, fileformat)
+        filename = '{0}{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
 
@@ -648,7 +651,7 @@ class CameraLogic(GenericLogic):
 
         @returns None
         """
-        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', 'txt', addfile=True)
+        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', '.txt', addfile=True)
         with open(complete_path, 'w') as file:
             # file.write(str(metadata))  # for standard txt file
             yaml.dump(metadata, file, default_flow_style=False)  # yaml file. can use suffix .txt. change if .yaml preferred.

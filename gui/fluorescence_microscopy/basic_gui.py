@@ -493,7 +493,7 @@ class BasicGUI(GUIBase):
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
         path = os.path.join(default_path, today, folder_name)
-        fileformat = str(self._save_sd.file_format_ComboBox.currentText())
+        fileformat = '.'+str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
 
