@@ -218,3 +218,11 @@ class LaserControlLogic(GenericLogic):
             return ai_value
         else:
             pass
+        
+        
+    def send_trigger_and_control_ai(self):
+        """ for multicolor imaging task : control if fire sent"""
+        if self.controllertype == 'daq':
+            return self._controller.send_trigger_and_control_ai()
+        else:
+            pass

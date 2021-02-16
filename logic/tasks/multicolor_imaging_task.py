@@ -67,15 +67,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             sleep(1)
             pos = self.ref['filter'].get_position()
 
+        # initialize the digital output channel for trigger
+        self.ref['daq'].set_up_do_channel()
+        
+        # initialize the analog input channel that reads the fire
+        self.ref['daq'].set_up_ai_channel()
+
 
         # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
         self.ref['camera'].abort_acquisition()  # as safety
         self.ref['camera'].set_acquisition_mode('KINETICS')
         self.ref['camera'].set_trigger_mode('EXTERNAL')  
         # add eventually other settings that may be read from user config .. frame transfer etc. 
-        # .. 
+        self.ref['camera'].set_gain(self.gain)
         # set the exposure time
-        self.ref['camera'].set_exposure(self.exposure)   
+        self.ref['camera'].set_exposure(self.exposure)  
         # set the number of frames
         frames = len(self.imaging_sequence)
         self.ref['camera'].set_number_kinetics(frames)  # lets assume a single image per channel for this first version
@@ -84,20 +90,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # define save path
         path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
         complete_path = self.ref['camera']._create_generic_filename(path, '_Stack', 'testimg', '', False)
-        self.ref['camera'].set_spool(1, 5, complete_path, 10)
+        self.ref['camera'].set_spool(1, 7, complete_path, 10)
         
+        # open the shutter
+        self.ref['camera'].set_shutter(0, 1, 0.1, 0.1)
+        sleep(1)  # wait until shutter is opened
         # start the acquisition. Camera waits for trigger
-        self.ref['camera'].start_acquisition() 
-
-#        # initialize the data structure
-#        width, height = self.ref['camera'].get_size()
-#        self.image_data = np.empty((frames, height, width))  
-        
-        # initialize the digital output channel for trigger
-        self.ref['daq'].set_up_do_channel()
-        
-        # initialize the analog input channel that reads the fire
-        self.ref['daq'].set_up_ai_channel()
+        self.ref['camera'].start_acquisition()      
 
 
     def runTaskStep(self):
@@ -106,16 +105,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         # this task only has one step until a data set is prepared and saved (but loops over the channels)
         for i in range(len(self.imaging_sequence)):
+            # reset the intensity dict to zero
+            self.ref['daq'].reset_intensity_dict()
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
-                   
+            intensity_dict = self.ref['daq']._intensity_dict
+            
+            # waiting time for stability
+            sleep(0.05)
+
             # switch the laser on and send the trigger to the camera
             self.ref['daq'].apply_voltage()
-            self.ref['daq'].send_trigger()  
-
-            
-            # simple version
-            # sleep(self.kinetic)
+            err = self.ref['daq'].send_trigger_and_control_ai()  
             
             # read fire signal of camera and switch of when low signal
             ai_read = self.ref['daq'].read_ai_channel()
@@ -128,15 +129,24 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # self.log.info(f'(2) analog input value: {ai_read}')
             self.ref['daq'].voltage_off()
             
-            num = self.ref['camera'].get_progress()
-            count = 0
-            while not num == i + 1:
-                sleep(0.001)
-                num = self.ref['camera'].get_progress()
-                count += 1
-                if count == 200: 
-                    self.log.warning('not all data acquired')
-                    break
+            # waiting time for stability
+            sleep(0.05) 
+            
+            # repeat the loop if not all data acquired
+            if err < 0:
+                i = 0
+                return True  # then the taskstep will be repeated
+                
+            
+#            num = self.ref['camera'].get_progress()
+#            count = 0
+#            while not num == i + 1:
+#                sleep(0.001)
+#                num = self.ref['camera'].get_progress()
+#                count += 1
+#                if count == 200: 
+#                    self.log.warning('not all data acquired')
+#                    break
                 
 #            self.log.info(f'spoolprogress: {num}')
             
@@ -168,6 +178,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['camera'].abort_acquisition()
         self.ref['camera'].set_trigger_mode('INTERNAL') 
         self.ref['camera'].set_spool(0, 7, '', 10)
+        self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
@@ -188,10 +199,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         laser_dict = self.ref['daq'].get_laser_dict()
         self.filter_pos = 1
         self.exposure = 0.05  # in s
-        self.kinetic = self.ref['camera'].get_kinetic_time()
-        self.log.info(f'kinetic time: {self.kinetic}')
+        self.gain = 50
+#        self.kinetic = self.ref['camera'].get_kinetic_time()
+#        self.log.info(f'kinetic time: {self.kinetic}')
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        self.imaging_sequence = [('512 nm', 10), ('512 nm', 5), ('512 nm', 10), ('512 nm', 10), ('512 nm', 5), ('512 nm', 10), ('512 nm', 3)]
+        self.imaging_sequence = [('488 nm', 3), ('512 nm', 3), ('641 nm', 10)]
         # now we need to access the corresponding labels
         imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
         self.log.info(imaging_sequence)
