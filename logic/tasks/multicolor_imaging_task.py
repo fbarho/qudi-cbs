@@ -19,7 +19,7 @@ Config example pour copy-paste:
         config:
             path_to_user_config: '/home/barho/qudi-cbs-user-configs/multichannel_imaging_task.json'
 """
-
+import yaml
 from logic.generic_task import InterruptableTask
 import json
 from datetime import datetime
@@ -27,7 +27,6 @@ import os
 import numpy as np
 from time import sleep
 import numpy as np
-
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
@@ -41,22 +40,33 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         # self.laser_allowed = False
-        # self.user_config_path = self.config['path_to_user_config']
-        # self.log.info('Task {0} using the configuration at {1}'.format(self.name, self.user_config_path))
+        self.user_config_path = self.config['path_to_user_config']
+        self.log.info('Task {0} using the configuration at {1}'.format(self.name, self.user_config_path))
 
     def startTask(self):
         """ """
+        # control if live mode in basic gui is running. Task can not be started then.
+        if self.ref['camera'].enabled:
+            self.log.info('Task cannot be started: Please stop live mode first')
+            # calling self.cleanupTask() here does not seem to guarantee that the taskstep is not performed. so put an additional safety check in taskstep
+            return
+        # control if video saving is currently running
+        if self.ref['camera'].saving:
+            self.log.info('Task cannot be started: Wait until saving finished')
+            return
+        
+        
         self._load_user_parameters()
-
+        
+        
         # # control the config : laser allowed for given filter ?
         # self.laser_allowed = self._control_user_parameters()
         #
         # if not self.laser_allowed:
         #     self.log.warning('Task aborted. Please specify a valid filter / laser combination')
         #     return
-
-        # else:
         
+        ### all conditions to start the task have been tested: Task can now be started safely   
         
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
@@ -72,6 +82,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         
         # initialize the analog input channel that reads the fire
         self.ref['daq'].set_up_ai_channel()
+        
+        self.err_count = 0  # initialize the error counter
 
 
         # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
@@ -81,16 +93,19 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # add eventually other settings that may be read from user config .. frame transfer etc. 
         self.ref['camera'].set_gain(self.gain)
         # set the exposure time
-        self.ref['camera'].set_exposure(self.exposure)  
+        self.ref['camera'].set_exposure(self.exposure) 
         # set the number of frames
-        frames = len(self.imaging_sequence)
+        frames = len(self.imaging_sequence) * self.num_frames # num_frames: number of frames per channel
         self.ref['camera'].set_number_kinetics(frames)  # lets assume a single image per channel for this first version
         
         # set spooling
         # define save path
-        path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
-        complete_path = self.ref['camera']._create_generic_filename(path, '_Stack', 'testimg', '', False)
-        self.ref['camera'].set_spool(1, 7, complete_path, 10)
+        complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Stack', 'testimg', '', False)
+        
+        if self.file_format == 'fits':
+            self.ref['camera'].set_spool(1, 5, complete_path, 10)
+        else:  # use 'tiff' as default case # add other options 
+            self.ref['camera'].set_spool(1, 7, complete_path, 10)
         
         # open the shutter
         self.ref['camera'].set_shutter(0, 1, 0.1, 0.1)
@@ -103,6 +118,16 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
+        # control if live mode in basic gui is running. Taskstep will not be run then.
+        if self.ref['camera'].enabled:
+            return False
+        # control if video saving is currently running
+        if self.ref['camera'].saving:
+            return False
+        # add similar control for all other criteria
+        # .. 
+        
+        
         # this task only has one step until a data set is prepared and saved (but loops over the channels)
         for i in range(len(self.imaging_sequence)):
             # reset the intensity dict to zero
@@ -110,54 +135,32 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # prepare the output value for the specified channel
             self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
             intensity_dict = self.ref['daq']._intensity_dict
-            
             # waiting time for stability
             sleep(0.05)
-
-            # switch the laser on and send the trigger to the camera
-            self.ref['daq'].apply_voltage()
-            err = self.ref['daq'].send_trigger_and_control_ai()  
             
-            # read fire signal of camera and switch of when low signal
-            ai_read = self.ref['daq'].read_ai_channel()
-            counter = 0
-            # self.log.info(f'(1) analog input value: {ai_read}')
-            while not ai_read <= 2.5:
-                sleep(0.001)  # read every ms
-                counter += 1
-                ai_read = self.ref['daq'].read_ai_channel() 
-            # self.log.info(f'(2) analog input value: {ai_read}')
-            self.ref['daq'].voltage_off()
+            # inner loop over the number of frames per color
+            for j in range(self.num_frames):
+                # switch the laser on and send the trigger to the camera
+                self.ref['daq'].apply_voltage()
+                err = self.ref['daq'].send_trigger_and_control_ai()  
             
-            # waiting time for stability
-            sleep(0.05) 
+                # read fire signal of camera and switch of when low signal
+                ai_read = self.ref['daq'].read_ai_channel()
+                while not ai_read <= 2.5:
+                    sleep(0.001)  # read every ms
+                    ai_read = self.ref['daq'].read_ai_channel() 
+                self.ref['daq'].voltage_off()
             
-            # repeat the loop if not all data acquired
-            if err < 0:
-                i = 0
-                return True  # then the taskstep will be repeated
-                
+                # waiting time for stability
+                sleep(0.05) 
             
-#            num = self.ref['camera'].get_progress()
-#            count = 0
-#            while not num == i + 1:
-#                sleep(0.001)
-#                num = self.ref['camera'].get_progress()
-#                count += 1
-#                if count == 200: 
-#                    self.log.warning('not all data acquired')
-#                    break
-                
-#            self.log.info(f'spoolprogress: {num}')
+                # repeat the (outer) loop if not all data acquired
+                if err < 0:
+                    self.err_count += 1  # control value to check how often a trigger was missed
+                    i = 0
+                    return True  # then the TaskStep will be repeated
             
-
-
-        # retrieve the metadata
-#        metadata = {'info1': 1, 'info2': 2}
-        # add metadata as header if fits format
-#
-#        # allow to specify file format and put in if structure
-#        self.ref['camera']._save_to_fits(complete_path, self.image_data, metadata)
+        # to do: add metadata as header if fits format or as additional file if tiff format
         
         return False
 
@@ -179,7 +182,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['camera'].set_spool(0, 7, '', 10)
         self.ref['camera'].set_acquisition_mode('RUN_TILL_ABORT')
         self.ref['camera'].set_trigger_mode('INTERNAL') 
-        self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
+        # reactivate later. For tests avoid opening and closing all the time
+        # self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
+        self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask called')
 
     def _load_user_parameters(self):
@@ -197,33 +202,44 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             n_frames: 5
             activate_display: 1
         """
-        laser_dict = self.ref['daq'].get_laser_dict()
-        self.filter_pos = 1
-        self.exposure = 0.05  # in s
-        self.gain = 50
-#        self.kinetic = self.ref['camera'].get_kinetic_time()
-#        self.log.info(f'kinetic time: {self.kinetic}')
+        # this will be replaced by values read from a config
+#        self.filter_pos = 1
+#        self.exposure = 0.05  # in s
+#        self.gain = 50
+#        self.num_frames = 5
+#        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
+#        self.file_format = 'fits'
+#        self.imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)] 
         # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
-        self.imaging_sequence = [('488 nm', 3), ('512 nm', 3), ('641 nm', 10)]
+        
+        
+        
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.safe_load(stream)
+                
+#                self.log.info(self.user_param_dict)
+                self.filter_pos = self.user_param_dict['filter_pos']
+                self.exposure = self.user_param_dict['exposure']
+                self.gain = self.user_param_dict['gain']
+                self.num_frames = self.user_param_dict['num_frames']
+                self.save_path = self.user_param_dict['save_path']
+                self.imaging_sequence = self.user_param_dict['imaging_sequence']
+                self.log.info(self.imaging_sequence)  # remove after tests
+                self.file_format = 'fits'
+                
+                
+                
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+                
+                
         # now we need to access the corresponding labels
+        laser_dict = self.ref['daq'].get_laser_dict()
         imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'), self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
         self.log.info(imaging_sequence)
         self.imaging_sequence = imaging_sequence
         # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
-        
-        
-
-
-
-        # try:
-        #     with open(self.user_config_path, 'r') as file:
-        #         self.user_param_dict = json.load(file)
-        #
-        #     self.save_path = self.user_param_dict['save_path']
-        #
-        #     self.log.info('loaded user parameters')
-        # except:
-        #     self.log.warning('Could not load user parameters for task {}'.format(self.name))
 
 #    def _control_user_parameters(self):
 #        """ this function checks if the specified laser is allowed given the filter setting

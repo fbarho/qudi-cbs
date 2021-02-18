@@ -7,6 +7,7 @@ Created on Wed Feb 17 2021
 
 This module contains the logic for the experiment configurator.
 """
+import os
 import yaml
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
@@ -53,10 +54,21 @@ class ExpConfigLogic(GenericLogic):
         """ Perform required deactivation. """
         pass
 
-    def save_to_exp_config_file(self, path):
-        with open(path, 'w') as file:
+    def save_to_exp_config_file(self, path, filename):
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path)  # recursive creation of all directories on the path
+            except Exception as e:
+                self.log.error(f'Error {e}.')
+                
+        complete_path = os.path.join(path, filename)
+        with open(complete_path, 'w') as file:
             yaml.safe_dump(self.config_dict, file, default_flow_style=False)  # yaml file. can use suffix .txt. change if .yaml preferred.
-        self.log.info('Saved experiment configuration to {}'.format(path))
+        self.log.info('Saved experiment configuration to {}'.format(complete_path))
+        
+        
+        
+
 
     def load_config_file(self, path):
         with open(path, 'r') as stream:

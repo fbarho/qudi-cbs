@@ -46,7 +46,7 @@ class ExpConfiguratorGUI(GUIBase):
     exp_logic = Connector(interface='ExpConfigLogic')
 
     # Signals
-    sigSaveConfig = QtCore.Signal(str)
+    sigSaveConfig = QtCore.Signal(str, str)
     sigLoadConfig = QtCore.Signal(str)
     sigAddEntry = QtCore.Signal(str, int)
     sigDeleteEntry = QtCore.Signal(QtCore.QModelIndex)
@@ -124,11 +124,12 @@ class ExpConfiguratorGUI(GUIBase):
 
     # slots
     def save_config_clicked(self):
-        path = '/home/barho/testconfigfile.txt'  # adapt path as a function of experiment type chosen in combobox
-        self.sigSaveConfig.emit(path)
+        path = 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        filename = 'testconfigfile.txt'  # adapt filename as a function of experiment type chosen in combobox
+        self.sigSaveConfig.emit(path, filename)
 
     def load_config_clicked(self):
-        data_directory = '/home/barho/'  # we will use this as default location to look for files
+        data_directory = 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
