@@ -15,10 +15,11 @@ from time import sleep
 
 from core.module import Base
 from interface.motor_interface import MotorInterface
+from interface.brightfield_interface import BrightfieldInterface
 from core.configoption import ConfigOption
 
 
-class MS2000(Base, MotorInterface):
+class MS2000(Base, MotorInterface, BrightfieldInterface):
     """ Class representing the ASI MS 2000 xy translation stage.
     
     Example config for copy-paste:
@@ -280,12 +281,14 @@ class MS2000(Base, MotorInterface):
         self.write(cmd)
         return 0
 
+    # brightfield interface
+
     def led_control(self, intens):
         """ sets the intensity of the LED to the value intens (0-99)"""
         if self._has_led:
             # truncate to allowed range
-            intens = int(min(max(intens, 0), 99))
-            cmd = "LED {intens}?"
+            value = int(min(max(intens, 0), 99))
+            cmd = f"LED X={value}? \r"
             self.write(cmd)
             return 0
         else:
