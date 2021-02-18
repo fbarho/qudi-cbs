@@ -63,6 +63,7 @@ class PIFOC(Base, MotorInterface):
         self._axis_label = self.axes[0]  # axes is actuallly a list of length 1
         self._axis_ID = self.pidevice.GetID()
         self.log.info(f'available axis: {self._axis_label}, ID: {self._axis_ID}')
+        
 
     def on_deactivate(self):
         """ Required deactivation steps
@@ -110,7 +111,8 @@ class PIFOC(Base, MotorInterface):
                 cur_pos = position[axis]  # returns just the float value of the axis
                 # check if the position stays in allowed range after movement
                 if abs(step) <= constraints[axis]['max_step'] and constraints[axis]['pos_min'] <= cur_pos + step <= constraints[axis]['pos_max']:
-                    err = self.pidevice.MVR(axis, step)
+                    self.pidevice.MVR(axis, step)
+                    err = True
                     if not err:
                         error_code = self.pidevice.GetError()
                         error_msg = self.pidevice.TranslateError(error_code)

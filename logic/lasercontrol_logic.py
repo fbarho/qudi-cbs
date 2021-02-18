@@ -191,3 +191,38 @@ class LaserControlLogic(GenericLogic):
             self._controller.close_do_task()
         else:
             pass
+        
+        
+    def set_up_ai_channel(self):
+        """ create a task and its virtual channel for the analog input
+        """
+        if self.controllertype == 'daq':
+            self._controller.set_up_ai_channel()
+        else:
+            pass
+
+        
+    def close_ai_task(self):
+        """ close the analog input task if there is one
+        """
+        if self.controllertype == 'daq':
+            self._controller.close_ai_task()
+        else:
+            pass
+        
+    def read_ai_channel(self):
+        """
+        """
+        if self.controllertype == 'daq':
+            ai_value = self._controller.read_ai_channel()
+            return ai_value
+        else:
+            pass
+        
+        
+    def send_trigger_and_control_ai(self):
+        """ for multicolor imaging task : control if fire sent"""
+        if self.controllertype == 'daq':
+            return self._controller.send_trigger_and_control_ai()
+        else:
+            pass

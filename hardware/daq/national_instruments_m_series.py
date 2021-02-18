@@ -217,7 +217,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         self.write_to_do_channel(1, np.array([1], dtype=np.uint8))
         sleep(0.001)  # waiting time in s
         self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
-        sleep(0.1)  # waiting time in s
+        sleep(0.001)  # waiting time in s
         
         
         
@@ -267,3 +267,28 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         daq.DAQmxStopTask(self.analog_in_taskhandle)
         return data[0]
         
+
+    def send_trigger_and_control_ai(self):
+        """ sends a sequence of digital output values [0, 1, 0] as trigger
+        
+        This method uses a waiting time to ensure that the signal can be received 
+        (typical application: camera acquisition triggered by daq)
+        """
+        if self.analog_in_taskhandle is None:
+            self.log.info('No analog input task configured')
+        else:
+            self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
+            sleep(0.001)  # waiting time in s
+            self.write_to_do_channel(1, np.array([1], dtype=np.uint8))
+            sleep(0.001)  # waiting time in s
+            ai_read = self.read_ai_channel()
+            if ai_read > 2.5:
+                self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
+                sleep(0.001)  # waiting time in s
+                return 0
+            else:
+                self.log.info('fire not received')
+                self.write_to_do_channel(1, np.array([0], dtype=np.uint8))
+                sleep(0.001)  # waiting time in s
+                return -1
+
