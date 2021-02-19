@@ -12,6 +12,22 @@ from gui.guibase import GUIBase
 from core.connector import Connector
 from core.configoption import ConfigOption
 
+# this should rather go to the logic module but there is a problem with the signal connection ..
+class ImagingSequenceModel(QtCore.QAbstractListModel):
+    """ This class contains the model class for the listview with the imaging sequence
+    consisting of entries of the form (lightsource, intensity)
+    """
+    def __init__(self, *args, items=None, **kwargs):
+        super(ImagingSequenceModel, self).__init__(*args, **kwargs)
+        self.items = items or []
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            source, intens = self.items[index.row()]
+            return f'{source}: {intens}'
+
+    def rowCount(self, index):
+        return len(self.items)
 
 class ExpConfiguratorWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
@@ -37,7 +53,6 @@ class ExpConfiguratorGUI(GUIBase):
 
     exp_configurator_gui:
         module.Class: 'experiment_configurator.exp_configurator_gui.ExpConfiguratorGUI'
-        default_path: '/home/barho'
         connect:
             exp_config_logic: 'exp_config_logic'
     """
@@ -51,12 +66,10 @@ class ExpConfiguratorGUI(GUIBase):
     sigAddEntry = QtCore.Signal(str, int)
     sigDeleteEntry = QtCore.Signal(QtCore.QModelIndex)
 
-    # Class attributes
-    default_path = ConfigOption('default_path')
-
     def __init__(self, config, **kwargs):
         # load connection
         super().__init__(config=config, **kwargs)
+        self.img_sequence_model = ImagingSequenceModel()
 
     def on_activate(self):
         """ Required initialization steps.
@@ -67,12 +80,13 @@ class ExpConfiguratorGUI(GUIBase):
 
         # initialize combobox
         self._mw.select_experiment_ComboBox.addItems(self._exp_logic.experiments)
+        self._mw.fileformat_ComboBox.addItems(self._exp_logic.supported_fileformats)
 
         # initialize the entry form
         self.init_configuration_form()
 
         # initialize list view
-        self._mw.imaging_sequence_ListView.setModel(self._exp_logic.imaging_listviewmodel)
+        self._mw.imaging_sequence_ListView.setModel(self.img_sequence_model)
 
         # signals
         # internal signals
@@ -80,28 +94,26 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.save_config_Action.triggered.connect(self.save_config_clicked)
         self._mw.load_config_Action.triggered.connect(self.load_config_clicked)
 
-        #
+        # widgets on the configuration form
         self._mw.exposure_DSpinBox.valueChanged.connect(self._exp_logic.update_exposure)
         self._mw.gain_SpinBox.valueChanged.connect(self._exp_logic.update_gain)
         self._mw.frames_SpinBox.valueChanged.connect(self._exp_logic.update_frames)
         self._mw.filterpos_ComboBox.currentIndexChanged.connect(self._exp_logic.update_filterpos)
         self._mw.save_path_LineEdit.textChanged.connect(self._exp_logic.update_save_path)
 
-
         # pushbuttons
         self._mw.add_entry_PushButton.clicked.connect(self.add_entry_clicked)
         self._mw.delete_entry_PushButton.clicked.connect(self.delete_entry_clicked)
 
-
         # signals to logic
         self.sigSaveConfig.connect(self._exp_logic.save_to_exp_config_file)
         self.sigLoadConfig.connect(self._exp_logic.load_config_file)
-        self.sigAddEntry.connect(self._exp_logic.add_entry_to_imaging_list)
-        self.sigDeleteEntry.connect(self._exp_logic.delete_entry_from_imaging_list)
+        # self.sigAddEntry.connect(self._exp_logic.add_entry_to_imaging_list)
+        # self.sigDeleteEntry.connect(self._exp_logic.delete_entry_from_imaging_list)
 
         # signals from logic
         self._exp_logic.sigConfigDictUpdated.connect(self.update_entries)
-        self._exp_logic.sigImagingListChanged.connect(self.update_listview)
+        # self._exp_logic.sigImagingListChanged.connect(self.update_listview)
 
 
     def on_deactivate(self):
@@ -119,17 +131,15 @@ class ExpConfiguratorGUI(GUIBase):
     def init_configuration_form(self):
         self._mw.filterpos_ComboBox.addItems(['Filter1', 'Filter2','Filter3'])  # replace later by real entries to retrieve from filter logic
         self._mw.laser_ComboBox.addItems(['405 nm', '488 nm', '561 nm', '641 nm'])  # replace later by real entries to retrieve from laser logic
-        self._mw.save_path_LineEdit.setText(self.default_path)  # or maybe move the default path to logic ..
-
 
     # slots
     def save_config_clicked(self):
-        path = 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        path = '/home/barho/qudi-cbs-experiment-config'  #  'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
         filename = 'testconfigfile.txt'  # adapt filename as a function of experiment type chosen in combobox
         self.sigSaveConfig.emit(path, filename)
 
     def load_config_clicked(self):
-        data_directory = 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        data_directory = '/home/barho/qudi-cbs-experiment-config'  #  'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
@@ -149,16 +159,30 @@ class ExpConfiguratorGUI(GUIBase):
         """ callback from pushbutton inserting an item into the imaging sequence list"""
         lightsource = self._mw.laser_ComboBox.currentText()  # or replace by current index
         intensity = self._mw.laser_intensity_SpinBox.value()
-        self.sigAddEntry.emit(lightsource, intensity)
+        # version where the logic handles the list model
+        # self.sigAddEntry.emit(lightsource, intensity)
 
-    def update_listview(self):
-        self._mw.imaging_sequence_ListView.setModel(self._exp_logic.imaging_listviewmodel)
-        # for tests. this is not the 'correct' approach
+        # version where the gui module handles the list model
+        # Access the list via the model.
+        self.img_sequence_model.items.append((lightsource, intensity))
+        self.log.info(self.img_sequence_model.items)  # just for tests
+        # Trigger refresh.
+        self.img_sequence_model.layoutChanged.emit()
+
+    # def update_listview(self):
+    #     pass
 
     def delete_entry_clicked(self):
-        current_index = self._mw.imaging_sequence_ListView.selectedIndexes()[0]
-        self.log.info(current_index)
-        self.sigDeleteEntry.emit(current_index)
+        indexes = self._mw.imaging_sequence_ListView.selectedIndexes()
+        if indexes:
+            # Indexes is a list of a single item in single-select mode.
+            index = indexes[0]
+            # Remove the item and refresh.
+            del self.img_sequence_model.items[index.row()]
+            self.img_sequence_model.layoutChanged.emit()
+            # Clear the selection (as it is no longer valid).
+            self._mw.imaging_sequence_ListView.clearSelection()
+
 
 
 # listview is not yet in a right version .. to be improved !!!
