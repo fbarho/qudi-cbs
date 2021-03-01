@@ -80,7 +80,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         
         self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
 
-        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later on
+        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later
         self.ref['camera'].abort_acquisition()  # as safety
         self.ref['camera'].set_acquisition_mode('KINETICS')
         self.ref['camera'].set_trigger_mode('EXTERNAL')  
@@ -129,7 +129,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # outer loop over the number of frames per color
         for j in range(self.num_frames):
 
-            for i in range(len(self.imaging_sequence)):
+            # use a while loop to catch the exception when a trigger is missed and just repeat the last (missed) image
+            i = 0
+            while i < len(self.imaging_sequence):
                 # reset the intensity dict to zero
                 self.ref['daq'].reset_intensity_dict()
                 # prepare the output value for the specified channel
@@ -144,7 +146,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 # read fire signal of camera and switch off when the signal is low
                 ai_read = self.ref['daq'].read_ai_channel()
                 count = 0
-                while not ai_read <= 2.5:
+                while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
                     sleep(0.001)  # read every ms
                     ai_read = self.ref['daq'].read_ai_channel()
                     count += 1  # can be used for control and debug
@@ -152,13 +154,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 # self.log.debug(f'iterations of read analog in - while loop: {count}')
             
                 # waiting time for stability
-                sleep(0.05) 
-            
-                # repeat the outer loop if not all data acquired
+                sleep(0.05)
+
+                # repeat the last step if the trigger was missed
                 if err < 0:
                     self.err_count += 1  # control value to check how often a trigger was missed
-                    j = 0
-                    return True  # then the TaskStep will be repeated
+                    i = i  # then the last iteration will be repeated
+                else:
+                    i += 1  # increment to continue with the next image
 
         # save metadata
         metadata = {'key1': 1, 'key2': 2, 'key3': 3}
@@ -215,7 +218,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 #        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
 #        self.file_format = 'fits'
 #        self.imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)] 
-        # a dictionary is not a good option for the imaging sequence. is a list better ? preserve order (dictionary would do as well), allows repeated entries
+        # a dictionary is not a good option for the imaging sequence. is a list better ? preserves order (dictionary would do as well), allows repeated entries
 
         try:
             with open(self.user_config_path, 'r') as stream:
