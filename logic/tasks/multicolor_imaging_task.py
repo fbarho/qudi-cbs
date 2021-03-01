@@ -39,6 +39,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def startTask(self):
         """ """
+        self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
+        
         # control if live mode in basic gui is running. Task can not be started then.
         if self.ref['camera'].enabled:
             self.log.warn('Task cannot be started: Please stop live mode first')
@@ -51,6 +53,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # control if laser has been switched on in basic gui. Task can not be started then.
         if self.ref['daq'].enabled:
             self.log.warn('Task cannot be started: Please switch laser off first')
+            return
 
         self._load_user_parameters()
 
@@ -77,8 +80,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         
         # initialize the analog input channel that reads the fire
         self.ref['daq'].set_up_ai_channel()
-        
-        self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
 
         # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later
         self.ref['camera'].abort_acquisition()  # as safety
@@ -163,11 +164,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 else:
                     i += 1  # increment to continue with the next image
 
+        
+        # finish the acquisition  # calling this here allows to access the temperature for the metadata
+        self.ref['camera'].abort_acquisition()
         # save metadata
-        metadata = {'key1': 1, 'key2': 2, 'key3': 3}
+        metadata = self._create_metadata_dict()  # {'key1': 1, 'key2': 2, 'key3': 3}
         if self.file_format == 'fits':
             complete_path = self.complete_path + '.fits'
-            self.ref['camera']._add_fits_header(self, complete_path, metadata)
+            self.ref['camera']._add_fits_header(complete_path, metadata)
         else:  # default case, add a txt file with the metadata
             self.ref['camera']._save_metadata_txt_file(self.save_path, '_Stack', metadata)
         
@@ -229,15 +233,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.gain = self.user_param_dict['gain']
                 self.num_frames = self.user_param_dict['num_frames']
                 self.save_path = self.user_param_dict['save_path']
-                self.imaging_sequence = self.user_param_dict['imaging_sequence']
+                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
                 # self.file_format = self.user_param_dict['file_format']
                 self.file_format = 'fits'
-                self.log.debug(self.imaging_sequence)  # remove after tests
+                self.log.debug(self.imaging_sequence_raw)  # remove after tests
 
                 # for the imaging sequence, we need to access the corresponding labels
                 laser_dict = self.ref['daq'].get_laser_dict()
-                imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence[i][0], 'label'),
-                                     self.imaging_sequence[i][1]) for i in range(len(self.imaging_sequence))]
+                imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
+                                     self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
                 self.log.info(imaging_sequence)
                 self.imaging_sequence = imaging_sequence
                 # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
@@ -245,9 +249,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
                 
-                
-
-
 #    def _control_user_parameters(self):
 #        """ this function checks if the specified laser is allowed given the filter setting
 #        @return bool: valid ?"""
@@ -260,6 +261,43 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 #        laser_index = int(laser.strip('laser'))-1
 #        ##########
 #        return laserlist[laser_index]
+            
+            
+            
+    def _create_metadata_dict(self):
+        """ create a dictionary containing the metadata
+
+        this is a similar to the function available in basic_gui. the values are addressed slightly differently via the refs"""
+        metadata = {}
+        # timestamp
+        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')  # or take the starting time of the acquisition instead ??? # then add a variable to startTask
+        
+        # filter name
+        filterpos = self.ref['filter'].get_position()
+        filterdict = self.ref['filter'].get_filter_dict()
+        label = 'filter{}'.format(filterpos)
+        metadata['filter'] = filterdict[label]['name']
+        
+        # gain
+        metadata['gain'] = self.ref['camera'].get_gain()  # could also use the value from the user config directly ?? 
+        
+        # exposure and kinetic time              
+        metadata['exposure'] = self.ref['camera'].get_exposure()
+        metadata['kinetic'] = self.ref['camera'].get_kinetic_time()
+        
+        # lasers and intensity 
+        imaging_sequence = self.imaging_sequence_raw
+        metadata['laser'] = [imaging_sequence[i][0] for i in range(len(imaging_sequence))]
+        metadata['intens'] = [imaging_sequence[i][1] for i in range(len(imaging_sequence))]
+        
+        
+        # sensor temperature
+        if self.ref['camera'].has_temp:
+            metadata['temp'] = self.ref['camera'].get_temperature()
+        else:
+            metadata['temp'] = 'Not available'
+            
+        return metadata
 
 
 
@@ -280,13 +318,14 @@ def get_entry_nested_dict(nested_dict, val, entry):
     for outer_key in nested_dict:
         item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
         if item != []:
-            list.append(*item)
+            entrylist.append(*item)
     return entrylist
 
 
 # to do on this task:
 # control user parameters (laser allowed?)
-# metadata
-# this might produce again the problem with accessing the values..
-# or should we instead write the data from the config to the metadata ? this will basically hold the same information
-# except that the kinetic time is missing ..
+# check if metadata contains everything that is needed
+# checked state for laser on button in basic gui gets messed up    (because of call to voltage_off in cleanupTask called)
+    # fits header: can value be a list ? check with simple example
+    
+    
