@@ -14,6 +14,7 @@ obtained from <https://github.com/Ulm-IQO/qudi/>
 from nifpga import Session
 # import numpy as np
 # import ctypes
+from time import sleep
 
 from core.module import Base
 from interface.lasercontrol_interface import LaserControlInterface
@@ -27,7 +28,7 @@ class Nifpga(Base, LaserControlInterface):
         nifpga:
             module.Class: 'fpga.ni_fpga.Nifpga'
             resource: 'RIO0'
-            default_bitfile: 'C:\\Users\\sCMOS-1\\Desktop\\LabView\\Current version\\Time lapse\\HUBBLE_FTL_v7_LabView 64bit\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_mLrb7Qjptmw.lvbitx'
+            default_bitfile: 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_mLrb7Qjptmw.lvbitx'
             wavelengths:
                 - '405 nm'
                 - '488 nm'
@@ -41,7 +42,6 @@ class Nifpga(Base, LaserControlInterface):
 
             # registers represent something like the channels.
             # The link between registers and the physical channel is made in the labview file from which the bitfile is generated.
-            # copy the bitfile to another location later on..
     """
     # config
     resource = ConfigOption('resource', missing='error')
@@ -128,3 +128,65 @@ class Nifpga(Base, LaserControlInterface):
             laser_dict[dic_entry['label']] = dic_entry
 
         return laser_dict
+
+    ### new 3 march 2021 test with tasks
+    ## these methods must be callable from the lasercontrol logic
+    def close_default_session(self):
+        """ This method is called before another bitfile than the default one shall be loaded
+
+        (in this version it actually does the same as on_deactivate (we could also just call this method ..  but this might evolve)
+        """
+        for i in range(len(self._registers)):
+            self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
+        self.session.close()
+
+    def restart_default_session(self):
+        """ This method allows to restart the default session"""
+        self.on_activate()
+
+    def start_task_session(self, bitfile):
+        """ loads a bitfile used for a specific task """
+        self.session = Session(bitfile=bitfile, resource=self.resource)
+
+    def end_task_session(self):
+        self.session.close()
+
+    #specific methods associated to a bitfile
+    def run_test_task_session(self):
+        #using for a simple test the FPGA_laser_control_Qudi bitfile (control only for the 561 nm laser)
+        # laser_control = self.session.registers['561']  # '561' register
+        # self.session.reset()
+        # self.apply_voltage(0, laser_control)  # set initial value to each channel
+        # self.session.run()
+        # # write some values
+        # conv_value = self.convert_value(5)
+        # laser_control.write(conv_value)
+        # self.session.run()
+        # sleep(1)
+        # conv_value = self.convert_value(0)
+        # laser_control.write(conv_value)
+        # self.session.run()
+        # sleep(1)
+        # conv_value = self.convert_value(4)
+        # laser_control.write(conv_value)
+        # self.session.run()
+        # sleep(1)
+        # conv_value = self.convert_value(0)
+        # laser_control.write(conv_value)
+        # self.session.run()
+
+        #with array
+        laser_control = self.session.registers['561 Laser Power']
+        self.session.reset()
+        self.session.run()
+        values = [5, 0, 5, 0, 5]
+        conv_values = [self.convert_value(item) for item in values]
+        print(conv_values)
+        laser_control.write(conv_values)
+        self.session.run()
+
+
+
+
+
+

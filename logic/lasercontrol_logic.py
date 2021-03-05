@@ -226,3 +226,45 @@ class LaserControlLogic(GenericLogic):
             return self._controller.send_trigger_and_control_ai()
         else:
             pass
+
+
+
+
+    ### new 3 march 2021 test with tasks for ramm setup
+    #low level methods directly from ni_fpga hardware module
+    def close_default_session(self):
+        """ This method is called before another bitfile than the default one shall be loaded
+
+        (in this version it actually does the same as on_deactivate (we could also just call this method ..  but this might evolve)
+        """
+        if self.controllertype == 'fpga':
+            self._controller.close_default_session()
+        else:
+            pass
+
+
+    def restart_default_session(self):
+        """ This method allows to restart the default session"""
+        if self.controllertype == 'fpga':
+            self._controller.restart_default_session()
+        else:
+            pass
+
+    def start_task_session(self, bitfile):
+        """ loads a bitfile used for a specific task """
+        if self.controllertype == 'fpga':
+            self._controller.start_task_session(bitfile)
+        else:
+            pass
+
+    def end_task_session(self):
+        if self.controllertype == 'fpga':
+            self._controller.end_task_session()
+        else:
+            pass
+
+    def run_test_task_session(self):  #replace this name by run_merfish_task_session etc ..
+        if self.controllertype == 'fpga':
+            self._controller.run_test_task_session()
+        else:
+            pass
