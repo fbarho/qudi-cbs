@@ -59,6 +59,9 @@ class FluidicsGUI(GUIBase):
     positioning_logic = Connector(interface='PositioningLogic')
 
     # Signals
+    # signals for valve settings
+    sigSetValvePosition = QtCore.Signal(str, int)
+
     # signals for flowcontrol actions
     sigSetPressure = QtCore.Signal(float)
     sigStartFlowMeasure = QtCore.Signal()
@@ -82,6 +85,7 @@ class FluidicsGUI(GUIBase):
         self._positioning_logic = self.positioning_logic()
 
         self._mw = FluidicsWindow()
+        self._mw.centralwidget.hide()  # everything is in dockwidgets
 
         # initialize settings dialog
         self.init_position1_settings_ui()
@@ -90,16 +94,27 @@ class FluidicsGUI(GUIBase):
         self._mw.close_MenuAction.triggered.connect(self._mw.close)
 
         # initialize the valve control dockwidget
+        self._mw.valve1_Label.setText(self._valve_logic.valve_names[0])
+        self._mw.valve2_Label.setText(self._valve_logic.valve_names[1])
+        self._mw.valve3_Label.setText(self._valve_logic.valve_names[2])
+        self._mw.valve1_ComboBox.addItems(self._valve_logic.valve_positions[0])
+        self._mw.valve2_ComboBox.addItems(self._valve_logic.valve_positions[1])
+        self._mw.valve3_ComboBox.addItems(self._valve_logic.valve_positions[2])
 
-        # initialize the flow control dockwidget and its toolbar
-        # toolbar actions
-        self._mw.set_pressure_Action.triggered.connect(self.set_pressure_clicked)
-        self._mw.start_flow_measurement_Action.triggered.connect(self.measure_flow_clicked)
+        # set current index according to actual position of valve on start
+        # ..
+
+        # signals
+        self._mw.valve1_ComboBox.activated[str].connect(self.change_valve1_position)
+        self._mw.valve2_ComboBox.activated[str].connect(self.change_valve2_position)
+        self._mw.valve3_ComboBox.activated[str].connect(self.change_valve3_position)
 
         # signals to logic
-        self.sigSetPressure.connect(self._flow_logic.set_pressure)
-        self.sigStartFlowMeasure.connect(self._flow_logic.start_flow_measurement)
-        self.sigStopFlowMeasure.connect(self._flow_logic.stop_flow_measurement)
+        self.sigSetValvePosition.connect(self._valve_logic.set_valve_position)
+
+
+        # initialize the flow control dockwidget and its toolbar
+        self.init_flowcontrol()
 
         # initialize the positioning dockwidget and its toolbar
         self.init_positioning()
@@ -115,6 +130,25 @@ class FluidicsGUI(GUIBase):
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
+
+    def init_flowcontrol(self):
+        """ Initializes the labels on the flowcontrol dockwidget and the toolbar actions """
+        # set text to unit labels
+        self._mw.pressure_unit_Label.setText(self._flow_logic.get_pressure_unit())
+        self._mw.pressure_unit_Label2.setText(self._flow_logic.get_pressure_unit())
+        self._mw.flowrate_unit_Label.setText(self._flow_logic.get_flowrate_unit())
+
+        # toolbar actions
+        self._mw.set_pressure_Action.triggered.connect(self.set_pressure_clicked)
+        self._mw.start_flow_measurement_Action.triggered.connect(self.measure_flow_clicked)
+
+        # signals to logic
+        self.sigSetPressure.connect(self._flow_logic.set_pressure)
+        self.sigStartFlowMeasure.connect(self._flow_logic.start_flow_measurement)
+        self.sigStopFlowMeasure.connect(self._flow_logic.stop_flow_measurement)
+
+        # signals from logic
+        self._flow_logic.sigUpdateFlowMeasurement.connect(self.update_flowrate_and_pressure)
 
     def init_positioning(self):
         """ Initializes the indicators on the positioning dockwidget and the toolbar actions """
@@ -297,9 +331,35 @@ class FluidicsGUI(GUIBase):
         of flowrate and pressure measurements
         """
         if self._flow_logic.measuring:  # measurement already running
-            self._mw.start_flow_measurement_Action.setText('Stop Flowrate measurement')
+            self._mw.start_flow_measurement_Action.setText('Start Flowrate measurement')
             self.sigStopFlowMeasure.emit()
         else:
-            self._mw.start_flow_measurement_Action.setText('Start Flowrate measurement')
+            self._mw.start_flow_measurement_Action.setText('Stop Flowrate measurement')
             self.sigStartFlowMeasure.emit()
+
+    @QtCore.Slot(float, float)
+    def update_flowrate_and_pressure(self, pressure, flowrate):
+        self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
+        self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
+
+
+    # maybe combine these slots into one and getting the valve number with lambda function
+    def change_valve1_position(self):
+        # get current index of the valve position combobox
+        index = self._mw.valve1_ComboBox.currentIndex()
+        valve_pos = index + 1  # zero indexing
+        self.sigSetValvePosition.emit('valve1', valve_pos)
+
+    def change_valve2_position(self):
+        # get current index of the valve position combobox
+        index = self._mw.valve1_ComboBox.currentIndex()
+        valve_pos = index + 1  # zero indexing
+        self.sigSetValvePosition.emit('valve2', valve_pos)
+
+    def change_valve3_position(self):
+        # get current index of the valve position combobox
+        index = self._mw.valve1_ComboBox.currentIndex()
+        valve_pos = index + 1  # zero indexing
+        self.sigSetValvePosition.emit('valve3', valve_pos)
+
 
