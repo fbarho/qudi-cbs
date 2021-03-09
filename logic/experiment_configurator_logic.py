@@ -65,6 +65,7 @@ class ExpConfigLogic(GenericLogic):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
+        self.img_sequence_model = ImagingSequenceModel()
         # add an additional entry to the experiment selector combobox with placeholder text
         self.experiments.insert(0, 'Select your experiment..')
         self.init_default_config_dict()
@@ -144,23 +145,25 @@ class ExpConfigLogic(GenericLogic):
         """ Updates the dictionary entry 'filter_pos'"""
         self.config_dict['filter_pos'] = index + 1  # zero indexing !
 
+    @QtCore.Slot(str, int)
+    def add_entry_to_imaging_list(self, lightsource, intensity):
+        # Access the list via the model.
+        self.img_sequence_model.items.append((lightsource, intensity))
+        # update the dictionary entry with the current content of the model
+        self.config_dict['imaging_sequence'] = self.img_sequence_model.items
+        # self.log.info(self.img_sequence_model.items[-1])  # just for tests
+        # Trigger refresh of the listview on the GUI:
+        # signal layoutChanged cannot be queued over different threads. use custom signal
+        self.sigImagingListChanged.emit()
 
-    # @QtCore.Slot(str, int)
-    # def add_entry_to_imaging_list(self, lightsource, intensity):
-    #     # Access the list via the model.
-    #     self.img_sequence_model.items.append((lightsource, intensity))
-    #     self.log.info(self.img_sequence_model.items)  # just for tests
-    #     # Trigger refresh.
-    #     self.img_sequence_model.layoutChanged.emit()
+    @QtCore.Slot(QtCore.QModelIndex)
+    def delete_entry_from_imaging_list(self, index):
+        # Remove the item and refresh.
+        del self.img_sequence_model.items[index.row()]
+        # self.log.info(self.img_sequence_model.items)
+        # update the dictionary entry with the current content of the model
+        self.config_dict['imaging_sequence'] = self.img_sequence_model.items
+        # Trigger refresh of the livtview on the GUI
+        self.sigImagingListChanged.emit()
 
 
-    # @QtCore.Slot(QtCore.QModelIndex)
-    # def delete_entry_from_imaging_list(self, index):
-    #     pass
-
-
-
-
-## rework the part with the listviewmodel and why it does not work with layoutChanged.
-# it seems not the good way to have to reassign the model all over again. adapt also the part in the gui module
-# delete entry does not work at all ..
