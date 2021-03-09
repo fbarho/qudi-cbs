@@ -60,6 +60,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._exp_logic = self.exp_logic()
 
         self._mw = ExpConfiguratorWindow()
+        self._mw.formWidget.hide()
 
         # initialize combobox
         self._mw.select_experiment_ComboBox.addItems(self._exp_logic.experiments)
@@ -78,6 +79,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.load_config_Action.triggered.connect(self.load_config_clicked)
 
         # widgets on the configuration form
+        self._mw.select_experiment_ComboBox.currentIndexChanged.connect(self.set_form_visible)
         self._mw.exposure_DSpinBox.valueChanged.connect(self._exp_logic.update_exposure)
         self._mw.gain_SpinBox.valueChanged.connect(self._exp_logic.update_gain)
         self._mw.frames_SpinBox.valueChanged.connect(self._exp_logic.update_frames)
@@ -87,7 +89,10 @@ class ExpConfiguratorGUI(GUIBase):
         # pushbuttons
         self._mw.add_entry_PushButton.clicked.connect(self.add_entry_clicked)
         self._mw.delete_entry_PushButton.clicked.connect(self.delete_entry_clicked)
-        # add here the get current value pushbutton signals
+        # get-current-value pushbutton signals
+        self._mw.get_exposure_PushButton.clicked.connect(self._exp_logic.get_exposure)
+        self._mw.get_gain_PushButton.clicked.connect(self._exp_logic.get_gain)
+        self._mw.get_filterpos_PushButton.clicked.connect(self._exp_logic.get_filterpos)
 
         # signals to logic
         self.sigSaveConfig.connect(self._exp_logic.save_to_exp_config_file)
@@ -99,6 +104,8 @@ class ExpConfiguratorGUI(GUIBase):
         self._exp_logic.sigConfigDictUpdated.connect(self.update_entries)
         self._exp_logic.sigImagingListChanged.connect(self.update_listview)
 
+        # update the entries on the form
+        self._exp_logic.init_default_config_dict()
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -113,22 +120,32 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.raise_()
 
     def init_configuration_form(self):
-        self._mw.filterpos_ComboBox.addItems(['Filter1', 'Filter2', 'Filter3'])  # replace later by real entries to retrieve from filter logic
-        self._mw.laser_ComboBox.addItems(['405 nm', '488 nm', '561 nm', '641 nm'])  # replace later by real entries to retrieve from laser logic
+        self._mw.filterpos_ComboBox.addItems(self._exp_logic.filters)
+        self._mw.laser_ComboBox.addItems(self._exp_logic.lasers)
 
     # slots
+    def set_form_visible(self, index):
+        if index == 0:
+            self._mw.formWidget.hide()
+        else:
+            self._mw.formWidget.setVisible(True)
+
+            # could also add specific adaptations depending on the experiment type here
+
     def save_config_clicked(self):
-        path = '/home/barho/qudi-cbs-experiment-config'  #  'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        path = '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
         filename = 'testconfigfile.txt'  # adapt filename as a function of experiment type chosen in combobox
         self.sigSaveConfig.emit(path, filename)
 
     def load_config_clicked(self):
-        data_directory = '/home/barho/qudi-cbs-experiment-config'  #  'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        data_directory = '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
                                                           'txt files (*.txt)')[0]
-        self.sigLoadConfig.emit(this_file)
+        if this_file:
+            self._mw.formWidget.setVisible(True)
+            self.sigLoadConfig.emit(this_file)
 
     def update_entries(self):
         self._mw.exposure_DSpinBox.setValue(self._exp_logic.config_dict['exposure'])
@@ -136,24 +153,17 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.frames_SpinBox.setValue(self._exp_logic.config_dict['num_frames'])
         self._mw.filterpos_ComboBox.setCurrentIndex(self._exp_logic.config_dict['filter_pos'] - 1)  # zero indexing
         self._mw.save_path_LineEdit.setText(self._exp_logic.config_dict['save_path'])
+        self._exp_logic.img_sequence_model.layoutChanged.emit()
 
     def add_entry_clicked(self):
         """ callback from pushbutton inserting an item into the imaging sequence list"""
         lightsource = self._mw.laser_ComboBox.currentText()  # or replace by current index
         intensity = self._mw.laser_intensity_SpinBox.value()
-        # version where the logic handles the list model
         self.sigAddEntry.emit(lightsource, intensity)
-
-        # # version where the gui module handles the list model
-        # # Access the list via the model.
-        # self.img_sequence_model.items.append((lightsource, intensity))
-        # self.log.info(self.img_sequence_model.items)  # just for tests
-        # # Trigger refresh.
-        # self.img_sequence_model.layoutChanged.emit()
 
     def update_listview(self):
         self._exp_logic.img_sequence_model.layoutChanged.emit()
-        # for the delete entry case
+        # for the delete entry case, if one row is selected then it will be deleted
         indexes = self._mw.imaging_sequence_ListView.selectedIndexes()
         if indexes:
             self._mw.imaging_sequence_ListView.clearSelection()
@@ -164,10 +174,4 @@ class ExpConfiguratorGUI(GUIBase):
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             self.sigDeleteEntry.emit(index)
-
-
-
-
-
-
 

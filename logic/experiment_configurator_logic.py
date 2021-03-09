@@ -11,6 +11,7 @@ import yaml
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
+from core.connector import Connector
 
 
 class ImagingSequenceModel(QtCore.QAbstractListModel):
@@ -45,8 +46,17 @@ class ExpConfigLogic(GenericLogic):
             - 'tiff'
             - 'fits'
         default path: '/home/barho'
+        connect:
+            camera_logic: 'camera_logic'
+            laser_logic: 'lasercontrol_logic'
+            filterwheel_logic: 'filterwheel_logic'
 
     """
+    # Define connectors to logic modules
+    camera_logic = Connector(interface='CameraLogic')
+    laser_logic = Connector(interface='LaserControlLogic')
+    filterwheel_logic = Connector(interface='FilterwheelLogic')
+
 
     # signals
     sigConfigDictUpdated = QtCore.Signal()
@@ -65,6 +75,16 @@ class ExpConfigLogic(GenericLogic):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
+        self._camera_logic = self.camera_logic()
+        self._laser_logic = self.laser_logic()
+        self._filterwheel_logic = self.filterwheel_logic()
+
+        # prepare the items that will go in the ComboBoxes on the GUI
+        filter_dict = self._filterwheel_logic.get_filter_dict()
+        self.filters = [filter_dict[key]['name'] for key in filter_dict]
+        laser_dict = self._laser_logic.get_laser_dict()
+        self.lasers = [laser_dict[key]['wavelength'] for key in laser_dict]
+
         self.img_sequence_model = ImagingSequenceModel()
         # add an additional entry to the experiment selector combobox with placeholder text
         self.experiments.insert(0, 'Select your experiment..')
@@ -105,6 +125,8 @@ class ExpConfigLogic(GenericLogic):
                 self.config_dict[key] = data_dict[key]
             else:
                 self.config_dict[key] = None  # should the config_dict always contain all entries, even those that are non applicable for the experiment in question ?
+        # synchronize the listviewmodel with the config_dict['imaging_sequence'] entry
+        self.img_sequence_model.items = self.config_dict['imaging_sequence']
         self.sigConfigDictUpdated.emit()
 
     def init_default_config_dict(self):
@@ -124,11 +146,15 @@ class ExpConfigLogic(GenericLogic):
     def update_exposure(self, value):
         """ Updates the dictionary entry 'exposure'"""
         self.config_dict['exposure'] = value
+        # update the gui in case this method was called from the ipython console
+        self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(int)
     def update_gain(self, value):
         """ Updates the dictionary entry 'gain'"""
         self.config_dict['gain'] = value
+        # update the gui in case this method was called from the ipython console
+        self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(int)
     def update_frames(self, value):
@@ -139,11 +165,15 @@ class ExpConfigLogic(GenericLogic):
     def update_save_path(self, path):
         """ Updates the dictionary entry 'save_path' (path where image data is saved to)"""
         self.config_dict['save_path'] = path
+        # update the gui in case this method was called from the ipython console
+        self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(int)
     def update_filterpos(self, index):
         """ Updates the dictionary entry 'filter_pos'"""
         self.config_dict['filter_pos'] = index + 1  # zero indexing !
+        # update the gui in case this method was called from the ipython console
+        self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(str, int)
     def add_entry_to_imaging_list(self, lightsource, intensity):
@@ -165,5 +195,22 @@ class ExpConfigLogic(GenericLogic):
         self.config_dict['imaging_sequence'] = self.img_sequence_model.items
         # Trigger refresh of the livtview on the GUI
         self.sigImagingListChanged.emit()
+
+
+    # retrieving current values from instruments
+    def get_exposure(self):
+        exposure = self._camera_logic.get_exposure()
+        self.config_dict['exposure'] = exposure
+        self.sigConfigDictUpdated.emit()
+
+    def get_gain(self):
+        gain = self._camera_logic.get_gain()
+        self.config_dict['gain'] = gain
+        self.sigConfigDictUpdated.emit()
+
+    def get_filterpos(self):
+        filterpos = self._filterwheel_logic.get_position()
+        self.config_dict['filter_pos'] = filterpos
+        self.sigConfigDictUpdated.emit()
 
 
