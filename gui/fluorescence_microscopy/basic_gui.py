@@ -85,6 +85,7 @@ class BasicGUI(GUIBase):
         module.Class: 'fluorescence_microscopy.basic_gui.BasicGUI'
         default_path: '/home/barho/images'     # indicate here the default path where data should be saved to
                                                # folder with current date will be created automatically therein
+        brightfield_control: False
         connect:
             camera_logic: 'camera_logic'
             laser_logic: 'lasercontrol_logic'
@@ -96,8 +97,11 @@ class BasicGUI(GUIBase):
     laser_logic = Connector(interface='LaserControlLogic')
     filterwheel_logic = Connector(interface='FilterwheelLogic')
 
+    brightfield_logic = Connector(interface='BrightfieldLogic', optional=True)  
+
     # set the default save path (stem) from config
     default_path = ConfigOption('default_path', missing='warn')
+    brightfield_control = ConfigOption('brightfield_control', False)
 
     # Signals
     # signals to camera logic
@@ -116,9 +120,13 @@ class BasicGUI(GUIBase):
     
     sigReadTemperature = QtCore.Signal()
 
-    # signals to daq logic
+    # signals to laser control logic
     sigLaserOn = QtCore.Signal()
     sigLaserOff = QtCore.Signal()
+
+    # signals to brightfield control logic
+    sigBFOn = QtCore.Signal(int)
+    sigBFOff = QtCore.Signal()
     
     # signals to filterwheel logic
     sigFilterChanged = QtCore.Signal(int)
@@ -128,6 +136,7 @@ class BasicGUI(GUIBase):
     _camera_logic = None
     _laser_logic = None
     _filterwheel_logic = None
+    _brightfield_logic = None
     _mw = None
     region_selector_enabled = False
     imageitem = None
@@ -153,6 +162,9 @@ class BasicGUI(GUIBase):
         self._camera_logic = self.camera_logic()
         self._laser_logic = self.laser_logic()
         self._filterwheel_logic = self.filterwheel_logic()
+
+        if self.brightfield_control:
+            self._brightfield_logic = self.brightfield_logic()
 
         # Windows
         self._mw = BasicWindow()
@@ -340,6 +352,23 @@ class BasicGUI(GUIBase):
         self._mw.laser2_Label.setText(self._laser_logic._laser_dict['laser2']['wavelength'])
         self._mw.laser3_Label.setText(self._laser_logic._laser_dict['laser3']['wavelength'])
         self._mw.laser4_Label.setText(self._laser_logic._laser_dict['laser4']['wavelength'])
+
+
+        # add brightfield control widgets
+        if self.brightfield_control:
+            self.bf_Label = QtWidgets.QLabel('BF')
+            self.bf_control_SpinBox = QtWidgets.QSpinBox()
+            self._mw.formLayout_3.addRow(self.bf_Label, self.bf_control_SpinBox)
+
+            self.brightfield_on_Action = self._mw.toolBar_2.addAction('Brightfield on')
+            self.brightfield_on_Action.setCheckable(True)
+            self.brightfield_on_Action.setChecked(False)
+
+            self.brightfield_on_Action.triggered.connect(self.brightfield_on_clicked)
+
+
+            self.sigBFOn.connect(self._brightfield_logic.led_control)
+            self.sigBFOff.connect(self._brightfield_logic.led_off)
 
         # toolbar actions
         self._mw.laser_on_Action.setEnabled(True)
@@ -930,12 +959,30 @@ class BasicGUI(GUIBase):
         """
         for item in self.spinbox_list: 
             item.setValue(0)
+        # also set brightfield control to zero in case it is available
+        if self.brightfield_control:
+            self.bf_control_SpinBox.setValue(0)
 
     def update_laser_spinbox(self):
         """ update values in laser spinboxes if the intensity dictionary in the logic module was changed """
         for index, item in enumerate(self.spinbox_list):
             label = 'laser'+str(index + 1)  # create the label to address the corresponding laser
             item.setValue(self._laser_logic._intensity_dict[label])
+
+    @QtCore.Slot()
+    def brightfield_on_clicked(self):
+        """ callback of brightfield_on_Action.
+        Handles the state of the toolbutton and emits a signal that is in turn connected to the physical output.
+        """
+        if self._brightfield_logic.enabled:
+            # brightfield is initially on
+            self.brightfield_on_Action.setText('Brightfield On')
+            self.sigBFOff.emit()
+        else:
+            # brightfield is initially off
+            self.brightfield_on_Action.setText('Brightfield Off')
+            intensity = self.bf_control_SpinBox.value()
+            self.sigBFOn.emit(intensity)
 
     # filter dockwidget
     def init_filter_selection(self):

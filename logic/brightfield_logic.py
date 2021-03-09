@@ -39,6 +39,8 @@ class BrightfieldLogic(GenericLogic):
     # declare connectors
     controller = Connector(interface='BrightfieldInterface')
 
+    enabled = False  # read from current value from hardware
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -50,15 +52,20 @@ class BrightfieldLogic(GenericLogic):
         """ Initialisation performed during activation of the module.
         """
         self._controller = self.controller()
+        # start with led off on start
+        self.led_off()
 
     def on_deactivate(self):
         pass
 
     def led_control(self, intens):
+        self.enabled = True
         self._controller.led_control(intens)
 
     def led_off(self):
-        self.led_control(0)
+        self.enabled = False
+        self._controller.led_control(0)
 
     def led_on_max(self):
+        self.enabled = True
         self.led_control(99)
