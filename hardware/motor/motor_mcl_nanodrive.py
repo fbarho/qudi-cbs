@@ -106,9 +106,8 @@ class MCLNanoDrive(Base, MotorInterface):
 
         @return bool: error code (True: ok, False: not ok)   or modify to return position ??
         """
-        # this version works for a param_dict with one entry.
+        # this version is for a param_dict with one entry.
         constraints = self.get_constraints()
-        # this is not the good return format ..
         (_, position) = self.get_pos().popitem()  # get_pos returns a dict {axis_label: position}
         # self.log.info(f'Position: {position}')
 
@@ -130,7 +129,21 @@ class MCLNanoDrive(Base, MotorInterface):
 
         @return bool: error code (True: ok, False: error)       - or modify to return the new position ??
         """
-        pass
+        # this version is for a param_dict with one entry.
+        constraints = self.get_constraints()
+        (_, position) = self.get_pos().popitem()  # get_pos returns a dict {axis_label: position}
+
+        (axis, new_pos) = param_dict.popitem()
+
+        if axis == self._axis_label and constraints[axis]['pos_min'] <= new_pos <= constraints[axis]['pos_max']:
+            new_pos = ctypes.c_double(new_pos)
+            err = self.dll.MCL_SingleWriteZ(new_pos, self.handle)
+            if err == MCL_SUCCESS:
+                return True
+            else:
+                self.log.warning(f'Could not move axis {axis} to position {position}: {err}.')
+                return False
+        # use preferably the relative movement. move_abs does not implement a safety check if a too big step will be done.
 
     def abort(self):
         """ Stops movement of the stage
@@ -145,10 +158,12 @@ class MCLNanoDrive(Base, MotorInterface):
         @return dict: with keys being the axis labels and item the current position.
         """
         cur_pos = self.dll.MCL_SingleReadZ(self.handle)
-        pos = {}
-        pos[self._axis_label] = cur_pos
-        return pos
-        # add check that pos is not an error code
+        if cur_pos < 0:  # then this corresponds to an error code
+            self.log.warn(f'error reading position: {cur_pos}')
+        else:
+            pos = {}
+            pos[self._axis_label] = cur_pos
+            return pos
         # note that pifoc returns ordered dict. check if this gives problems for interface.
 
     def get_status(self, param_list=None):

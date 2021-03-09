@@ -24,6 +24,7 @@ from time import sleep
 import os
 from PIL import Image
 from astropy.io import fits
+import yaml
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -198,14 +199,29 @@ class CameraLogic(GenericLogic):
         """ Get temperature of hardware, if accessible """
         if not self.has_temp:
             self.log.warn('Sensor temperature control not available')
+        # version without acces to temperature while live is on    
+#        else:
+#            temp = self._hardware.get_temperature()
+#            self._temperature = temp
+#            idle = self._hardware.get_ready_state()
+#            if not idle:
+#                return 'NA'
+#            else:
+#                return temp
         else:
+            if self.enabled:  # live mode on
+#                self.interrupt_live()
+                self.timer.stop() 
+                self._hardware.stop_acquisition()
+                
             temp = self._hardware.get_temperature()
             self._temperature = temp
-            idle = self._hardware.get_ready_state()
-            if not idle:
-                return 'NA'
-            else:
-                return temp
+            
+            if self.enabled:  # restart live mode
+#                self.resume_live()
+                self.start_loop()
+            return temp
+                
 
     # to be removed in a future version
     @QtCore.Slot()
@@ -230,7 +246,7 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
         
-    ### low level methods for tasks ###     
+    ### low level methods for tasks ###       # specific to andor camera for the moment
     def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
         # need to think of how to organize this and how this method should be called .. 
         self._hardware._start_acquisition()
@@ -243,6 +259,21 @@ class CameraLogic(GenericLogic):
     
     def wait_for_acquisition(self):
         self._hardware.wait_for_acquisition()
+        
+    def abort_acquisition(self):
+        self._hardware._abort_acquisition()
+    
+    def set_number_kinetics(self, n_frames):
+        self._hardware._set_number_kinetics(n_frames)
+        
+    def set_spool(self, active, method, path, framebuffersize): 
+        self._hardware._set_spool(active, method, path, framebuffersize)  
+    
+    def get_progress(self):
+        return self._hardware.get_progress()
+    
+    def set_shutter(self, typ, mode, closingtime, openingtime):
+        self._hardware._set_shutter(typ, mode, closingtime, openingtime)
         
     ##########################
 
@@ -300,6 +331,8 @@ class CameraLogic(GenericLogic):
         # return 'No'
         # version with true false display
         return str(self._hardware.get_ready_state())
+        # for tests: 
+#        return self._hardware.get_ready_state()
 
     def get_shutter_state(self):
         """ retrieves the status of the shutter if there is one
@@ -339,12 +372,12 @@ class CameraLogic(GenericLogic):
         temperature = str(self.get_temperature())
         self.sigUpdateCamStatus.emit(ready_state, shutter_state, cooler_state, temperature)
 
-    def save_last_image(self, path, metadata, fileformat='tiff'):
+    def save_last_image(self, path, metadata, fileformat='.tiff'):
         """ saves a single image to disk
 
         @param: str path: path stem, such as /home/barho/images/2020-12-16/samplename
         @param: dict metadata: dictionary containing the metadata
-        @param: str fileformat: default 'tiff' but can be modified if needed.
+        @param: str fileformat: default '.tiff' but can be modified if needed.
 
         @return: None
         """
@@ -362,7 +395,7 @@ class CameraLogic(GenericLogic):
         """ Saves n_frames to disk as a tiff stack
 
         @param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
-        @param: str fileformat
+        @param: str fileformat (including the dot, such as '.tiff', '.fits')
         @param: int n_frames: number of frames to be saved
         @param: bool display: show images on live display on gui
         @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
@@ -412,11 +445,11 @@ class CameraLogic(GenericLogic):
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
         # create the PIL.Image object and save it to tiff
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             self._save_to_tiff(n_frames, complete_path, image_data)
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
 
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             self._save_to_fits(complete_path, image_data, metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
@@ -448,9 +481,9 @@ class CameraLogic(GenericLogic):
         n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty
         # string for fileformat. this will be handled by the camera itself
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             method = 7
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             method = 5
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
@@ -480,11 +513,11 @@ class CameraLogic(GenericLogic):
         self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
         self.log.info('Saved data to file {}{}'.format(path, fileformat))
         # metadata saving
-        if fileformat == 'tiff':
+        if fileformat == '.tiff':
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
-        elif fileformat == 'fits':
+        elif fileformat == '.fits':
             try:
-                complete_path = path+'fits'
+                complete_path = path+'.fits'
                 self._add_fits_header(complete_path, metadata)
             except Exception as e:
                 self.log.warn(f'Metadata not saved: {e}.')
@@ -510,7 +543,7 @@ class CameraLogic(GenericLogic):
         @params: str filenamestem  (example /home/barho/images/2020-12-16/samplename)
         @params: str folder: specify the type of experiment (ex. Movie, Snap)
         @params: str file: filename (ex movie, image). do not specify the fileformat.
-        @params: str fileformat: specify the type of file (tiff, txt, ..)
+        @params: str fileformat: specify the type of file (.tiff, .txt, ..) including the dot ! 
         @params: bool addfile: if True, the last created folder will again be accessed (needed for metadata saving)
 
         @returns str complete path
@@ -537,7 +570,7 @@ class CameraLogic(GenericLogic):
                 os.makedirs(path)
             except Exception as e:
                 self.log.error('Error creating the target folder: {}'.format(e))
-        filename = '{0}.{1}'.format(file, fileformat)
+        filename = '{0}{1}'.format(file, fileformat)
         complete_path = os.path.join(path, filename)
         return complete_path
 
@@ -618,9 +651,10 @@ class CameraLogic(GenericLogic):
 
         @returns None
         """
-        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', 'txt', addfile=True)
+        complete_path = self._create_generic_filename(filenamestem, type, 'parameters', '.txt', addfile=True)
         with open(complete_path, 'w') as file:
-            file.write(str(metadata))
+            # file.write(str(metadata))  # for standard txt file
+            yaml.dump(metadata, file, default_flow_style=False)  # yaml file. can use suffix .txt. change if .yaml preferred.
         self.log.info('Saved metadata to {}'.format(complete_path))
 
     def _save_to_fits(self, path, data, metadata):
@@ -669,7 +703,10 @@ class CameraLogic(GenericLogic):
         @param int vend: End row (inclusive).
         """
         if self.enabled:  # live mode is on
-            self.interrupt_live()  # interrupt live to allow access to camera settings
+#            self.interrupt_live()  # interrupt live to allow access to camera settings
+            # new version to avoid display problem 
+            self.timer.stop() 
+            self._hardware.stop_acquisition()
 
         err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
         if err < 0:
@@ -678,16 +715,18 @@ class CameraLogic(GenericLogic):
             self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
         if self.enabled:
-            self.resume_live()
+#            self.resume_live() # restart live in case it was activated
+            self.start_loop()
 
     def reset_sensor_region(self):
         """ reset to full sensor size """
+        if self.enabled:  # live mode is on
+            self.timer.stop() 
+            self._hardware.stop_acquisition()  # interrupt live to allow access to camera settings
+            
         width = self._hardware._full_width  # store the full_width in the hardware module because _width is
         # overwritten when image is set
         height = self._hardware._full_height  # same goes for height
-
-        if self.enabled:  # live mode is on
-            self.interrupt_live()  # interrupt live to allow access to camera settings
 
         err = self._hardware.set_image(1, 1, 1, width, 1, height)
         if err < 0:
@@ -696,7 +735,8 @@ class CameraLogic(GenericLogic):
             self.log.info('Sensor region reset to default: {} x {}'.format(height, width))
 
         if self.enabled:
-            self.resume_live()
+            self.start_loop()
+            
 
     @QtCore.Slot(bool)
     def set_frametransfer(self, activate):

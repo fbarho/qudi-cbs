@@ -275,7 +275,7 @@ class IxonUltra(Base, CameraInterface):
         else:
             self._acquiring = True  # do we need this here?
             self._set_acquisition_mode('SINGLE_SCAN')
-            self.log.info('set acquisition mode: single scan')
+            # self.log.info('set acquisition mode: single scan')
             msg = self._start_acquisition()
             if msg != "DRV_SUCCESS":
                 return False

@@ -110,6 +110,11 @@ class BasicGUI(GUIBase):
     
     sigInterruptLive = QtCore.Signal()
     sigResumeLive = QtCore.Signal()
+    
+    sigSetSensor = QtCore.Signal(int, int, int, int, int, int)
+    sigResetSensor = QtCore.Signal()
+    
+    sigReadTemperature = QtCore.Signal()
 
     # signals to daq logic
     sigLaserOn = QtCore.Signal()
@@ -285,6 +290,9 @@ class BasicGUI(GUIBase):
         self.sigSpoolingStart.connect(self._camera_logic.do_spooling)
         self.sigInterruptLive.connect(self._camera_logic.interrupt_live)
         self.sigResumeLive.connect(self._camera_logic.resume_live)
+        self.sigSetSensor.connect(self._camera_logic.set_sensor_region)
+        self.sigResetSensor.connect(self._camera_logic.reset_sensor_region)
+        self.sigReadTemperature.connect(self._camera_logic.get_temperature)
 
         # signals from logic
         self._camera_logic.sigUpdateDisplay.connect(self.update_data)
@@ -296,6 +304,9 @@ class BasicGUI(GUIBase):
 
     def init_camera_status_dockwidget(self):
         """ initializes the indicators and connects signals for the camera status dockwidget"""
+        # add the camera name to the status dockwidget
+        # name = self._camera_logic.get_name()
+        # self._mw.camera_status_Label.setText(f'Camera status: {name}')
         # initialize the camera status indicators on the GUI
         self._mw.camera_status_LineEdit.setText(self._camera_logic.get_ready_state())
         if not self._camera_logic.has_shutter:
@@ -482,7 +493,7 @@ class BasicGUI(GUIBase):
         default_path = self._mw.save_path_LineEdit.text()
         today = datetime.today().strftime('%Y-%m-%d')
         path = os.path.join(default_path, today, folder_name)
-        fileformat = str(self._save_sd.file_format_ComboBox.currentText())
+        fileformat = '.'+str(self._save_sd.file_format_ComboBox.currentText())
 
         n_frames = self._save_sd.n_frames_SpinBox.value()
 
@@ -601,7 +612,6 @@ class BasicGUI(GUIBase):
         Handles the state of the start button and emits a signal (connected to logic above) to start the acquisition loop.
         """
         self._mw.take_image_Action.setDisabled(True)  # snap and live are mutually exclusive
-        # self._mw.set_sensor_Action.setDisabled(True)  # check later if this should be left active
         if self._camera_logic.enabled:  # video already running
             self._mw.start_video_Action.setText('Live')
             self._mw.start_video_Action.setToolTip('Start live video')
@@ -786,7 +796,10 @@ class BasicGUI(GUIBase):
         if metadata['intens'] == []:
             metadata['intens'] = None
         if self._camera_logic.has_temp:
-            metadata['temp'] = self._camera_logic.get_temperature()
+#            metadata['temp'] = self._camera_logic.get_temperature()  # old version with missing metadata entry when live mode is running and save is clicked
+            # new version allowing temperature reading during live (short interruption of live mode)
+            self.sigReadTemperature.emit()
+            metadata['temp'] = self._camera_logic._temperature
         else:
             metadata['temp'] = 'Not available'
         return metadata
@@ -803,7 +816,8 @@ class BasicGUI(GUIBase):
         else:  # area selection is initially on:
             self._mw.camera_ScanPlotWidget.toggle_selection(False)
             self.region_selector_enabled = False
-            self._camera_logic.reset_sensor_region()
+#            self._camera_logic.reset_sensor_region()
+            self.sigResetSensor.emit()
             self._mw.set_sensor_Action.setText('Set sensor region')
 
     @QtCore.Slot(QtCore.QRectF)
@@ -830,7 +844,15 @@ class BasicGUI(GUIBase):
         # using the following arguments: set_sensor_region(hbin, vbin, start, hend, num_px_y - vend, num_px_y - vstart) ('vstart' needs to be smaller than 'vend')
         num_px_y = self._camera_logic.get_max_size()[1]  # height is stored in the second return value of get_size
         # self.log.debug(num_px_y)
-        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
+        
+        # version where set sensor region is only possible when live mode is stopped 
+#        self._camera_logic.set_sensor_region(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
+        
+        # new version allowing set sensor region during live: it is needed to send a signal to camera
+        # logic otherwise the start loop / stop loop functionality cannot be used 
+        # (timers cannot be started / stopped from another thread)
+        # send the 6 arguments for camera_logic.set_sensor_region via the signal
+        self.sigSetSensor.emit(1, 1, hstart_, hend_, num_px_y-vend_, num_px_y-vstart_)
         if self._camera_logic.enabled:  # if live mode is on hide rubberband selector directly
             self.imageitem.getViewBox().rbScaleBox.hide()
 
@@ -891,14 +913,12 @@ class BasicGUI(GUIBase):
         """
         if self._laser_logic.enabled:
             # laser is initially on
-            self._mw.laser_zero_Action.setDisabled(False)
             self._mw.laser_on_Action.setText('Laser On')
             self.sigLaserOff.emit()
             # enable filter setting again
             self._mw.filter_ComboBox.setEnabled(True)
         else:
             # laser is initially off
-            self._mw.laser_zero_Action.setDisabled(True)
             self._mw.laser_on_Action.setText('Laser Off')
             self.sigLaserOn.emit()
             # do not change filters while laser is on

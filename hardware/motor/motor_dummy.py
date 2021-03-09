@@ -60,7 +60,7 @@ class MotorDummy(Base, MotorInterface):
         # this is added so that focus logic works with motor dummy connected .. # to improve ??
         self._axis_label = self._z_axis.label
 
-        self._wait_after_movement = 0.1 #in seconds
+        self._wait_after_movement = 0.5 #in seconds
 
     #TODO: Checks if configuration is set and is reasonable
 

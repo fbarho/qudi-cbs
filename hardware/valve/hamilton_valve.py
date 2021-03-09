@@ -11,7 +11,7 @@ This file contains the class for the Hamilton modular valve positioner (MVP)
 based on file valve.py
 Created on Thu Jul 16 16:21:53 2020 
 @author: aymerick
-putting it to qudi style 
+converting it to qudi style
 """
 
 import serial
@@ -29,7 +29,7 @@ class HamiltonValve(Base): #, ValveInterface):
         
     Hamilton:
         module.Class: 'valve.hamilton_valve.HamiltonValve'
-        com_port: 'COM1''
+        com_port: 'COM1'
     """  
     
 
@@ -150,8 +150,11 @@ class HamiltonValve(Base): #, ValveInterface):
 #            print("You have to open the connection if you want to communicate with the device")
         
         
-    def set_valve_position(self, valve):
+    def set_valve_position(self, valve, position):
         pass
+
+    # check if abs(target-current_pos) <= number_of_positions / 2   --> yes: go clockwise, no: go ccw
+    # (for valve with equidistant positions (like 8 way valve)).
     
     
     

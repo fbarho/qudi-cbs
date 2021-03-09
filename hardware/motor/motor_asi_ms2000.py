@@ -15,10 +15,11 @@ from time import sleep
 
 from core.module import Base
 from interface.motor_interface import MotorInterface
+from interface.brightfield_interface import BrightfieldInterface
 from core.configoption import ConfigOption
 
 
-class MS2000(Base, MotorInterface):
+class MS2000(Base, MotorInterface, BrightfieldInterface):
     """ Class representing the ASI MS 2000 xy translation stage.
     
     Example config for copy-paste:
@@ -29,6 +30,7 @@ class MS2000(Base, MotorInterface):
         first_axis_label: 'x'
         second_axis_label: 'y'
         third_axis_label: 'z'
+        LED connected: False
     """
 
     _com_port = ConfigOption("com_port", missing="error")
@@ -40,6 +42,8 @@ class MS2000(Base, MotorInterface):
    
     _conversion_factor = 10.0  # user will send positions in um, stage uses 0.1 um
     axis_list = None
+
+    _has_led = ConfigOption("LED connected", False, missing="warn")
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -276,6 +280,19 @@ class MS2000(Base, MotorInterface):
         cmd = "Z \r"
         self.write(cmd)
         return 0
+
+    # brightfield interface
+
+    def led_control(self, intens):
+        """ sets the intensity of the LED to the value intens (0-99)"""
+        if self._has_led:
+            # truncate to allowed range
+            value = int(min(max(intens, 0), 99))
+            cmd = f"LED X={value}? \r"
+            self.write(cmd)
+            return 0
+        else:
+            pass
 
     # helper functions
 

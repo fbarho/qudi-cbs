@@ -191,3 +191,80 @@ class LaserControlLogic(GenericLogic):
             self._controller.close_do_task()
         else:
             pass
+        
+        
+    def set_up_ai_channel(self):
+        """ create a task and its virtual channel for the analog input
+        """
+        if self.controllertype == 'daq':
+            self._controller.set_up_ai_channel()
+        else:
+            pass
+
+        
+    def close_ai_task(self):
+        """ close the analog input task if there is one
+        """
+        if self.controllertype == 'daq':
+            self._controller.close_ai_task()
+        else:
+            pass
+        
+    def read_ai_channel(self):
+        """
+        """
+        if self.controllertype == 'daq':
+            ai_value = self._controller.read_ai_channel()
+            return ai_value
+        else:
+            pass
+        
+        
+    def send_trigger_and_control_ai(self):
+        """ for multicolor imaging task : control if fire sent"""
+        if self.controllertype == 'daq':
+            return self._controller.send_trigger_and_control_ai()
+        else:
+            pass
+
+
+
+
+    ### new 3 march 2021 test with tasks for ramm setup
+    #low level methods directly from ni_fpga hardware module
+    def close_default_session(self):
+        """ This method is called before another bitfile than the default one shall be loaded
+
+        (in this version it actually does the same as on_deactivate (we could also just call this method ..  but this might evolve)
+        """
+        if self.controllertype == 'fpga':
+            self._controller.close_default_session()
+        else:
+            pass
+
+
+    def restart_default_session(self):
+        """ This method allows to restart the default session"""
+        if self.controllertype == 'fpga':
+            self._controller.restart_default_session()
+        else:
+            pass
+
+    def start_task_session(self, bitfile):
+        """ loads a bitfile used for a specific task """
+        if self.controllertype == 'fpga':
+            self._controller.start_task_session(bitfile)
+        else:
+            pass
+
+    def end_task_session(self):
+        if self.controllertype == 'fpga':
+            self._controller.end_task_session()
+        else:
+            pass
+
+    def run_test_task_session(self):  #replace this name by run_merfish_task_session etc ..
+        if self.controllertype == 'fpga':
+            self._controller.run_test_task_session()
+        else:
+            pass
