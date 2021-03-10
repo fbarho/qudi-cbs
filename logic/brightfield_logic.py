@@ -56,7 +56,7 @@ class BrightfieldLogic(GenericLogic):
         self.led_off()
 
     def on_deactivate(self):
-        pass
+        self.led_off()
 
     def led_control(self, intens):
         self.enabled = True
@@ -69,3 +69,7 @@ class BrightfieldLogic(GenericLogic):
     def led_on_max(self):
         self.enabled = True
         self.led_control(99)
+
+    def update_intensity(self, intensity):
+        if self.enabled:
+            self.led_control(intensity)

@@ -354,7 +354,7 @@ class BasicGUI(GUIBase):
         self._mw.laser4_Label.setText(self._laser_logic._laser_dict['laser4']['wavelength'])
 
 
-        # add brightfield control widgets
+        # add brightfield control widgets if applicable
         if self.brightfield_control:
             self.bf_Label = QtWidgets.QLabel('BF')
             self.bf_control_SpinBox = QtWidgets.QSpinBox()
@@ -366,9 +366,11 @@ class BasicGUI(GUIBase):
 
             self.brightfield_on_Action.triggered.connect(self.brightfield_on_clicked)
 
-
             self.sigBFOn.connect(self._brightfield_logic.led_control)
             self.sigBFOff.connect(self._brightfield_logic.led_off)
+
+            # update the physical output when the spinbox value is changed
+            self.bf_control_SpinBox.valueChanged.connect(self._brightfield_logic.update_intensity)
 
         # toolbar actions
         self._mw.laser_on_Action.setEnabled(True)
