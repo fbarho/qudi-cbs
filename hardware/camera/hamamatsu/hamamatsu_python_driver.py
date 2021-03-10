@@ -874,6 +874,27 @@ class HamamatsuCamera(object):
         self.checkStatus(self.dcam.dcamcap_transferinfo(self.camera_handle, ctypes.byref(paramtransfer)), "dcamcap_transferinfo")
         return paramtransfer.nNewestFrameIndex  # index of the newest frame
 
+    def getTriggerSource(self):
+        trigger_source = self.getPropertyValue("trigger_source")
+        return trigger_source[0]
+    # would be a good idea to map the number to the description
+
+    def setTriggerSource(self, source):
+        """
+        @param: str source: 'INTERNAL', 'EXTERNAL', 'SOFTWARE', 'MASTER PULSE'
+        @returns: checkval: bool False if not set, int number corresponding to trigger source if set correctly
+        """
+        # the supported trigger sources can be found as follows:
+        # self.getPropertyText('trigger_source') returns {'INTERNAL': 1, 'EXTERNAL': 2, 'SOFTWARE': 3, 'MASTER PULSE': 4}
+
+        checkval = self.setPropertyValue("trigger_source", source)
+        if isinstance(checkval, float):
+            checkval = int(checkval)  # reformat to be an integer because setPropertyValue returns a float even for int properties
+        return checkval
+
+
+
+
 
 
 

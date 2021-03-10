@@ -308,3 +308,26 @@ class HCam(Base, CameraInterface):
     def get_acquisiton_mode(self):
         acq_mode = self.camera.acquisition_mode
         return acq_mode
+
+    def _set_trigger_mode(self, mode):
+        """
+        corresponds to setting the trigger source in hamamatsu terminology ..
+        @param string mode: string corresponding to certain TriggerMode 'INTERNAL', 'EXTERNAL', 'SOFTWARE', 'MASTER PULSE'
+        @return int check_val: ok: 0, not ok: -1
+        """
+        check_val = 0
+        trigger_set = self.camera.setTriggerSource(mode)
+        if not trigger_set:
+            check_val = -1
+        return check_val
+
+    def _set_acquisition_mode(self, mode, n_frames):
+        self.camera.setACQMode(mode, n_frames)
+        # add error handling etc.
+
+    def _start_acquisition(self):
+        self.camera.startAcquisition()
+
+
+
+
