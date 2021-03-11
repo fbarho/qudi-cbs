@@ -253,6 +253,10 @@ class CameraLogic(GenericLogic):
         
     def set_acquisition_mode(self, mode):
         self._hardware._set_acquisition_mode(mode)
+
+    #to be modified later # homogenize lowlevel methods or address directly hardware when running tasks
+    def set_acquisition_mode_hcam(self, mode, num_frames):
+       self._hardware._set_acquisition_mode(mode, num_frames)
         
     def get_acquired_data(self):
         return self._hardware.get_acquired_data()
@@ -274,6 +278,9 @@ class CameraLogic(GenericLogic):
     
     def set_shutter(self, typ, mode, closingtime, openingtime):
         self._hardware._set_shutter(typ, mode, closingtime, openingtime)
+
+    def stop_acquisition(self):
+        self._hardware.stop_acquisition()
         
     ##########################
 

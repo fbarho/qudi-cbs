@@ -1,8 +1,9 @@
 import Fluigent.SDK as fgt  # only supported on Windows
 from core.module import Base
+from interface.microfluidic_pump_interface import MicrofluidicsPumpInterface
 
 
-class FluigentController(Base):
+class FluigentController(Base, MicrofluidicsPumpInterface):
     """ Hardware class representing the Fluigent Microfluidics Controllers
 
     Example config for copy-paste:
@@ -23,6 +24,9 @@ class FluigentController(Base):
 
         # initialize controllers
         fgt.fgt_init()
+
+        self.pressure_channel = 0  # or from config ?
+        self.sensor_channel = 0
         #
         # ## Get the number of channels of each type
         #
@@ -62,26 +66,40 @@ class FluigentController(Base):
         fgt.fgt_close()
 
     # methods for pressure channels
-    def set_pressure(self, channel, value):
+    def set_pressure(self, value):
+        channel = self.pressure_channel
         fgt.fgt_set_pressure(channel, value)
 
-    def get_pressure(self, channel):
+    def get_pressure(self):
+        channel = self.pressure_channel
         return fgt.fgt_get_pressure(channel)
 
-    def get_pressure_unit(self, channel):
+    def get_pressure_unit(self):
+        channel = self.pressure_channel
         return fgt.fgt_get_pressureUnit(channel)
 
-    def get_pressure_range(self, channel):
+    def get_pressure_range(self):
+        channel = self.pressure_channel()
         p_min,  p_max = fgt.fgt_get_pressureRange(channel)
         return p_min, p_max
 
     # methods for sensor channels
-    def get_flowrate(self, channel):
+    def get_flowrate(self):
+        channel = self.sensor_channel
         return fgt.fgt_get_sensorValue(channel)
 
-    def get_sensor_unit(self, channel):
+    def get_sensor_unit(self):
+        channel = self.sensor_channel
         return fgt.fgt_get_sensorUnit(channel)
 
-    def get_sensor_range(self, channel):
+    def get_sensor_range(self):
+        channel = self.sensor_channel
         min_sensor, max_sensor = fgt.fgt_get_sensorRange(channel)
         return min_sensor, max_sensor
+
+
+    # version for one pressure channel and one sensor channel only. should be improved
+    # maybe interate over the number of channels and use a dictionary as return value for measurements ?
+    # like for the motors
+
+    #also improve to have error codes and handle exceptions.

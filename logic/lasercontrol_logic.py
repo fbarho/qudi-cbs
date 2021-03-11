@@ -263,8 +263,15 @@ class LaserControlLogic(GenericLogic):
         else:
             pass
 
-    def run_test_task_session(self):  #replace this name by run_merfish_task_session etc ..
+    def run_test_task_session(self, data):  #replace this name by run_merfish_task_session etc ..
         if self.controllertype == 'fpga':
-            self._controller.run_test_task_session()
+            self._controller.run_test_task_session(data)
+        else:
+            pass
+
+
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values):
+        if self.controllertype == 'fpga':
+            self._controller.run_multicolor_imaging_task_session(z_planes, wavelength, values)
         else:
             pass

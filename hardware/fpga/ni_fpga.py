@@ -143,6 +143,7 @@ class Nifpga(Base, LaserControlInterface):
     def restart_default_session(self):
         """ This method allows to restart the default session"""
         self.on_activate()
+        #or is it sufficient to just call         self.session = Session(bitfile=self.default_bitfile, resource=self.resource) and session run ?
 
     def start_task_session(self, bitfile):
         """ loads a bitfile used for a specific task """
@@ -151,39 +152,53 @@ class Nifpga(Base, LaserControlInterface):
     def end_task_session(self):
         self.session.close()
 
-    #specific methods associated to a bitfile
-    def run_test_task_session(self):
+    # methods associated to a specific bitfile
+    def run_test_task_session(self, data):
+        """
+        associated bitfile 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAlasercontrol_pdDEc3yii+w.lvbitx'
+        @param: list data: values to be applied to the output (in % of max intensity) """
         #using for a simple test the FPGA_laser_control_Qudi bitfile (control only for the 561 nm laser)
-        # laser_control = self.session.registers['561']  # '561' register
-        # self.session.reset()
-        # self.apply_voltage(0, laser_control)  # set initial value to each channel
-        # self.session.run()
-        # # write some values
-        # conv_value = self.convert_value(5)
-        # laser_control.write(conv_value)
-        # self.session.run()
-        # sleep(1)
-        # conv_value = self.convert_value(0)
-        # laser_control.write(conv_value)
-        # self.session.run()
-        # sleep(1)
-        # conv_value = self.convert_value(4)
-        # laser_control.write(conv_value)
-        # self.session.run()
-        # sleep(1)
-        # conv_value = self.convert_value(0)
-        # laser_control.write(conv_value)
-        # self.session.run()
-
-        #with array
+        n_lines = self.session.registers['N']
         laser_control = self.session.registers['561 Laser Power']
         self.session.reset()
-        self.session.run()
-        values = [5, 0, 5, 0, 5]
-        conv_values = [self.convert_value(item) for item in values]
+
+        print(n_lines.read())
+        n_lines.write(5)
+        print(n_lines.read())
+
+        conv_values = [self.convert_value(item) for item in data]
         print(conv_values)
         laser_control.write(conv_values)
         self.session.run()
+
+
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values):
+        """
+        associated bitfile 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'
+        @param: int z_planes: number of z planes
+        @param: int list wavelength: list containing the number of the laser line to be addressed: 0: BF, 1: 405, 2: 488, 3: 561, 4: 640
+        @param: int list values: intensity in per cent to be applied to the line given at the same index in the wavelength list
+        """
+        num_lines = self.session.registers['N laser lines']  # number of laser lines
+        num_z_pos = self.session.registers['N Z positions']  # number of z positions
+        num_images_acquired = self.session.registers['Images acquired']  # indicator register how many images have been acquired
+        laser_lines = self.session.registers['Laser lines']  # list containing numbers of the laser lines which should be addressed
+        laser_power = self.session.registers['Laser power']  # list containing the intensity in % to apply (to the element at the same index in laser_lines list
+
+        self.session.reset()
+
+        conv_values = [self.convert_value(item) for item in values]
+        n = len(wavelength)
+        num_lines.write(n)
+        num_z_pos.write(z_planes)
+        laser_lines.write(wavelength)
+        laser_power.write(conv_values)
+
+        self.session.run()  # wait_until_done=True
+        num_imgs = num_images_acquired.read()
+        print(num_imgs)
+
+
 
 
 
