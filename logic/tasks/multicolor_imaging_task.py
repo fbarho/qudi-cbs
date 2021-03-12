@@ -57,12 +57,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self._load_user_parameters()
 
-        # # control the config : laser allowed for given filter ?
-        # self.laser_allowed = self._control_user_parameters()
-        #
-        # if not self.laser_allowed:
-        #     self.log.warning('Task aborted. Please specify a valid filter / laser combination')
-        #     return
+        # control the config : laser allowed for given filter ?
+        self.laser_allowed = self._control_user_parameters()
+        
+        if not self.laser_allowed:
+            self.log.warning('Task aborted. Please specify a valid filter / laser combination')
+            return
         
         ### all conditions to start the task have been tested: Task can now be started safely   
         
@@ -124,6 +124,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return False
         # add similar control for all other criteria
         # .. 
+        if not self.laser_allowed:
+            return False
         
         
         # this task only has one step until a data set is prepared and saved (but loops over the number of frames per channel and the channels)
@@ -199,6 +201,25 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask called')
+        
+# # to do: use these two methods instead of the way it is now implemented        
+#    def checkExtraStartPrerequisites(self):
+#        """ Check extra start prerequisites, there are none """
+#        start_prerequisites = True  # as initialization
+#        # control if live mode in basic gui is running. Task can not be started then.
+#        if self.ref['camera'].enabled:
+#            start_prerequisites = False
+#        # control if video saving is currently running.  Task can not be started then.
+#        if self.ref['camera'].saving:
+#            start_prerequisites = False
+#        # control if laser has been switched on in basic gui. Task can not be started then.
+#        if self.ref['daq'].enabled:
+#            start_prerequisites = False
+#        return start_prerequisites
+#
+#    def checkExtraPausePrerequisites(self):
+#        """ Check extra pause prerequisites, there are none """
+#        return True
 
     def _load_user_parameters(self):
         """ this function is called from startTask() to load the parameters given in a specified format by the user
@@ -214,7 +235,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             file_format: 'tiff'
             imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)]
         """
-        # this will be replaced by values read from a config
+         # for tests 
 #        self.filter_pos = 1
 #        self.exposure = 0.05  # in s
 #        self.gain = 50
@@ -234,8 +255,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.num_frames = self.user_param_dict['num_frames']
                 self.save_path = self.user_param_dict['save_path']
                 self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
-                # self.file_format = self.user_param_dict['file_format']
-                self.file_format = 'fits'
+                self.file_format = self.user_param_dict['file_format']
+#                self.file_format = 'tiff'
                 self.log.debug(self.imaging_sequence_raw)  # remove after tests
 
                 # for the imaging sequence, we need to access the corresponding labels
@@ -248,19 +269,31 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+                          
+            
+    def _control_user_parameters(self):
+        # use the filter position to create the key # simpler than using get_entry_netsted_dict method
+        key = 'filter{}'.format(self.filter_pos)
+        bool_laserlist = self.ref['filter'].get_filter_dict()[key]['lasers']  # list of booleans, laser allowed ? such as [True True False True], corresponding to [laser1, laser2, laser3, laser4]
+        forbidden_lasers = []
+        for i, item in enumerate(bool_laserlist):
+            if not item:  # if the element in the list is False:
+                label = 'laser'+str(i+1)
+                forbidden_lasers.append(label)      
+        lasers_allowed = True  # as initialization
+        for item in forbidden_lasers:
+            if item in [self.imaging_sequence[i][0] for i in range(len(self.imaging_sequence))]:
+                lasers_allowed = False
+                break  # stop if at least one forbidden laser is found
+        return lasers_allowed
                 
-#    def _control_user_parameters(self):
-#        """ this function checks if the specified laser is allowed given the filter setting
-#        @return bool: valid ?"""
-#        filterpos = self.filter_pos
-#        key = 'filter{}'.format(filterpos)
-#        filterdict = self.ref['filter'].get_filter_dict()
-#        laserlist = filterdict[key]['lasers']  # returns a list of boolean elements, laser allowed ?
-#        # this part should be improved using a correct addressing of the element
-#        laser = self.lightsource
-#        laser_index = int(laser.strip('laser'))-1
-#        ##########
-#        return laserlist[laser_index]
+
+       
+        
+        
+            
+            
+
             
             
             
@@ -287,9 +320,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         
         # lasers and intensity 
         imaging_sequence = self.imaging_sequence_raw
-        metadata['laser'] = [imaging_sequence[i][0] for i in range(len(imaging_sequence))]
-        metadata['intens'] = [imaging_sequence[i][1] for i in range(len(imaging_sequence))]
-        
+        metadata['laser'] = [imaging_sequence[i][0] for i in range(len(imaging_sequence))]  # needs to be adapted for fits header compatibility
+        metadata['intens'] = [imaging_sequence[i][1] for i in range(len(imaging_sequence))]  # needs to be adapted for fits header compatibility
         
         # sensor temperature
         if self.ref['camera'].has_temp:
@@ -323,7 +355,6 @@ def get_entry_nested_dict(nested_dict, val, entry):
 
 
 # to do on this task:
-# control user parameters (laser allowed?)
 # check if metadata contains everything that is needed
 # checked state for laser on button in basic gui gets messed up    (because of call to voltage_off in cleanupTask called)
     # fits header: can value be a list ? check with simple example
