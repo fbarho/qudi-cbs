@@ -39,6 +39,10 @@ class Nifpga(Base, LaserControlInterface):
                 - '488'
                 - '561'
                 - '640'
+            registers_qpd:
+                - 'x'
+                - 'y'
+                - 'i'
 
             # registers represent something like the channels.
             # The link between registers and the physical channel is made in the labview file from which the bitfile is generated.
@@ -48,6 +52,7 @@ class Nifpga(Base, LaserControlInterface):
     default_bitfile = ConfigOption('default_bitfile', missing='error')
     _wavelengths = ConfigOption('wavelengths', missing='error')
     _registers = ConfigOption('registers', missing='error')
+
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
