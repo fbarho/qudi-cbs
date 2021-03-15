@@ -107,25 +107,36 @@ class PositioningLogic(GenericLogic):
 
         @param: float tuple position: (x, y, z) position
         """
-        self.moving = True
+
 
         if len(position) != 3:
             self.log.warn('Stage position to set must be iterable of length 3. No movement done.')
 
-        axis_label = ('x', 'y', 'z')
-        pos_dict = dict([*zip(axis_label, position)])
-        # separate movement into xy and z movements for safety
-        pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
-        pos_dict_z = {key: pos_dict[key] for key in ['z']}
-        self._stage.move_abs({'z': self.z_safety_pos})  # move to z safety position before making the xy movement
-        # we could add here a signal to update the coordinates displayed on GUI after this first move
-        self._stage.move_abs(pos_dict_xy)
-        # we could add here a signal to update the coordinates displayed on GUI after this second move
-        self._stage.move_abs(pos_dict_z)
-        self.moving = False
-        new_pos = self.get_position()
-        self.log.info(new_pos)
-        self.sigStageMoved.emit(new_pos)
+        else:
+            self.moving = True
+            axis_label = ('x', 'y', 'z')
+            pos_dict = dict([*zip(axis_label, position)])
+            # separate movement into xy and z movements for safety
+            pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
+            pos_dict_z = {key: pos_dict[key] for key in ['z']}
+            self._stage.move_abs({'z': self.z_safety_pos})  # move to z safety position before making the xy movement
+            # we could add here a signal to update the coordinates displayed on GUI after this first move
+            self._stage.move_abs(pos_dict_xy)
+            # we could add here a signal to update the coordinates displayed on GUI after this second move
+            self._stage.move_abs(pos_dict_z)
+
+            self.moving = False
+            new_pos = self.get_position()
+            self.log.info(new_pos)
+            self.sigStageMoved.emit(new_pos)
+
+
+
+
+
+
+
+
 
     def move_to_target(self, target_position):
         """ This method allows to perform a movement of the 3 axis stage to the specified position given by the
@@ -173,6 +184,7 @@ class PositioningLogic(GenericLogic):
     def abort_movement(self):
         """ This method is called to abort a stage movement (either initiated by move_stage or move_to_target)
         Sends a signal to indicate that the stage was stopped and the current reached position. """
+        self.movement_aborted = True
         self._stage.abort()
         self.log.info('Movement aborted!')
         pos = self.get_position()
@@ -197,4 +209,6 @@ class PositioningLogic(GenericLogic):
 
 
 # add the default values for position 1
+
+# make it possible to abort a movement  (currently not supported because method gets blocked until waitontarget in hardware module reached
 
