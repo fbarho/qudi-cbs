@@ -48,9 +48,9 @@ class ValveLogic(GenericLogic):
 
     def set_valve_position(self, valve, position):
         # map key valve to address using a valve dict (like the laser dict or filter dict)
-        valve_dict = self.get_valve_dict()
-        valve_address = valve_dict[valve]['address']
-        self._valves.set_valve_position(valve_address, position)
+        # valve_dict = self.get_valve_dict()
+        # valve_address = valve_dict[valve]['address']
+        self._valves.set_valve_position(valve, position)
 
     def get_valve_dict(self):
         return self._valves.get_valve_dict()
