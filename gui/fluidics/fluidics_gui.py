@@ -348,18 +348,19 @@ class FluidicsGUI(GUIBase):
         # get current index of the valve position combobox
         index = self._mw.valve1_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve1', valve_pos)
+        self.sigSetValvePosition.emit('a', valve_pos)
 
     def change_valve2_position(self):
         # get current index of the valve position combobox
-        index = self._mw.valve1_ComboBox.currentIndex()
+        index = self._mw.valve2_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve2', valve_pos)
+        self.sigSetValvePosition.emit('b', valve_pos)
 
     def change_valve3_position(self):
         # get current index of the valve position combobox
-        index = self._mw.valve1_ComboBox.currentIndex()
+        index = self._mw.valve3_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve3', valve_pos)
+        self.log.info(f'valve position c: {valve_pos}')
+        self.sigSetValvePosition.emit('c', valve_pos)  #precedemment valve3
 
 

@@ -48,9 +48,9 @@ class HamiltonValve(Base, ValveInterface):
 #   _com_port = "/dev/ttyS0"   # ConfigOption("com_port", missing="error")
     _com_port = ConfigOption("com_port", missing="error")
     print(_com_port)
-    _valve_n = 1 # Number of valves connected in daisy chain
+    _valve_n = 3 # Number of valves connected in daisy chain
     _valve_state = {} # dictionary holding the valve names as keys and their status as values # {'a': status_valve1, ..}
-    _valve_positions = {'a':8}
+    _valve_positions = {'a':8, 'b': 2, 'c': 2}
     
     # def __init__(self, config, **kwargs):
     #     super().__init__(config=config, **kwargs)
@@ -85,6 +85,9 @@ class HamiltonValve(Base, ValveInterface):
         @returns int: error code (ok: 0)
         """
         self._serial_connection.close()
+
+    def get_valve_dict(self):
+        pass
     
     
     def get_status(self):
@@ -98,6 +101,7 @@ class HamiltonValve(Base, ValveInterface):
             status = self.read()
 
             self._valve_state[chr(n+97)] = status
+        return self._valve_state
             
      
     def get_valve_position(self, valve_adress):
@@ -111,6 +115,8 @@ class HamiltonValve(Base, ValveInterface):
         self.write(cmd)
         pos = self.read()
         return(int(pos))
+
+    #ajouter try except
         
         
     def set_valve_position(self, valve_adress, end_pos):
@@ -126,7 +132,9 @@ class HamiltonValve(Base, ValveInterface):
             cmd = valve_adress + "LP1" + str(end_pos) + "R\r"
         else:
             cmd = valve_adress + "LP0" + str(end_pos) + "R\r"
-        self.write(cmd)            
+        self.write(cmd)
+
+        # sens modification position
         
         
     def wait_for_idle(self):

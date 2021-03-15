@@ -46,3 +46,12 @@ class ValveInterface(metaclass=InterfaceMetaclass):
                       position.
         """
         pass
+
+
+    @abstract_interface_method
+    def set_valve_position(self, valve, position):
+        pass
+
+    @abstract_interface_method
+    def get_valve_dict(self):
+        pass
