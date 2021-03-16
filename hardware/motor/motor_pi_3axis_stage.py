@@ -76,10 +76,12 @@ class PIMotorStage(Base, MotorInterface):
         print('\n{}:\n{}'.format(self.pidevice_3rd_axis.GetInterfaceDescription(), self.pidevice_3rd_axis.qIDN()))
 
         # initialization of all axes
+        print('Initializing PI stage ...')
         # servo on
         pitools.startup(self.pidevice_1st_axis)
         pitools.startup(self.pidevice_2nd_axis)
         pitools.startup(self.pidevice_3rd_axis)
+        print('Please wait ... ')
 
         # the IDs are needed to address the axes in the dll functions
         self.first_axis_ID = self.pidevice_1st_axis.axes[0]    # each controller is connected to one stage; so just take the first element

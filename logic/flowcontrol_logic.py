@@ -175,10 +175,8 @@ class FlowcontrolLogic(GenericLogic):
             self.threadpool.start(worker)
 
 
-
-    # # to discuss how to regulate flowrate # add this later
-    # def regulate_pressure(self, flowrate):
-    #     pass
+    def regulate_pressure(self, flowrate):
+        pass
     # # regulation feedback loop to achieve a desired flowrate
 
 
