@@ -24,18 +24,27 @@ class PIMotorStage(Base, MotorInterface):
 
     pi_stage:
         module.Class: 'motor.motor_pi_3axis_stage.PIMotorStage'
-        # controllername: 'E816'
-        # serialnumber: '110059675'
+        serialnumber_master:  '0019550121'
+        first_axis_controllername: 'C-863'
+        second_axis_controllername: 'C-863'
+        third_axis_controllername: 'C-863'
         first_axis_label: 'x'
         second_axis_label: 'y'
         third_axis_label: 'z'
+        first_axis_daisychain_id: 2  # number of the device in the daisy chain (sorted by increasing serial number of the controller)
+        second_axis_daisychain_id: 3
+        third_axis_daisychain_id: 1
     """
-
-    _controllername = 'C863'
-    _serialnum = '0019550121'
+    _serialnum_master = ConfigOption('serialnumber_master', missing='error')
+    _first_axis_controllername = ConfigOption('first_axis_controllername', missing='error')
+    _second_axis_controllername = ConfigOption('second_axis_controllername', missing='error')
+    _third_axis_controllername = ConfigOption('third_axis_controllername', missing='error')
     _first_axis_label = ConfigOption('first_axis_label', missing='error')
     _second_axis_label = ConfigOption('second_axis_label', missing='error')
     _third_axis_label = ConfigOption('third_axis_label', missing='error')
+    _first_axis_daisychain_id = ConfigOption('first_axis_daisychain_id', missing='error')
+    _second_axis_daisychain_id = ConfigOption('second_axis_daisychain_id', missing='error')
+    _third_axis_daisychain_id = ConfigOption('third_axis_daisychain_id', missing='error')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -49,63 +58,65 @@ class PIMotorStage(Base, MotorInterface):
         self.third_axis_label = self._third_axis_label
 
         # open the daisy chain connection
-        self.pidevice_c863_x = GCSDevice('C-863')  # controller name to be read from config later  # x_axis controller # master device
-        self.pidevice_c863_y = GCSDevice('C-863')  # controller name to be read from config later  # y_axis controller
-        self.pidevice_c863_z = GCSDevice('C-863')  # controller name to be read from config later  # z_axis controller
+        self.pidevice_1st_axis = GCSDevice(self._first_axis_controllername)  # 1st axis controller # master device
+        self.pidevice_2nd_axis = GCSDevice(self._second_axis_controllername)  # 2nd axis controller
+        self.pidevice_3rd_axis = GCSDevice(self._third_axis_controllername)  # 3rd axis controller
 
-        self.pidevice_c863_x.OpenUSBDaisyChain(description='0019550121')  # serial number
-        self.daisychainid = self.pidevice_c863_x.dcid
+        self.pidevice_1st_axis.OpenUSBDaisyChain(description=self._serialnum_master)
+        self.daisychainid = self.pidevice_1st_axis.dcid
         print(f'Daisychainid: {self.daisychainid}')
         # controllers are ordered with increasing serial number in the daisy chain
-        #this is why z is connected as first
-        self.pidevice_c863_z.ConnectDaisyChainDevice(1, self.daisychainid)  # SN 019550119
-        self.pidevice_c863_x.ConnectDaisyChainDevice(2, self.daisychainid)  # SN 019550121
-        self.pidevice_c863_y.ConnectDaisyChainDevice(3, self.daisychainid)  # SN 019550124
-        print('\n{}:\n{}'.format(self.pidevice_c863_x.GetInterfaceDescription(), self.pidevice_c863_x.qIDN()))
-        print('\n{}:\n{}'.format(self.pidevice_c863_y.GetInterfaceDescription(), self.pidevice_c863_y.qIDN()))
-        print('\n{}:\n{}'.format(self.pidevice_c863_z.GetInterfaceDescription(), self.pidevice_c863_z.qIDN()))
+        # this is why z is connected as first
+        # do we need to programmatically sort by nth_axis_daisychain id ??
+        self.pidevice_3rd_axis.ConnectDaisyChainDevice(self._third_axis_daisychain_id, self.daisychainid)  # SN 019550119
+        self.pidevice_1st_axis.ConnectDaisyChainDevice(self._first_axis_daisychain_id, self.daisychainid)  # SN 019550121
+        self.pidevice_2nd_axis.ConnectDaisyChainDevice(self._second_axis_daisychain_id, self.daisychainid)  # SN 019550124
+        print('\n{}:\n{}'.format(self.pidevice_1st_axis.GetInterfaceDescription(), self.pidevice_1st_axis.qIDN()))
+        print('\n{}:\n{}'.format(self.pidevice_2nd_axis.GetInterfaceDescription(), self.pidevice_2nd_axis.qIDN()))
+        print('\n{}:\n{}'.format(self.pidevice_3rd_axis.GetInterfaceDescription(), self.pidevice_3rd_axis.qIDN()))
 
         # initialization of all axes
         # servo on
-        pitools.startup(self.pidevice_c863_x)
-        pitools.startup(self.pidevice_c863_y)
-        pitools.startup(self.pidevice_c863_z)
+        pitools.startup(self.pidevice_1st_axis)
+        pitools.startup(self.pidevice_2nd_axis)
+        pitools.startup(self.pidevice_3rd_axis)
 
         # the IDs are needed to address the axes in the dll functions
-        self.x_axis_ID = self.pidevice_c863_x.axes[0]    # each controller is connected to one stage; so just take the first element
-        print(self.x_axis_ID)
-        self.y_axis_ID = self.pidevice_c863_y.axes[0]
-        print(self.y_axis_ID)
-        self.z_axis_ID = self.pidevice_c863_z.axes[0]
-        print(self.z_axis_ID)
+        self.first_axis_ID = self.pidevice_1st_axis.axes[0]    # each controller is connected to one stage; so just take the first element
+        # print(self.first_axis_ID)
+        self.second_axis_ID = self.pidevice_2nd_axis.axes[0]
+        # print(self.second_axis_ID)
+        self.third_axis_ID = self.pidevice_3rd_axis.axes[0]
+        # print(self.third_axis_ID)
 
+        self.calibrate()
         # RON:
         # FNL: fast move to negative limit
-        self.pidevice_c863_x.RON(self.x_axis_ID, values=1)
-        self.pidevice_c863_x.FNL(self.x_axis_ID)
-        self.pidevice_c863_y.RON(self.y_axis_ID, values=1)
-        self.pidevice_c863_y.FNL(self.y_axis_ID)
-        self.pidevice_c863_z.RON(self.z_axis_ID, values=1)
-        self.pidevice_c863_z.FNL(self.z_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+        # self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
+        # self.pidevice_1st_axis.FNL(self.first_axis_ID)
+        # self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
+        # self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+        # self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
+        # self.pidevice_3rd_axis.FNL(self.third_axis_ID)
+        # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
+        # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
+        # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
 
     def on_deactivate(self):
         """ Required deactivation steps
         """
         # set position (0, 0, 0)
         # first move z to default position and wait until reached
-        self.pidevice_c863_z.MOV(self.z_axis_ID, 0.0)
-        pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+        self.pidevice_3rd_axis.MOV(self.third_axis_ID, 0.0)
+        pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
         # when z is at safety position, xy move can be done
-        self.pidevice_c863_x.MOV(self.x_axis_ID, 0.0)
-        self.pidevice_c863_y.MOV(self.y_axis_ID, 0.0)
-        pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
+        self.pidevice_1st_axis.MOV(self.first_axis_ID, 0.0)
+        self.pidevice_2nd_axis.MOV(self.second_axis_ID, 0.0)
+        pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
+        pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
 
-        self.pidevice_c863_x.CloseDaisyChain()
-        self.pidevice_c863_x.CloseConnection()
+        self.pidevice_1st_axis.CloseDaisyChain()  # check if connection always done with controller corresponing to 1st axis
+        self.pidevice_1st_axis.CloseConnection()
 
     def get_constraints(self):
         """ Retrieve the hardware constrains from the motor device.
@@ -129,13 +140,13 @@ class PIMotorStage(Base, MotorInterface):
         constraints = {}
 
         # retrieve information from hardware
-        pos_min_x = self.pidevice_c863_x.qTMN()[self.x_axis_ID]
-        pos_max_x = self.pidevice_c863_x.qTMX()[self.x_axis_ID]
-        vel_min_x = 0 # self.pidevice_c863_x.q
-        vel_max_x = 10 # self.pidevice_c863_x.q  # need to find the command
+        pos_min_x = self.pidevice_1st_axis.qTMN()[self.first_axis_ID]
+        pos_max_x = self.pidevice_1st_axis.qTMX()[self.first_axis_ID]
+        vel_min_x = 0  # self.pidevice_c863_x.q
+        vel_max_x = 20  # self.pidevice_c863_x.q  # need to find the command
 
         axis0 = {}
-        axis0['label'] = 'x'    # it is very crucial that this label coincides with the label set in the config.
+        axis0['label'] = self.first_axis_label   # it is very crucial that this label coincides with the label set in the config.
         axis0['unit'] = 'm'     # the SI units, only possible m or degree
         axis0['ramp'] = None    # do we need this ?
         axis0['pos_min'] = pos_min_x
@@ -149,13 +160,13 @@ class PIMotorStage(Base, MotorInterface):
         axis0['acc_step'] = None
 
         # retrieve information from hardware
-        pos_min_y = self.pidevice_c863_y.qTMN()[self.y_axis_ID]
-        pos_max_y = self.pidevice_c863_y.qTMX()[self.y_axis_ID]
-        vel_min_y = 0 # self.pidevice_c863_y.q
-        vel_max_y = 10 # self.pidevice_c863_y.q  # need to find the command
+        pos_min_y = self.pidevice_2nd_axis.qTMN()[self.second_axis_ID]
+        pos_max_y = self.pidevice_2nd_axis.qTMX()[self.second_axis_ID]
+        vel_min_y = 0  # self.pidevice_c863_y.q
+        vel_max_y = 20  # self.pidevice_c863_y.q  # need to find the command
 
         axis1 = {}
-        axis1['label'] = 'y'    # it is very crucial that this label coincides with the label set in the config.
+        axis1['label'] = self.second_axis_label    # it is very crucial that this label coincides with the label set in the config.
         axis1['unit'] = 'm'     # the SI units, only possible m or degree
         axis1['ramp'] = None    # do we need this ?
         axis1['pos_min'] = pos_min_y
@@ -169,13 +180,13 @@ class PIMotorStage(Base, MotorInterface):
         axis1['acc_step'] = None
 
         # retrieve information from hardware
-        pos_min_z = self.pidevice_c863_z.qTMN()[self.z_axis_ID]
-        pos_max_z = self.pidevice_c863_z.qTMX()[self.z_axis_ID]
-        vel_min_z = 0 # self.pidevice_c863_z.q
-        vel_max_z = 10 # self.pidevice_c863_z.q  # need to find the command
+        pos_min_z = self.pidevice_3rd_axis.qTMN()[self.third_axis_ID]
+        pos_max_z = self.pidevice_3rd_axis.qTMX()[self.third_axis_ID]
+        vel_min_z = 0  # self.pidevice_c863_z.q
+        vel_max_z = 20  # self.pidevice_c863_z.q  # need to find the command
 
         axis2 = {}
-        axis2['label'] = 'z'    # it is very crucial that this label coincides with the label set in the config.
+        axis2['label'] = self.third_axis_label   # it is very crucial that this label coincides with the label set in the config.
         axis2['unit'] = 'm'     # the SI units, only possible m or degree
         axis2['ramp'] = None    # do we need this ?
         axis2['pos_min'] = pos_min_z
@@ -213,20 +224,20 @@ class PIMotorStage(Base, MotorInterface):
         for key, value in param_dict.items():  # param_dict has the format {'x': 20, 'y': 0, 'z': 10} for example
             if key == self.first_axis_label:
                 if value <= constraints[self.first_axis_label]['pos_step'] and constraints[self.first_axis_label]['pos_min'] <= cur_pos[self.first_axis_label] + value <= constraints[self.first_axis_label]['pos_max']:
-                    self.pidevice_c863_x.MVR(self.x_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
+                    self.pidevice_1st_axis.MVR(self.first_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
                 else:
                     print('Target value not in allowed range. Relative movement not done.')
             elif key == self.second_axis_label:
                 if value <= constraints[self.second_axis_label]['pos_step'] and constraints[self.second_axis_label]['pos_min'] <= cur_pos[self.second_axis_label] + value <= constraints[self.second_axis_label]['pos_max']:
-                    self.pidevice_c863_y.MVR(self.y_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
+                    self.pidevice_2nd_axis.MVR(self.second_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
                 else:
                     print('Target value not in allowed range. Relative movement not done.')
             elif key == self.third_axis_label:
                 if value <= constraints[self.third_axis_label]['pos_step'] and constraints[self.third_axis_label]['pos_min'] <= cur_pos[self.third_axis_label] + value <= constraints[self.third_axis_label]['pos_max']:
-                    self.pidevice_c863_z.MVR(self.z_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+                    self.pidevice_3rd_axis.MVR(self.third_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
                 else:
                     print('Target value not in allowed range. Relative movement not done.')
             else:
@@ -249,20 +260,20 @@ class PIMotorStage(Base, MotorInterface):
         for key, value in param_dict.items():
             if key == self.first_axis_label:
                 if constraints[self.first_axis_label]['pos_min'] <= value <= constraints[self.first_axis_label]['pos_max']:
-                    self.pidevice_c863_x.MOV(self.x_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
+                    self.pidevice_1st_axis.MOV(self.first_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
                 else:
                     print('Target value not in allowed range. Absolute movement not done.')
             elif key == self.second_axis_label:
                 if constraints[self.second_axis_label]['pos_min'] <= value <= constraints[self.second_axis_label]['pos_max']:
-                    self.pidevice_c863_y.MOV(self.y_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
+                    self.pidevice_2nd_axis.MOV(self.second_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
                 else:
                     print('Target value not in allowed range. Absolute movement not done.')
             elif key == self.third_axis_label:
                 if constraints[self.third_axis_label]['pos_min'] <= value <= constraints[self.third_axis_label]['pos_max']:
-                    self.pidevice_c863_z.MOV(self.z_axis_ID, value)
-                    # pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+                    self.pidevice_3rd_axis.MOV(self.third_axis_ID, value)
+                    # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
                 else:
                     print('Target value not in allowed range. Absolute movement not done.')
             else:
@@ -275,13 +286,12 @@ class PIMotorStage(Base, MotorInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        self.pidevice_c863_x.HLT(noraise=True)  # noraise option silences GCSerror 10
-        self.pidevice_c863_y.HLT(noraise=True)
-        self.pidevice_c863_z.HLT(noraise=True)
+        self.pidevice_1st_axis.HLT(noraise=True)  # noraise option silences GCSerror 10
+        self.pidevice_2nd_axis.HLT(noraise=True)
+        self.pidevice_3rd_axis.HLT(noraise=True)
         print('Movement aborted.')
 
         # handle return value
-
 
     def get_pos(self, param_list=None):
         """ Gets current position of the stage arms
@@ -295,34 +305,37 @@ class PIMotorStage(Base, MotorInterface):
         @return dict: with keys being the axis labels and item the current
                       position.
         """
-        # if stage is moving, wait until movement done before reading position
-        pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
-        pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+        # # if stage is moving, wait until movement done before reading position
+        # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
+        # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
+        # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
         if not param_list:
-            x_pos = self.pidevice_c863_x.qPOS()[self.x_axis_ID]  # qPOS returns OrderedDict, we just need the value for the single axis
-            y_pos = self.pidevice_c863_y.qPOS()[self.y_axis_ID]
-            z_pos = self.pidevice_c863_z.qPOS()[self.z_axis_ID]
+            x_pos = self.pidevice_1st_axis.qPOS()[self.first_axis_ID]  # qPOS returns OrderedDict, we just need the value for the single axis
+            y_pos = self.pidevice_2nd_axis.qPOS()[self.second_axis_ID]
+            z_pos = self.pidevice_3rd_axis.qPOS()[self.third_axis_ID]
             positions = [x_pos, y_pos, z_pos]
-            keys =  [self.first_axis_label, self.second_axis_label, self.third_axis_label]
+            keys = [self.first_axis_label, self.second_axis_label, self.third_axis_label]
             pos_dict = dict(zip(keys, positions))
             return pos_dict
         else:
             pos_dict = {}
             for item in param_list:
                 if item == self.first_axis_label:
-                    x_pos = self.pidevice_c863_x.qPOS()[self.x_axis_ID]
+                    x_pos = self.pidevice_1st_axis.qPOS()[self.first_axis_ID]
                     pos_dict[item] = x_pos
                 elif item == self.second_axis_label:
-                    y_pos = self.pidevice_c863_y.qPOS()[self.y_axis_ID]
+                    y_pos = self.pidevice_2nd_axis.qPOS()[self.second_axis_ID]
                     pos_dict[item] = y_pos
                 elif item == self.third_axis_label:
-                    z_pos = self.pidevice_c863_z.qPOS()[self.z_axis_ID]
+                    z_pos = self.pidevice_3rd_axis.qPOS()[self.third_axis_ID]
                     pos_dict[item] = z_pos
                 else:
                     print('Given axis not available.')
             return pos_dict
 
+
+# IsControllerReady does eventually not give the right information. Better replace by an information if stage moving / not moving
+    # use qONT query ? on target ?
     def get_status(self, param_list=None):
         """ Get the status of the position
 
@@ -332,32 +345,31 @@ class PIMotorStage(Base, MotorInterface):
                                 If nothing is passed, then from each axis the
                                 status is asked.
 
-        @return dict: with the axis label as key and the status number as item.
+        @return dict: with the axis label as key and the on target status as value.
         """
         if not param_list:
-            x_status = self.pidevice_c863_x.IsControllerReady()
-            y_status = self.pidevice_c863_y.IsControllerReady()
-            z_status = self.pidevice_c863_z.IsControllerReady()
-            ready = [x_status, y_status, z_status]
-            keys =  [self.first_axis_label, self.second_axis_label, self.third_axis_label]
-            status_dict = dict(zip(keys, ready))
+            x_status = self.pidevice_1st_axis.qONT()[self.first_axis_ID]
+            y_status = self.pidevice_2nd_axis.qONT()[self.second_axis_ID]
+            z_status = self.pidevice_3rd_axis.qONT()[self.third_axis_ID]
+            on_target = [x_status, y_status, z_status]
+            keys = [self.first_axis_label, self.second_axis_label, self.third_axis_label]
+            status_dict = dict(zip(keys, on_target))
             return status_dict
         else:
             status_dict = {}
             for item in param_list:
                 if item == self.first_axis_label:
-                    x_status = self.pidevice_c863_x.IsControllerReady()
+                    x_status = self.pidevice_1st_axis.qONT()[self.first_axis_ID]
                     status_dict[item] = x_status
                 elif item == self.second_axis_label:
-                    y_status = self.pidevice_c863_y.IsControllerReady()
+                    y_status = self.pidevice_2nd_axis.qONT()[self.second_axis_ID]
                     status_dict[item] = y_status
                 elif item == self.third_axis_label:
-                    z_status = self.pidevice_c863_z.IsControllerReady()
+                    z_status = self.pidevice_3rd_axis.qONT()[self.third_axis_ID]
                     status_dict[item] = z_status
                 else:
                     print('Given axis not available.')
             return status_dict
-
 
     def calibrate(self, param_list=None):
         """ Calibrates the stage.
@@ -375,32 +387,34 @@ class PIMotorStage(Base, MotorInterface):
         different for each stage.
         """
         if not param_list:
-            self.pidevice_c863_x.RON(self.x_axis_ID, values=1)
-            self.pidevice_c863_x.FNL(self.x_axis_ID)
-            self.pidevice_c863_y.RON(self.y_axis_ID, values=1)
-            self.pidevice_c863_y.FNL(self.y_axis_ID)
-            self.pidevice_c863_z.RON(self.z_axis_ID, values=1)
-            self.pidevice_c863_z.FNL(self.z_axis_ID)
-            pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
-            pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
-            pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+            # 3rd axis is typically z. Calibrate and move first z to negative limit
+            self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
+            self.pidevice_3rd_axis.FNL(self.third_axis_ID)
+            pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
+
+            self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
+            self.pidevice_1st_axis.FNL(self.first_axis_ID)
+            self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
+            self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+            pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
+            pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
+
         else:
             for item in param_list:
                 if item == self.first_axis_label:
-                    self.pidevice_c863_x.RON(self.x_axis_ID, values=1)
-                    self.pidevice_c863_x.FNL(self.x_axis_ID)
-                    pitools.waitontarget(self.pidevice_c863_x, axes=self.x_axis_ID)
+                    self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
+                    self.pidevice_1st_axis.FNL(self.first_axis_ID)
+                    pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
                 elif item == self.second_axis_label:
-                    self.pidevice_c863_y.RON(self.y_axis_ID, values=1)
-                    self.pidevice_c863_y.FNL(self.y_axis_ID)
-                    pitools.waitontarget(self.pidevice_c863_y, axes=self.y_axis_ID)
+                    self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
+                    self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+                    pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
                 elif item == self.third_axis_label:
-                    self.pidevice_c863_z.RON(self.z_axis_ID, values=1)
-                    self.pidevice_c863_z.FNL(self.z_axis_ID)
-                    pitools.waitontarget(self.pidevice_c863_z, axes=self.z_axis_ID)
+                    self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
+                    self.pidevice_3rd_axis.FNL(self.third_axis_ID)
+                    pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
                 else:
                     print('Given axis not available.')
-
 
     def get_velocity(self, param_list=None):
         """ Gets the current velocity for all connected axes.
@@ -414,24 +428,24 @@ class PIMotorStage(Base, MotorInterface):
         @return dict : with the axis label as key and the velocity as item.
         """
         if not param_list:
-            x_vel = self.pidevice_c863_x.qVEL()[self.x_axis_ID]  # qVEL returns OrderedDict, we just need the value for the single axis
-            y_vel = self.pidevice_c863_y.qVEL()[self.y_axis_ID]
-            z_vel = self.pidevice_c863_z.qVEL()[self.z_axis_ID]
+            x_vel = self.pidevice_1st_axis.qVEL()[self.first_axis_ID]  # qVEL returns OrderedDict, we just need the value for the single axis
+            y_vel = self.pidevice_2nd_axis.qVEL()[self.second_axis_ID]
+            z_vel = self.pidevice_3rd_axis.qVEL()[self.third_axis_ID]
             velocity = [x_vel, y_vel, z_vel]
-            keys =  [self.first_axis_label, self.second_axis_label, self.third_axis_label]
+            keys = [self.first_axis_label, self.second_axis_label, self.third_axis_label]
             vel_dict = dict(zip(keys, velocity))
             return vel_dict
         else:
             vel_dict = {}
             for item in param_list:
                 if item == self.first_axis_label:
-                    x_vel = self.pidevice_c863_x.qVEL()[self.x_axis_ID]
+                    x_vel = self.pidevice_1st_axis.qVEL()[self.first_axis_ID]
                     vel_dict[item] = x_vel
                 elif item == self.second_axis_label:
-                    y_vel = self.pidevice_c863_y.qVEL()[self.y_axis_ID]
+                    y_vel = self.pidevice_2nd_axis.qVEL()[self.second_axis_ID]
                     vel_dict[item] = y_vel
                 elif item == self.third_axis_label:
-                    z_vel = self.pidevice_c863_z.qVEL()[self.z_axis_ID]
+                    z_vel = self.pidevice_3rd_axis.qVEL()[self.third_axis_ID]
                     vel_dict[item] = z_vel
                 else:
                     print('Given axis not available.')
@@ -452,30 +466,23 @@ class PIMotorStage(Base, MotorInterface):
         for key, value in param_dict.items():  # param_dict has the format {'x': 20, 'y': 0, 'z': 10} for example
             if key == self.first_axis_label:
                 if constraints[self.first_axis_label]['vel_min'] <= value <= constraints[self.first_axis_label]['vel_max']:
-                    self.pidevice_c863_x.VEL(self.x_axis_ID, value)
+                    self.pidevice_1st_axis.VEL(self.first_axis_ID, value)
                 else:
                     print('Target value not in allowed range. Velocity not set.')
             elif key == self.second_axis_label:
                 if constraints[self.second_axis_label]['vel_min'] <= value <= constraints[self.second_axis_label]['vel_max']:
-                    self.pidevice_c863_y.VEL(self.y_axis_ID, value)
+                    self.pidevice_2nd_axis.VEL(self.second_axis_ID, value)
                 else:
                     print('Target value not in allowed range. Velocity not set.')
             elif key == self.third_axis_label:
                 if constraints[self.third_axis_label]['vel_min'] <= value <= constraints[self.third_axis_label]['vel_max']:
-                    self.pidevice_c863_z.VEL(self.z_axis_ID, value)
+                    self.pidevice_3rd_axis.VEL(self.third_axis_ID, value)
                 else:
                     print('Target value not in allowed range. Velocity not set.')
             else:
                 print('Given axis not available.')
 
-
-
-
-
-
-
-
-
+            # error code handling
 
 # if __name__ == '__main__':
 #     pistage = PIMotorStage()
@@ -554,5 +561,4 @@ class PIMotorStage(Base, MotorInterface):
 
 # query min max speed
 # error code handling
-# generalize to other axis labels
 # maybe remove the wait on target calls in move_rel and move_abs
