@@ -13,20 +13,22 @@ from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
 from core.connector import Connector
 
-
+# put all signals for the different subclasses of QRunnable here even though each subclass only uses one of these signals
 class WorkerSignals(QtCore.QObject):
     """ Defines the signals available from a running worker thread """
 
     sigFinished = QtCore.Signal()
+    sigRegulationWaitFinished = QtCore.Signal(float)  # carries the target_flowrate as parameter
+    sigIntegrationIntervalFinished = QtCore.Signal(float)  #carries the target_volume as parameter
 
 
-class Worker(QtCore.QRunnable):
+class MeasurementWorker(QtCore.QRunnable):
     """ Worker thread to monitor the pressure and the flowrate every x seconds when measuring mode is on
 
     The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
 
     def __init__(self, *args, **kwargs):
-        super(Worker, self).__init__()
+        super(MeasurementWorker, self).__init__()
         self.signals = WorkerSignals()
 
     @QtCore.Slot()
@@ -34,6 +36,42 @@ class Worker(QtCore.QRunnable):
         """ """
         sleep(1)  # 1 second as time constant
         self.signals.sigFinished.emit()
+
+
+class RegulationWorker(QtCore.QRunnable):
+    """ Worker thread to regulate the pressure every x seconds when regulation loop is started
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger new regulation step """
+
+    def __init__(self, target_flowrate):
+        super(RegulationWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.target_flowrate = target_flowrate
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(1)  # 1 second as time constant
+        self.signals.sigFinished.emit()
+        self.signals.sigRegulationWaitFinished(self.target_flowrate)
+
+
+class VolumeCountWorker(QtCore.QRunnable):
+    """ Worker thread to measure the consumed volume of buffer or probe
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger a new sampling """
+
+    def __init__(self, target_volume):
+        super(VolumeCountWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.target_volume = target_volume
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(1)  # 1 second as time constant
+        self.signals.sigFinished.emit()
+        self.signals.sigIntegrationIntervalFinished(self.target_volume)
 
 
 class FlowcontrolLogic(GenericLogic):
@@ -56,6 +94,9 @@ class FlowcontrolLogic(GenericLogic):
 
     # attributes
     measuring = False
+    regulating = False
+    total_volume = 0
+    target_volume_reached = True
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -153,7 +194,7 @@ class FlowcontrolLogic(GenericLogic):
     def start_flow_measurement(self):
         self.measuring = True
         # monitor the pressure and flowrate, using a worker thread
-        worker = Worker()
+        worker = MeasurementWorker()
         worker.signals.sigFinished.connect(self.flow_measurement_loop)
         self.threadpool.start(worker)
 
@@ -170,14 +211,87 @@ class FlowcontrolLogic(GenericLogic):
         self.sigUpdateFlowMeasurement.emit(pressure, flowrate)
         if self.measuring:
             # enter in a loop until measuring mode is switched off
-            worker = Worker()
+            worker = MeasurementWorker()
             worker.signals.sigFinished.connect(self.flow_measurement_loop)
             self.threadpool.start(worker)
 
 
-    def regulate_pressure(self, flowrate):
-        pass
-    # # regulation feedback loop to achieve a desired flowrate
+    def regulate_pressure(self, target_flowrate, sensor_channel=None, pressure_channel=None):
+        """
+        @param: float target_flowrate
+        @param: int sensor_channel: ID of the sensor channel
+        (use this method only for a single channel so that flowrate is returned as float and not as float list,
+        but you can indicate which channel in case there are more than one)
+        @param: int pressure_channel: ID of the pressure channel
+        (use this method only for a single channel so that pressure is returned as float and not as float list,
+        but you can indicate which channel in case there are more than one)
+        """
+        flowrate = self.get_flowrate(sensor_channel)
+        print(f'flowrate {flowrate}')
+        if flowrate != target_flowrate:  # which precision ?   #use math.isclose function instead when precision defined
+            diff = target_flowrate - flowrate
+            pressure = self.get_pressure(pressure_channel)
+            const = 1  # which proportionality constant do we need ?
+            new_pressure = pressure + const * diff
+            print(f'new_pressure {new_pressure}')
+            self.set_pressure(new_pressure, pressure_channel)
+        else:
+            pass
+
+# first tests with a simple version where the channels are not specified (we would need signal overloading in the worker thread... to be explored later)
+    def start_pressure_regulation_loop(self, target_flowrate):
+        self.regulating = True
+        self.regulate_pressure(target_flowrate)
+        # regulate the pressure, using a worker thread
+        worker = RegulationWorker(target_flowrate)
+        worker.signals.sigRegulationWaitFinished.connect(self.pressure_regulation_loop)
+        self.threadpool.start(worker)
+
+    def stop_pressure_regulation_loop(self):
+        self.regulating = False
+
+    def pressure_regulation_loop(self, target_flowrate):
+        self.regulate_pressure(target_flowrate)
+        if self.regulating:
+            # enter in a loop until the regulating mode is stopped
+            worker = RegulationWorker()
+            worker.signals.sigRegulationWaitFinished.connect(self.pressure_regulation_loop)
+            self.threadpool.start(worker)
+
+    def start_volume_measurement(self, target_volume, sampling_interval):
+        self.total_volume = 0
+        if self.total_volume < target_volume:
+            self.target_volume_reached = False
+        # start summing up the total volume, using a worker thread
+        worker = VolumeCountWorker(target_volume, sampling_interval)
+        worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
+        self.threadpool.start(worker)
+
+    def volume_measurement_loop(self, target_volume, sampling_interval):
+        flowrate = self.get_flowrate()
+        self.total_volume += flowrate * sampling_interval
+        if self.total_volume < target_volume:
+            self.target_volume_reached = False
+        else:
+            self.target_volume_reached = True
+
+        if not self.target_volume_reached:
+            # enter in a loop until the target_volume is reached
+            worker = VolumeCountWorker(target_volume, sampling_interval)
+            worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
+            self.threadpool.start(worker)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

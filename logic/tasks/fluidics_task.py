@@ -43,27 +43,41 @@ class Task(InterruptableTask):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
 
-
     def startTask(self):
         """ """
         self._load_injection_parameters()
         self.log.info('Injection parameters loaded')
         self.step_counter = 0
 
-
-
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
-        # set the 8 way valve to the position corresponding to the product
-        product = self.hybridization_list[self.step_counter]['product']
-        valve_pos = self.buffer_dict[product]
-        self.ref['valves'].set_valve_position('a', valve_pos)  # replace a by a dynamic information instead of valve name 'a'
 
-        # add here a waiting procedure to be sure the valve is in its specified position
+        if self.hybridization_list[self.step_counter]['product'] is not None:  # then it is an injection step
+            # set the 8 way valve to the position corresponding to the product
+            product = self.hybridization_list[self.step_counter]['product']
+            valve_pos = self.buffer_dict[product]
+            self.ref['valves'].set_valve_position('a', valve_pos)  # replace a by a dynamic information instead of valve name 'a'
+            # add here a waiting procedure to be sure the valve is in its specified position
 
-        # as an initial value, set the pressure to 0 mbar
-        self.ref['flow'].set_pressure(0)
-        self.ref['flow'].regulate_pressure(self.hybridization_list[self.step_counter]['flowrate'])
+            # as an initial value, set the pressure to 0 mbar
+            self.ref['flow'].set_pressure(0)
+            # start the pressure regulation
+            self.ref['flow'].start_regulation_loop(self.hybridization_list[self.step_counter]['flowrate'])
+            # start counting the volume of buffer or probe
+            sampling_interval = 1  #in seconds
+            self.ref['flow'].start_volume_measurement(self.hybridization_list[self.step_counter]['volume'], sampling_interval)
+
+            # put this thread to sleep until the target volume is reached
+            # is it a problem that this thread becomes inresponsive when using sleep function ?
+            ready = self.ref['flow'].target_volume_reached
+            while not ready:
+                sleep(2)
+                ready = self.ref['flow'].target_volume_reached
+        else:  # product is none: then it is an incubation step
+            # do we need any modification of the valves ??
+            sleep(self.hybridization_list[self.step_counter]['time'])
+            # maybe it is better to split into small intervals to keep the thread responsive ?????
+
 
         self.step_counter += 1
         return self.step_counter < len(self.hybridization_list)
@@ -72,11 +86,9 @@ class Task(InterruptableTask):
         """ Pause """
         pass
 
-
     def resumeTask(self):
         """ Resume """
         pass
-
 
     def cleanupTask(self):
         """ Cleanup """
@@ -112,7 +124,4 @@ class Task(InterruptableTask):
              'flowrate': 1,
              'time': None}
         ]
-
-
-
 
