@@ -10,6 +10,8 @@ from qtpy import uic
 
 from gui.guibase import GUIBase
 from core.connector import Connector
+from core.configoption import ConfigOption
+
 
 class MerfishWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
@@ -28,18 +30,20 @@ class MerfishWindow(QtWidgets.QMainWindow):
 
 class MerfishGUI(GUIBase):
     """ Main window that allows to create a merFISH injection sequence, save it to a file, or load it from file.
-    An injection sequence can also be run directly (for tests)
 
     Example config for copy-paste:
 
     merfish_gui:
         module.Class: 'merfish.merfish_gui.MerfishGUI'
+        default_path: '/home/barho'
         connect:
             merfish_logic: 'merfish_logic'
     """
-
     # connector to logic module
     merfish_logic = Connector(interface='MerfishLogic')
+
+    # config options
+    default_path = ConfigOption('default_path')
 
     # Signals
     sigAddBuffer = QtCore.Signal(str, int)
@@ -53,8 +57,6 @@ class MerfishGUI(GUIBase):
 
     sigLoadInjections = QtCore.Signal(str)
     sigSaveInjections = QtCore.Signal(str)
-
-
 
     def __init__(self, config, **kwargs):
         # load connection
@@ -73,11 +75,11 @@ class MerfishGUI(GUIBase):
         self._mw.probe_ListView.setModel(self._merfish_logic.probe_position_model)
         self._mw.hybridization_ListView.setModel(self._merfish_logic.hybridization_injection_sequence_model)
         self._mw.photobleaching_ListView.setModel(self._merfish_logic.photobleaching_injection_sequence_model)
-        self._mw.product_ComboBox.setModel(self._merfish_logic.buffer_list_model) # not sure if it is possible to also display the merfish probe if not defined in the buffer list
+        self._mw.product_ComboBox.setModel(self._merfish_logic.buffer_list_model)
 
         # initialize comboboxes
-        self._mw.valve_position_ComboBox.addItems([str(i) for i in range(1, 9)])  # to be read from config later
-        self._mw.probe_position_ComboBox.addItems([str(i) for i in range(1, 101)])  # to be read from config later
+        self._mw.valve_position_ComboBox.addItems([str(i) for i in range(1, self._merfish_logic.num_valve_positions + 1)])
+        self._mw.probe_position_ComboBox.addItems([str(i) for i in range(1, self._merfish_logic.num_probes + 1)])
         self._mw.procedure_ComboBox.addItems(self._merfish_logic.procedures)
 
         # signals
@@ -105,8 +107,10 @@ class MerfishGUI(GUIBase):
         # signals to logic
         self.sigAddBuffer.connect(self._merfish_logic.add_buffer)
         self.sigDeleteBuffer.connect(self._merfish_logic.delete_buffer)
+        self._mw.delete_all_buffer_PushButton.clicked.connect(self._merfish_logic.delete_all_buffer)
         self.sigAddProbe.connect(self._merfish_logic.add_probe)
         self.sigDeleteProbe.connect(self._merfish_logic.delete_probe)
+        self._mw.delete_all_probes_PushButton.clicked.connect(self._merfish_logic.delete_all_probes)
         self.sigAddInjectionStep.connect(self._merfish_logic.add_injection_step)
         self.sigAddIncubationTime.connect(self._merfish_logic.add_incubation_step)
         self.sigDeleteHybrStep.connect(self._merfish_logic.delete_hybr_step)
@@ -121,7 +125,6 @@ class MerfishGUI(GUIBase):
         self._merfish_logic.sigProbeListChanged.connect(self.update_probe_listview)
         self._merfish_logic.sigHybridizationListChanged.connect(self.update_hybridization_listview)
         self._merfish_logic.sigPhotobleachingListChanged.connect(self.update_photobleaching_listview)
-
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -144,6 +147,10 @@ class MerfishGUI(GUIBase):
             QtWidgets.QMessageBox.information(self._mw, 'No buffer name', text, QtWidgets.QMessageBox.Ok)
         else:
             self.sigAddBuffer.emit(buffername, valve_number)
+        # move to the next entry in the combobox
+        index = self._mw.valve_position_ComboBox.currentIndex()
+        self._mw.valve_position_ComboBox.setCurrentIndex(index + 1)
+        self._mw.buffername_LineEdit.setText('')
 
     def delete_buffer_clicked(self):
         """ Callback of delete buffer pushbutton, deleting the currently selected item in the listview.
@@ -162,6 +169,10 @@ class MerfishGUI(GUIBase):
             QtWidgets.QMessageBox.information(self._mw, 'No probe name', text, QtWidgets.QMessageBox.Ok)
         else:
             self.sigAddProbe.emit(probename, probe_position)
+        # move to the next entry in the combobox
+        index = self._mw.probe_position_ComboBox.currentIndex()
+        self._mw.probe_position_ComboBox.setCurrentIndex(index + 1)
+        self._mw.probename_LineEdit.setText('')
 
     def delete_probe_clicked(self):
         """ Callback of delete probe pushbutton, deleting the currently selected item in the listview.
@@ -203,11 +214,11 @@ class MerfishGUI(GUIBase):
         """ Callback of a signal sent from merfish logic (sigBufferListChanged) notifying that the listview model has
         changed and the listview can now be updated.
 
-        Note that it is not possible to send the layoutChanged (built-in) signal over threads this is why the custom
-        signal establishes the communication over threads and the layoutChanged is emitted here. """
+        Note that it is not possible to send the layoutChanged (built-in) signal over threads. This is why the custom
+        signal establishes the communication over threads and the signal layoutChanged is emitted here. """
         self._merfish_logic.buffer_list_model.layoutAboutToBeChanged.emit()
         self._merfish_logic.buffer_list_model.layoutChanged.emit()
-        # for the delete entry case, if one row is selected then it will be deleted
+        # for the delete entry case, if one row is selected then it will be unselected and deleted
         indexes = self._mw.buffer_ListView.selectedIndexes()
         if indexes:
             self._mw.buffer_ListView.clearSelection()
@@ -216,10 +227,10 @@ class MerfishGUI(GUIBase):
         """ Callback of a signal sent from merfish logic (sigProbeListChanged) notifying that the listview model has
         changed and the listview can now be updated.
 
-        Note that it is not possible to send the layoutChanged (built-in) signal over threads this is why the custom
+        Note that it is not possible to send the layoutChanged (built-in) signal over threads. This is why the custom
         signal establishes the communication over threads and the layoutChanged is emitted here. """
         self._merfish_logic.probe_position_model.layoutChanged.emit()
-        # for the delete entry case, if one row is selected then it will be deleted
+        # for the delete entry case, if one row is selected then it will be unselected and deleted
         indexes = self._mw.probe_ListView.selectedIndexes()
         if indexes:
             self._mw.probe_ListView.clearSelection()
@@ -228,10 +239,10 @@ class MerfishGUI(GUIBase):
         """ Callback of a signal sent from merfish logic (sigHybridizationListChanged) notifying that the listview
         model has changed and the listview can now be updated.
 
-        Note that it is not possible to send the layoutChanged (built-in) signal over threads this is why the custom
+        Note that it is not possible to send the layoutChanged (built-in) signal over threads. This is why the custom
         signal establishes the communication over threads and the layoutChanged is emitted here. """
         self._merfish_logic.hybridization_injection_sequence_model.layoutChanged.emit()
-        # for the delete entry case, if one row is selected then it will be deleted
+        # for the delete entry case, if one row is selected then it will be unselected and deleted
         indexes = self._mw.hybridization_ListView.selectedIndexes()
         if indexes:
             self._mw.hybridization_ListView.clearSelection()
@@ -240,28 +251,29 @@ class MerfishGUI(GUIBase):
         """ Callback of a signal sent from merfish logic (sigPhotobleachingListChanged) notifying that the listview
         model has changed and the listview can now be updated.
 
-        Note that it is not possible to send the layoutChanged (built-in) signal over threads this is why the custom
+        Note that it is not possible to send the layoutChanged (built-in) signal over threads. This is why the custom
         signal establishes the communication over threads and the layoutChanged is emitted here. """
         self._merfish_logic.photobleaching_injection_sequence_model.layoutChanged.emit()
-        # # for the delete entry case, if one row is selected then it will be deleted
+        # # for the delete entry case, if one row is selected then it will be unselected and deleted
         indexes = self._mw.photobleaching_ListView.selectedIndexes()
         if indexes:
             self._mw.photobleaching_ListView.clearSelection()
 
     def load_injections_clicked(self):
-        data_directory = '/home/barho'  # to be read from config later, default location to look for the file
+        """ Callback of the toolbutton load merfish injections. Opens a dialog to select a file and hands the path
+        over to the logic where the data is loaded. """
+        data_directory = self.default_path  # default location to look for the file
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw, 'Load injections', data_directory, 'txt files (*.txt)')[0]
         if this_file:
             self.sigLoadInjections.emit(this_file)
 
     def save_injections_clicked(self):
-        data_directory = '/home/barho/'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        """ Callback of the toolbutton save merfish injections. Opens a dialog to select a file or a path where
+        the data should be saved. The path is handed over to the logic module where data saving is managed. """
+        data_directory = self.default_path  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # default path for saving the file
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw,
                                                           'Save experiment configuration',
                                                           data_directory,
                                                           'txt files (*.txt)')[0]
         if this_file:
             self.sigSaveInjections.emit(this_file)
-
-# delete all buttons for buffer and probe list
-# make posiiton combobox move to the next index once the former one is attributed

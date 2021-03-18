@@ -71,7 +71,7 @@
     <number>4</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <layout class="QHBoxLayout" name="horizontalLayout_7">
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
@@ -90,22 +90,15 @@
            </property>
           </widget>
          </item>
+         <item row="1" column="0">
+          <widget class="QLineEdit" name="buffername_LineEdit"/>
+         </item>
          <item row="1" column="2">
           <widget class="QPushButton" name="add_buffer_PushButton">
            <property name="text">
             <string>Add buffer</string>
            </property>
           </widget>
-         </item>
-         <item row="2" column="2">
-          <widget class="QPushButton" name="delete_buffer_PushButton">
-           <property name="text">
-            <string>Delete buffer</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLineEdit" name="buffername_LineEdit"/>
          </item>
          <item row="1" column="1">
           <widget class="QComboBox" name="valve_position_ComboBox"/>
@@ -114,6 +107,24 @@
        </item>
        <item>
         <widget class="QListView" name="buffer_ListView"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QPushButton" name="delete_buffer_PushButton">
+           <property name="text">
+            <string>Delete buffer</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="delete_all_buffer_PushButton">
+           <property name="text">
+            <string>Delete all</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>
@@ -134,11 +145,18 @@
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
         <layout class="QGridLayout" name="gridLayout_3">
-         <item row="1" column="0">
-          <widget class="QLineEdit" name="probename_LineEdit"/>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="add_probe_PushButton">
+           <property name="text">
+            <string>Add probe</string>
+           </property>
+          </widget>
          </item>
          <item row="1" column="1">
           <widget class="QComboBox" name="probe_position_ComboBox"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLineEdit" name="probename_LineEdit"/>
          </item>
          <item row="0" column="0">
           <widget class="QLabel" name="label_10">
@@ -154,24 +172,28 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="2">
-          <widget class="QPushButton" name="add_probe_PushButton">
-           <property name="text">
-            <string>Add probe</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="2">
+        </layout>
+       </item>
+       <item>
+        <widget class="QListView" name="probe_ListView"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
+         <item>
           <widget class="QPushButton" name="delete_probe_PushButton">
            <property name="text">
             <string>Delete probe</string>
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QPushButton" name="delete_all_probes_PushButton">
+           <property name="text">
+            <string>Delete all</string>
+           </property>
+          </widget>
+         </item>
         </layout>
-       </item>
-       <item>
-        <widget class="QListView" name="probe_ListView"/>
        </item>
       </layout>
      </item>
@@ -192,6 +214,12 @@
    </widget>
   </widget>
   <widget class="QDockWidget" name="injection_DockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>780</width>
+     <height>440</height>
+    </size>
+   </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
