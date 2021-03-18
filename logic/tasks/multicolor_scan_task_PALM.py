@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 2 2021
+Created on Wed Mar 17 13:46:23 2021
 
 @author: fbarho
 
 This file is an extension to Qudi software
 obtained from <https://github.com/Ulm-IQO/qudi/>
 
-Task to perform multicolor imaging
+Task to perform multicolor z stack imaging
 
 Config example pour copy-paste:
-    MulticolorImagingTask:
-        module: 'multicolor_imaging_task'
+    MulticolorScanTask:
+        module: 'multicolor_scan_task_PALM'
         needsmodules:
             camera: 'camera_logic'
             daq: 'daq_ao_logic'
             filter: 'filterwheel_logic'
+            focus: 'focus_logic'
         config:
-            path_to_user_config: '/home/barho/qudi-cbs-user-configs/multichannel_imaging_task.json'
+            path_to_user_config: '/home/barho/qudi-cbs-user-configs/multicolor_scan_task.json'
 """
 import yaml
 from datetime import datetime
@@ -33,13 +34,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
-        # self.laser_allowed = False
-        self.user_config_path = self.config['path_to_user_config']
-        self.log.info('Task {0} using the configuration at {1}'.format(self.name, self.user_config_path))
+        self.laser_allowed = False
+#        self.user_config_path = self.config['path_to_user_config']
+#        self.log.info('Task {0} using the configuration at {1}'.format(self.name, self.user_config_path))
 
     def startTask(self):
         """ """
         self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
+        self.plane_count = 0  # initialize the counter for the number of planes. Task step iterates over this counter
+
         
         # control if live mode in basic gui is running. Task can not be started then.
         if self.ref['camera'].enabled:
@@ -63,8 +66,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if not self.laser_allowed:
             self.log.warning('Task aborted. Please specify a valid filter / laser combination')
             return
-        
         ### all conditions to start the task have been tested: Task can now be started safely   
+        
+        self.start_position = self.calculate_start_position()
+        self.log.info(f'start position: {self.start_position}')
         
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
@@ -72,7 +77,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # wait until filter position set
         pos = self.ref['filter'].get_position()
         while not pos == self.filter_pos:
-            sleep(1)
+            sleep(2)
             pos = self.ref['filter'].get_position()
 
         # initialize the digital output channel for trigger
@@ -90,11 +95,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # set the exposure time
         self.ref['camera'].set_exposure(self.exposure) 
         # set the number of frames
-        frames = len(self.imaging_sequence) * self.num_frames # num_frames: number of frames per channel
-        self.ref['camera'].set_number_kinetics(frames)  # lets assume a single image per channel for this first version
+        frames = len(self.imaging_sequence) * self.num_frames * self.num_planes # num_frames = 1 typically. Keep the option however. 
+        self.ref['camera'].set_number_kinetics(frames) 
 
         # define save path
-        self.complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Stack', 'testimg', '', False)
+        self.complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Scan', 'testimg', '', False)
         # maybe add an extension with the current date to self.save_path. Could be done in load_user_param method
 
         # set spooling
@@ -126,11 +131,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # .. 
         if not self.laser_allowed:
             return False
+        #########################
+        
+        self.ref['focus'].go_to_position(self.start_position + self.plane_spacing * self.plane_count)
+        pos = self.ref['focus'].get_position()
+        self.log.info(pos)
+        
+        
         
         
         # this task only has one step until a data set is prepared and saved (but loops over the number of frames per channel and the channels)
         # outer loop over the number of frames per color
-        for j in range(self.num_frames):
+        for j in range(self.num_frames):  # per default only one frame per plane per color but keep it as an option 
 
             # use a while loop to catch the exception when a trigger is missed and just repeat the last (missed) image
             i = 0
@@ -166,18 +178,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 else:
                     i += 1  # increment to continue with the next image
 
-        
-        # finish the acquisition  # calling this here allows to access the temperature for the metadata
-        self.ref['camera'].abort_acquisition()
-        # save metadata
-        metadata = self._create_metadata_dict()  # {'key1': 1, 'key2': 2, 'key3': 3}
-        if self.file_format == 'fits':
-            complete_path = self.complete_path + '.fits'
-            self.ref['camera']._add_fits_header(complete_path, metadata)
-        else:  # default case, add a txt file with the metadata
-            self.ref['camera']._save_metadata_txt_file(self.save_path, '_Stack', metadata)
-        
-        return False
+
+        self.plane_count += 1
+        return self.plane_count < self.num_planes
 
     def pauseTask(self):
         """ """
@@ -188,12 +191,20 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('resumeTask called')
 
     def cleanupTask(self):
-        """ """
+        """ """          
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
         self.ref['daq'].close_ai_task()
         self.ref['camera'].abort_acquisition()
+        # save metadata
+        metadata = self._create_metadata_dict()  
+        if self.file_format == 'fits':
+            complete_path = self.complete_path + '.fits'
+            self.ref['camera']._add_fits_header(complete_path, metadata)
+        else:  # default case, add a txt file with the metadata
+            self.ref['camera']._save_metadata_txt_file(self.save_path, '_Scan', metadata)
+            
         self.ref['camera'].set_spool(0, 7, '', 10)
         self.ref['camera'].set_acquisition_mode('RUN_TILL_ABORT')
         self.ref['camera'].set_trigger_mode('INTERNAL') 
@@ -235,40 +246,49 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             file_format: 'tiff'
             imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)]
         """
-         # for tests 
-#        self.filter_pos = 1
-#        self.exposure = 0.05  # in s
-#        self.gain = 50
-#        self.num_frames = 5
-#        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
-#        self.file_format = 'fits'
-#        self.imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)] 
-        # a dictionary is not a good option for the imaging sequence. is a list better ? preserves order (dictionary would do as well), allows repeated entries
-
-        try:
-            with open(self.user_config_path, 'r') as stream:
-                self.user_param_dict = yaml.safe_load(stream)
-
-                self.filter_pos = self.user_param_dict['filter_pos']
-                self.exposure = self.user_param_dict['exposure']
-                self.gain = self.user_param_dict['gain']
-                self.num_frames = self.user_param_dict['num_frames']
-                self.save_path = self.user_param_dict['save_path']
-                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
-                self.file_format = self.user_param_dict['file_format']
-#                self.file_format = 'tiff'
-                self.log.debug(self.imaging_sequence_raw)  # remove after tests
-
-                # for the imaging sequence, we need to access the corresponding labels
-                laser_dict = self.ref['daq'].get_laser_dict()
-                imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
+        # for tests 
+        self.filter_pos = 1
+        self.exposure = 0.05  # in s
+        self.gain = 50
+        self.num_frames = 1
+        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
+        self.file_format = 'tiff'
+        self.imaging_sequence_raw = [('561 nm', 3), ('561 nm', 1), ('561 nm', 5)] 
+        self.num_planes = 5
+        self.plane_spacing = 0.25  # in um
+        
+        # for the imaging sequence, we need to access the corresponding labels
+        laser_dict = self.ref['daq'].get_laser_dict()
+        imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
                                      self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
-                self.log.info(imaging_sequence)
-                self.imaging_sequence = imaging_sequence
-                # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
-                
-        except Exception as e:  # add the type of exception
-            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+        self.log.info(imaging_sequence)
+        self.imaging_sequence = imaging_sequence
+        
+
+#        try:
+#            with open(self.user_config_path, 'r') as stream:
+#                self.user_param_dict = yaml.safe_load(stream)
+#
+#                self.filter_pos = self.user_param_dict['filter_pos']
+#                self.exposure = self.user_param_dict['exposure']
+#                self.gain = self.user_param_dict['gain']
+#                self.num_frames = self.user_param_dict['num_frames']
+#                self.save_path = self.user_param_dict['save_path']
+#                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
+#                self.file_format = self.user_param_dict['file_format']
+##                self.file_format = 'tiff'
+#                self.log.debug(self.imaging_sequence_raw)  # remove after tests
+#
+#                # for the imaging sequence, we need to access the corresponding labels
+#                laser_dict = self.ref['daq'].get_laser_dict()
+#                imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
+#                                     self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
+#                self.log.info(imaging_sequence)
+#                self.imaging_sequence = imaging_sequence
+#                # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
+#                
+#        except Exception as e:  # add the type of exception
+#            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
                           
             
     def _control_user_parameters(self):
@@ -286,17 +306,22 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 lasers_allowed = False
                 break  # stop if at least one forbidden laser is found
         return lasers_allowed
+    
+    def calculate_start_position(self):
+        current_pos = self.ref['focus'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        # even number of planes:
+        if self.num_planes % 2 == 0:
+            start_pos = current_pos - self.num_planes / 2 * self.plane_spacing  # focal plane is the first one of the upper half of the number of planes
+        # odd number of planes:
+        else:
+            start_pos = current_pos - (self.num_planes - 1)/2 * self.plane_spacing
+        return start_pos 
+        # add also the option that the current plane is the start plane.
+        ## use an entry in the user config for this option 
+        # or calculate number of planes given the first and the last one and the spacing
                 
 
-       
-        
-        
-            
-            
 
-            
-            
-            
     def _create_metadata_dict(self):
         """ create a dictionary containing the metadata
 
@@ -358,5 +383,3 @@ def get_entry_nested_dict(nested_dict, val, entry):
 # check if metadata contains everything that is needed
 # checked state for laser on button in basic gui gets messed up    (because of call to voltage_off in cleanupTask called)
     # fits header: can value be a list ? check with simple example
-    
-    

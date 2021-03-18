@@ -169,13 +169,14 @@ class FluidicsGUI(GUIBase):
         self._mw.go_to_position_Action.triggered.connect(self.go_to_position_clicked)
 
         # signals to logic
-        self.sigMoveStage.connect(self._positioning_logic.move_stage)
-        self.sigMoveToTarget.connect(self._positioning_logic.move_to_target)
+        self.sigMoveStage.connect(self._positioning_logic.start_move_stage)
+        self.sigMoveToTarget.connect(self._positioning_logic.start_move_to_target)
         self.sigSetPos1.connect(self._positioning_logic.set_origin)
         self.sigStopMovement.connect(self._positioning_logic.abort_movement)
 
         # signals from logic
-        self._positioning_logic.sigStageMoved.connect(self.update_stage_position)
+        self._positioning_logic.sigUpdatePosition.connect(self.update_stage_position)
+        self._positioning_logic.sigStageMoved.connect(self.stage_movement_finished)
         self._positioning_logic.sigOriginDefined.connect(self.origin_defined)
         self._positioning_logic.sigStageMovedToTarget.connect(self.update_target_position)
         self._positioning_logic.sigStageStopped.connect(self.stage_stopped)
@@ -227,13 +228,44 @@ class FluidicsGUI(GUIBase):
             self.sigMoveStage.emit(position)
 
     @QtCore.Slot(tuple)
-    def update_stage_position(self, position):
+    def stage_movement_finished(self, position):
         """ Callback of sigStageMoved in logic module. Movement is finished and toolbutton state needs to be reset.
         Updates the current position indicators"""
         self._mw.move_stage_Action.setChecked(False)
         self._mw.move_stage_Action.setText('Move Stage')
         if self._positioning_logic.origin is not None:
             self._mw.go_to_position_Action.setDisabled(False)
+        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
+        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
+        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
+        xy_pos = (position[0], position[1])
+        if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
+            self._mw.probe_position_LineEdit.setText(str(self._positioning_logic._probe_xy_position_dict[xy_pos]))
+        elif self._positioning_logic.origin is None:
+            pass  # keep the default text if position1 is not yet defined
+        else:
+            self._mw.probe_position_LineEdit.setText('Not at a probe XY position')
+
+    @QtCore.Slot(tuple, int)
+    def update_target_position(self, position, target_position):
+        """ Callback of sigStageMovedToTarget in logic module. Movement is finished and toolbutton state needs to be reset.
+        Updates the current position indicators (stage and target)"""
+        self._mw.go_to_position_Action.setChecked(False)
+        self._mw.go_to_position_Action.setText('Go to Target')
+        self._mw.move_stage_Action.setDisabled(False)
+        # set the setpoint and the indicator widgets to the current position accordingly to the target
+        self._mw.x_axis_position_DSpinBox.setValue(position[0])
+        self._mw.y_axis_position_DSpinBox.setValue(position[1])
+        self._mw.z_axis_position_DSpinBox.setValue(position[2])
+        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
+        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
+        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        self._mw.probe_position_LineEdit.setText(str(target_position))
+
+    @QtCore.Slot(tuple)
+    def update_stage_position(self, position):
+        """ Callback of sigUpdatePosition in logic module. Updates the current position indicators"""
         self._mw.x_axis_position_LineEdit.setText(str(position[0]))
         self._mw.y_axis_position_LineEdit.setText(str(position[1]))
         self._mw.z_axis_position_LineEdit.setText(str(position[2]))
@@ -261,22 +293,6 @@ class FluidicsGUI(GUIBase):
             self._mw.move_stage_Action.setDisabled(True)
             position = self._mw.target_probe_position_SpinBox.value()  # position is an integer
             self.sigMoveToTarget.emit(position)
-
-    @QtCore.Slot(tuple, int)
-    def update_target_position(self, position, target_position):
-        """ Callback of sigStageMovedToTarget in logic module. Movement is finished and toolbutton state needs to be reset.
-        Updates the current position indicators (stage and target)"""
-        self._mw.go_to_position_Action.setChecked(False)
-        self._mw.go_to_position_Action.setText('Go to Target')
-        self._mw.move_stage_Action.setDisabled(False)
-        # set the setpoint and the indicator widgets to the current position accordingly to the target
-        self._mw.x_axis_position_DSpinBox.setValue(position[0])
-        self._mw.y_axis_position_DSpinBox.setValue(position[1])
-        self._mw.z_axis_position_DSpinBox.setValue(position[2])
-        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
-        self._mw.probe_position_LineEdit.setText(str(target_position))
 
     @QtCore.Slot(tuple)
     def stage_stopped(self, position):
@@ -348,18 +364,19 @@ class FluidicsGUI(GUIBase):
         # get current index of the valve position combobox
         index = self._mw.valve1_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve1', valve_pos)
+        self.sigSetValvePosition.emit('a', valve_pos)
 
     def change_valve2_position(self):
         # get current index of the valve position combobox
-        index = self._mw.valve1_ComboBox.currentIndex()
+        index = self._mw.valve2_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve2', valve_pos)
+        self.sigSetValvePosition.emit('b', valve_pos)
 
     def change_valve3_position(self):
         # get current index of the valve position combobox
-        index = self._mw.valve1_ComboBox.currentIndex()
+        index = self._mw.valve3_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('valve3', valve_pos)
+        self.log.info(f'valve position c: {valve_pos}')
+        self.sigSetValvePosition.emit('c', valve_pos)  #precedemment valve3
 
 

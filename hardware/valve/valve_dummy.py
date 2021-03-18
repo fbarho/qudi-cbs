@@ -1,6 +1,6 @@
 import numpy as np
 from core.module import Base
-from interface.valve_interface import ValveInterface
+from interface.valvepositioner_interface import ValveInterface
 
 
 class ValveDummy(Base, ValveInterface):
