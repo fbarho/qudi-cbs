@@ -92,8 +92,6 @@ class HamiltonValve(Base, ValveInterface):
 
     def on_deactivate(self):
         """ Close serial port when deactivating the module.
-        
-        @returns int: error code (ok: 0)
         """
         self._serial_connection.close()
 

@@ -64,3 +64,6 @@ class ValveLogic(GenericLogic):
 
     def get_valve_dict(self):
         return self._valves.get_valve_dict()
+
+    def wait_for_idle(self):
+        self._valves.wait_for_idle()

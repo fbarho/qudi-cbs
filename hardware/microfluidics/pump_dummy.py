@@ -107,26 +107,23 @@ class PumpDummy(Base, MicrofluidicsPumpInterface):
                     self.log.info('Specified pressure channel not available')
 
     def get_flowrate(self, param_list=None):
-        """ Gets current flowrate of the corresponding sensor channel or all sensor channels.
+        """ Gets current flowrate (some simulated values here) of the corresponding sensor channel or all sensor channels.
 
         @param list param_list: optional, flowrate of a specific sensor channel
         @return dict: with keys being the sensor channel IDs and values the flowrates
         """
-        # if not param_list:
-        #     flowrates = [fgt.fgt_get_sensorValue(channel) for channel in self.sensor_channel_IDs]
-        #     flowrate_dict = dict(zip(self.sensor_channel_IDs, flowrates))
-        #     return flowrate_dict
-        # else:
-        #     flowrate_dict = {}
-        #     for channel in param_list:
-        #         if channel in self.sensor_channel_IDs:
-        #             flowrate = fgt.fgt_get_sensorValue(channel)
-        #             flowrate_dict[channel] = flowrate
-        #         else:
-        #             self.log.info('Specified sensor channel not available')
-        #     return flowrate_dict
-        pass
-        # add some fluctuations
+        if not param_list:
+            flowrates = [self.pressure_dict[channel] * 0.1 + np.random.normal() for channel in self.sensor_channel_IDs]
+            flowrate_dict = dict(zip(self.sensor_channel_IDs, flowrates))
+            return flowrate_dict
+        else:
+            flowrate_dict = {}
+            for channel in param_list:
+                if channel in self.sensor_channel_IDs:
+                    flowrate_dict[channel] = self.pressure_dict[channel] * 0.1 + np.random.normal()
+                else:
+                    self.log.info('Specified sensor channel not available')
+            return flowrate_dict
 
     def get_sensor_unit(self, param_list=None):
         """ Gets sensor unit of the corresponding sensor channel or all sensor channels.

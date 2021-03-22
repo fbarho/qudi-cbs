@@ -204,11 +204,9 @@ class MerfishLogic(GenericLogic):
         """
         if procedure == 'Hybridization':
             self.hybridization_injection_sequence_model.items.append((procedure, None, None, None, time))
-            self.log.info(self.hybridization_injection_sequence_model.items)
             self.sigHybridizationListChanged.emit()
         elif procedure == 'Photobleaching':
             self.photobleaching_injection_sequence_model.items.append((procedure, None, None, None, time))
-            self.log.info(self.photobleaching_injection_sequence_model.items)
             self.sigPhotobleachingListChanged.emit()
         else:
             pass
@@ -260,12 +258,10 @@ class MerfishLogic(GenericLogic):
 
                 for i in range(len(hybridization_list)):
                     entry = hybridization_list[i]  # entry is a dict
-                    self.log.info(entry)
                     self.hybridization_injection_sequence_model.items.append((entry['procedure'], entry['product'], entry['volume'], entry['flowrate'], entry['time']))
 
                 for i in range(len(photobleaching_list)):
                     entry = photobleaching_list[i]  # entry is a dict
-                    self.log.info(entry)
                     self.photobleaching_injection_sequence_model.items.append((entry['procedure'], entry['product'], entry['volume'], entry['flowrate'], entry['time']))
 
                 self.sigBufferListChanged.emit()
@@ -305,7 +301,7 @@ class MerfishLogic(GenericLogic):
         # write a complete file containing buffer_dict, probe_dict, hybridization_list and photobleaching_list
         with open(path, 'w') as file:
             dict_file = {'buffer': self.buffer_dict, 'probes': self.probe_dict, 'hybridization list': hybridization_list, 'photobleaching list': photobleaching_list}
-            yaml.safe_dump(dict_file, file, default_flow_style=False, sort_keys=False)
+            yaml.safe_dump(dict_file, file, default_flow_style=False)  #, sort_keys=False
             self.log.info('Injections saved to {}'.format(path))
 
     @staticmethod
@@ -319,5 +315,3 @@ class MerfishLogic(GenericLogic):
         inj_step_dict['flowrate'] = flowrate
         inj_step_dict['time'] = time
         return inj_step_dict
-
-# buffer list model and probe position model : order by valve number or by position number
