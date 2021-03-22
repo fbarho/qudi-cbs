@@ -93,16 +93,17 @@ class FluidicsGUI(GUIBase):
         # menu actions
         self._mw.close_MenuAction.triggered.connect(self._mw.close)
 
+        # to do: create the widgets according to the number of specified valves in config
         # initialize the valve control dockwidget
         self._mw.valve1_Label.setText(self._valve_logic.valve_names[0])
         self._mw.valve2_Label.setText(self._valve_logic.valve_names[1])
         self._mw.valve3_Label.setText(self._valve_logic.valve_names[2])
-        self._mw.valve1_ComboBox.addItems(self._valve_logic.valve_positions[0])
-        self._mw.valve2_ComboBox.addItems(self._valve_logic.valve_positions[1])
-        self._mw.valve3_ComboBox.addItems(self._valve_logic.valve_positions[2])
+        self._mw.valve1_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[0])])
+        self._mw.valve2_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[1])])
+        self._mw.valve3_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[2])])
 
         # set current index according to actual position of valve on start
-        # ..
+        # call the method update_combobox_position to set the right index ..
 
         # signals
         self._mw.valve1_ComboBox.activated[str].connect(self.change_valve1_position)
@@ -111,6 +112,11 @@ class FluidicsGUI(GUIBase):
 
         # signals to logic
         self.sigSetValvePosition.connect(self._valve_logic.set_valve_position)
+
+        # signqls from logic
+        self._valve_logic.sigPositionChanged.connect(self.update_combobox_index)
+
+
 
 
         # initialize the flow control dockwidget and its toolbar
@@ -358,7 +364,7 @@ class FluidicsGUI(GUIBase):
         self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
         self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
 
-
+# all valve related methods have to be made more dynamic to match the valve ID to the belonging widgets.
     # maybe combine these slots into one and getting the valve number with lambda function
     def change_valve1_position(self):
         # get current index of the valve position combobox
@@ -376,7 +382,16 @@ class FluidicsGUI(GUIBase):
         # get current index of the valve position combobox
         index = self._mw.valve3_ComboBox.currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.log.info(f'valve position c: {valve_pos}')
         self.sigSetValvePosition.emit('c', valve_pos)  #precedemment valve3
+
+    def update_combobox_index(self, valve_ID, valve_pos):
+        if valve_ID == 'a':
+            self._mw.valve1_ComboBox.setCurrentIndex(valve_pos-1)  # zero indexing
+        elif valve_ID == 'b':
+            self._mw.valve2_ComboBox.setCurrentIndex(valve_pos - 1)  # zero indexing
+        elif valve_ID == 'c':
+            self._mw.valve3_ComboBox.setCurrentIndex(valve_pos - 1)  # zero indexing
+        else:
+            pass
 
 
