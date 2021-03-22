@@ -7,7 +7,7 @@ class MicrofluidicsPumpInterface(metaclass=InterfaceMetaclass):
     """
 
     @abstract_interface_method
-    def set_pressure(self, param_dict=None):
+    def set_pressure(self, param_dict):
         """ Set new pressure value to a channel
 
         @param dict param_dict: dictionary, which passes all the relevant
