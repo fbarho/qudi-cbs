@@ -49,6 +49,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('started task session')
 
 
+
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
@@ -56,8 +57,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         z_planes = 1
         wavelength = [3, 3, 3, 3, 3]
         values = [3, 0, 4, 0, 5]
+
+        # modifier pos piezo
+        # attendre 30 ms
+        # envoyer signal du daq vers le FPGA connector 0 /DIO3
+        # attendre signal du FPGA vers le DAQ
+
         self.ref['fpga'].run_multicolor_imaging_task_session(z_planes, wavelength, values)
         self.log.info('task session running ..')
+
         sleep(1)  # add some waiting time for tests to see if task is executed # use real timing functionality for real tasks
         return False
 

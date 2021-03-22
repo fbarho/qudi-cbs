@@ -80,9 +80,9 @@ class MotorDummy(Base, MotorInterface):
         self._z_axis.vel = 1.0
         self._phi_axis.vel = 1.0
 
-        self._x_axis.status = 0
-        self._y_axis.status = 0
-        self._z_axis.status = 0
+        self._x_axis.status = True   # 0
+        self._y_axis.status = True   # 0
+        self._z_axis.status = True   # 0
         self._phi_axis.status = 0
 
     def on_deactivate(self):

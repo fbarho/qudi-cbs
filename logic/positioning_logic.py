@@ -87,11 +87,11 @@ class PositioningLogic(GenericLogic):
 
     moving = False
     origin = None
-    delta_x = 15  # in mm # to be defined by config later
-    delta_y = 15  # in mm # to be defined by config later
+    delta_x = 14.9  # in mm # to be defined by config later
+    delta_y = 14.9  # in mm # to be defined by config later
     z_safety_pos = ConfigOption('z_safety_position', 0, missing='warn')
-    num_x = ConfigOption('num_x', 10, missing='warn')  # number of available probe positions in x direction
-    num_y = ConfigOption('num_y', 10, missing='warn')  # number of available probe positions in y direction
+    # num_x = ConfigOption('num_x', 10, missing='warn')  # number of available probe positions in x direction
+    # num_y = ConfigOption('num_y', 10, missing='warn')  # number of available probe positions in y direction
 
     _probe_coordinates_dict = {}  # contains the mapping of probe numbers to their coordinates on the grid  {1: (0, 0), ...}
     _probe_xy_position_dict = {}  # contains the mapping the physical xy positions of the probes to their probe number  {(12.0, 10.0): 1, ..}
@@ -118,8 +118,8 @@ class PositioningLogic(GenericLogic):
         (just grid points, no metric coordinates):
         1: (0, 0), 2: (0, 1), 3: (0, 2), etc.. values in (x, y) order, y being the index that varies rapidly
         """
-        num_x = self.num_x  # number of positions in x direction
-        num_y = self.num_y  # number of positions in y direction
+        num_x = 10  # self.num_x  # number of positions in x direction
+        num_y = 10  # self.num_y  # number of positions in y direction
         max_probes = num_x * num_y
         # create the coordinate grid
         list_even = [(x, y) for x in range(num_x) for y in range(num_y) if x % 2 == 0]
@@ -192,7 +192,8 @@ class PositioningLogic(GenericLogic):
         self.sigUpdatePosition.emit(new_position)
 
         if self.moving:  # make sure that movement has not been aborted
-            if x_pos != pos_dict_xy['x'] or y_pos != pos_dict_xy['y']:
+            # if x_pos != pos_dict_xy['x'] or y_pos != pos_dict_xy['y']:
+            if (abs(x_pos - pos_dict_xy['x']) > 0.001) or (abs(y_pos - pos_dict_xy['y']) > 0.001):
                 # enter in a loop until xy position reached
                 worker = xyMoveWorker(pos_dict_xy, pos_dict_z)
                 worker.signals.sigxyStepFinished.connect(self.move_xy_stage_loop)
@@ -255,8 +256,8 @@ class PositioningLogic(GenericLogic):
         # this could be modified. we could use a lookup dictionary containing the xyz positions directly.
         # so we don't need to recalculate them each time.
         grid_coordinates = self.get_coordinates(target_position)
-        x_pos = self.origin[0] + grid_coordinates[0] * self.delta_x
-        y_pos = self.origin[1] + grid_coordinates[1] * self.delta_y
+        x_pos = self.origin[0] + grid_coordinates[0] * self.delta_x + grid_coordinates[1] * -0.11  # last term: correction term
+        y_pos = self.origin[1] + grid_coordinates[1] * self.delta_y + grid_coordinates[0] * -0.055
         z_pos = self.origin[2]
         position = (x_pos, y_pos, z_pos)
         axis_label = ('x', 'y', 'z')
@@ -311,15 +312,14 @@ class PositioningLogic(GenericLogic):
         # create a dictionary that allows to access the position number of the merfish probe by its metric coordinates
         probe_xy_position_dict = {}
         for key in self._probe_coordinates_dict:
-            x_pos = self._probe_coordinates_dict[key][0] * self.delta_x + self.origin[0]
-            y_pos = self._probe_coordinates_dict[key][1] * self.delta_y + self.origin[1]
+            x_pos = self._probe_coordinates_dict[key][0] * self.delta_x + self.origin[0] + self._probe_coordinates_dict[key][1] * -0.11
+            y_pos = self._probe_coordinates_dict[key][1] * self.delta_y + self.origin[1] + self._probe_coordinates_dict[key][0] * -0.055
             position = (x_pos, y_pos)
             probe_xy_position_dict[key] = position
         # invert the keys and values in the dictionary because we want to access the target position by the key
         inv_dict = dict((v, k) for k, v in probe_xy_position_dict.items())
         self._probe_xy_position_dict = inv_dict
         self.sigOriginDefined.emit()
-
 
 # add the default values for position 1
 

@@ -17,12 +17,11 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
             - 0
 
     """
+    pressure_channel_IDs = ConfigOption('pressure_channel_IDs', missing='error')
+    sensor_channel_IDs = ConfigOption('sensor_channel_IDs', missing='error')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-
-    pressure_channel_IDs = ConfigOption('pressure_channel_IDs', missing='error')
-    sensor_channel_IDs = ConfigOption('sensor_channel_IDs', missing='error')
 
     def on_activate(self):
         # Detect all controllers
@@ -146,7 +145,6 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
                     self.log.info('Specified pressure channel not available')
             return pressure_range_dict
 
-
     # methods for sensor channels
     def get_flowrate(self, param_list=None):
         """ Gets current flowrate of the corresponding sensor channel or all sensor channels.
@@ -207,6 +205,5 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
                 else:
                     self.log.info('Specified sensor channel not available')
             return sensor_range_dict
-
 
     # to do: use of error codes and exception handlling

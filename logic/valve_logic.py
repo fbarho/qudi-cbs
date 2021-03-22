@@ -25,10 +25,16 @@ class ValveLogic(GenericLogic):
     valves = Connector(interface='ValveInterface')
 
     # signals
+    sigPositionChanged = QtCore.Signal(str, int)
 
     # attributes
-    valve_names = ['Buffer 8-way Valve', 'Syringe 2-way Valve', 'RT rinsing 2-way valve']  # get this from hardware module (config) in next version
-    valve_positions = [['1', '2', '3', '4', '5', '6', '7: MerFISH Probe', '8'], ['1', '2'], ['1', '2']]  # get this from hardware module (config)
+    # valve_names = ['Buffer 8-way Valve', 'Syringe 2-way Valve', 'RT rinsing 2-way valve']  # get this from hardware module (config) in next version
+    # valve_positions = [['1', '2', '3', '4', '5', '6', '7: MerFISH Probe', '8'], ['1', '2'], ['1', '2']]  # get this from hardware module (config)
+
+    valve_dict = {}
+    valve_names = []
+    max_positions = []
+    valve_IDs = []
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -39,18 +45,25 @@ class ValveLogic(GenericLogic):
         # connector
         self._valves = self.valves()
 
+        self.valve_dict = self._valves.get_valve_dict()
+        self.valve_names = [self.valve_dict[key]['name'] for key in self.valve_dict]
+        self.max_positions = [self.valve_dict[key]['number_outputs'] for key in self.valve_dict]
+        self.valve_IDs = [self.valve_dict[key]['daisychain_ID'] for key in self.valve_dict]
+
     def on_deactivate(self):
         """ Perform required deactivation. """
         pass
 
-    def get_valve_position(self, valve):
-        pass
+    def get_valve_position(self, valve_ID):
+        return self._valves.get_valve_position(valve_ID)
 
-    def set_valve_position(self, valve, position):
-        # map key valve to address using a valve dict (like the laser dict or filter dict)
-        # valve_dict = self.get_valve_dict()
-        # valve_address = valve_dict[valve]['address']
-        self._valves.set_valve_position(valve, position)
+    def set_valve_position(self, valve_ID, position):
+        self._valves.set_valve_position(valve_ID, position)
+        # add here a signal to update gui when position manually changed
+        self.sigPositionChanged.emit(valve_ID, position)
 
     def get_valve_dict(self):
         return self._valves.get_valve_dict()
+
+    def wait_for_idle(self):
+        self._valves.wait_for_idle()

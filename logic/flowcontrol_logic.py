@@ -7,6 +7,7 @@ Created on Thu Mars 4 2021
 This module contains the logic to control the microfluidics pump and flowrate measurement
 """
 from time import sleep
+import math
 
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
@@ -19,7 +20,7 @@ class WorkerSignals(QtCore.QObject):
 
     sigFinished = QtCore.Signal()
     sigRegulationWaitFinished = QtCore.Signal(float)  # carries the target_flowrate as parameter
-    sigIntegrationIntervalFinished = QtCore.Signal(float)  #carries the target_volume as parameter
+    sigIntegrationIntervalFinished = QtCore.Signal(float, float)  #carries the target_volume as parameter and the integration interval
 
 
 class MeasurementWorker(QtCore.QRunnable):
@@ -52,8 +53,7 @@ class RegulationWorker(QtCore.QRunnable):
     def run(self):
         """ """
         sleep(1)  # 1 second as time constant
-        self.signals.sigFinished.emit()
-        self.signals.sigRegulationWaitFinished(self.target_flowrate)
+        self.signals.sigRegulationWaitFinished.emit(self.target_flowrate)
 
 
 class VolumeCountWorker(QtCore.QRunnable):
@@ -61,17 +61,17 @@ class VolumeCountWorker(QtCore.QRunnable):
 
     The worker handles only the waiting time, and emits a signal that serves to trigger a new sampling """
 
-    def __init__(self, target_volume):
+    def __init__(self, target_volume, sampling_interval):
         super(VolumeCountWorker, self).__init__()
         self.signals = WorkerSignals()
         self.target_volume = target_volume
+        self.sampling_interval = sampling_interval
 
     @QtCore.Slot()
     def run(self):
         """ """
-        sleep(1)  # 1 second as time constant
-        self.signals.sigFinished.emit()
-        self.signals.sigIntegrationIntervalFinished(self.target_volume)
+        sleep(self.sampling_interval)
+        self.signals.sigIntegrationIntervalFinished.emit(self.target_volume, self.sampling_interval)
 
 
 class FlowcontrolLogic(GenericLogic):
@@ -228,15 +228,18 @@ class FlowcontrolLogic(GenericLogic):
         """
         flowrate = self.get_flowrate(sensor_channel)
         print(f'flowrate {flowrate}')
-        if flowrate != target_flowrate:  # which precision ?   #use math.isclose function instead when precision defined
+        # if 10 != abs(flowrate - target_flowrate):  # which precision ?   #use math.isclose function instead when precision defined
+        if not math.isclose(flowrate, target_flowrate, rel_tol=0.1, abs_tol=0):  # allow 10 % tolerance
             diff = target_flowrate - flowrate
+            print(f'relative error: {abs(diff)/max(flowrate, target_flowrate)}')
             pressure = self.get_pressure(pressure_channel)
             const = 1  # which proportionality constant do we need ?
-            new_pressure = pressure + const * diff
+            new_pressure = max(min(50.0, pressure + const * diff), 0.0)
             print(f'new_pressure {new_pressure}')
             self.set_pressure(new_pressure, pressure_channel)
         else:
             pass
+        # rajouter I de 0.01 (min)
 
 # first tests with a simple version where the channels are not specified (we would need signal overloading in the worker thread... to be explored later)
     def start_pressure_regulation_loop(self, target_flowrate):
@@ -254,7 +257,7 @@ class FlowcontrolLogic(GenericLogic):
         self.regulate_pressure(target_flowrate)
         if self.regulating:
             # enter in a loop until the regulating mode is stopped
-            worker = RegulationWorker()
+            worker = RegulationWorker(target_flowrate)
             worker.signals.sigRegulationWaitFinished.connect(self.pressure_regulation_loop)
             self.threadpool.start(worker)
 
@@ -269,7 +272,8 @@ class FlowcontrolLogic(GenericLogic):
 
     def volume_measurement_loop(self, target_volume, sampling_interval):
         flowrate = self.get_flowrate()
-        self.total_volume += flowrate * sampling_interval
+        self.total_volume += flowrate * sampling_interval / 60  # abs(flowrate) ???
+        print(self.total_volume)
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         else:
@@ -280,6 +284,9 @@ class FlowcontrolLogic(GenericLogic):
             worker = VolumeCountWorker(target_volume, sampling_interval)
             worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
             self.threadpool.start(worker)
+
+    def stop_volume_measurement(self):
+        self.target_volume_reached = True
 
 
 

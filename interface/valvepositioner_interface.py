@@ -25,33 +25,53 @@ from core.meta import InterfaceMetaclass
 
 
 class ValveInterface(metaclass=InterfaceMetaclass):
-    """ This is the Interface class to define the controls for the simple
-        step motor device. The actual hardware implementation might have a
-        different amount of axis. Implement each single axis as 'private'
-        methods for the hardware class, which get called by the general method.
     """
+    """
+    @abstract_interface_method
+    def get_valve_dict(self):
+        """ Retrieves a dictionary with the following entries:
+                    {'a': {'daisychain_ID': 'a', 'name': str name, 'number_outputs': int number_outputs},
+                    {'b': {'daisychain_ID': 'b', 'name': str name, 'number_outputs': int number_outputs},
+                    ...
+                    }
 
+        @returns: valve_dict
+        """
+        pass
 
     @abstract_interface_method
-    def get_valve_position(self, param_list=None):
-        """ Gets current position of the hamilton valves
+    def get_status(self):
+        """ Read the valve status and return it.
 
-        @param list param_list: optional, if a specific position of a valve
-                                is desired, then the adress of the needed
-                                valve should be passed in the param_list.
-                                If nothing is passed, then from each valve the
-                                position is asked.
+        @return dict: containing the valve ID as key and the str status code as value (N=not executed - Y=idle - *=busy)
+        """
+        pass
 
-        @return dict: with keys being the axis labels and item the current
-                      position.
+    @abstract_interface_method
+    def get_valve_position(self, valve_address):
+        """ Gets current position of the hamilton valve
+
+        @param str valve_address: ID of the valve
+
+        @return int position: position of the valve specified by valve_address
+        """
+        pass
+
+    @abstract_interface_method
+    def set_valve_position(self, valve_address, target_position):
+        """ Sets the valve position for the valve specified by valve_address.
+
+        @param str: valve address (eg. "a")
+               int: target_position
+        """
+        pass
+
+    @abstract_interface_method
+    def wait_for_idle(self):
+        """ Wait for the valves to be idle. This is important when one wants to
+        read the position of a valve or make sure the valve are not moving before
+        starting an injection.
         """
         pass
 
 
-    @abstract_interface_method
-    def set_valve_position(self, valve, position):
-        pass
-
-    @abstract_interface_method
-    def get_valve_dict(self):
-        pass
