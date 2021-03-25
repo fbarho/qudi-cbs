@@ -7,11 +7,11 @@ Created on Wed March 10 2021
 This file is an extension to Qudi software
 obtained from <https://github.com/Ulm-IQO/qudi/>
 
-Multicolor imaging task for the RAMM setup
+Multicolor z-scan task for the RAMM setup
 
 Config example pour copy-paste:
-    MulticolorImagingTask:
-        module: 'multicolor_imaging_task_ramm'
+    MulticolorScanTask:
+        module: 'multicolor_scan_task_RAMM'
         needsmodules:
             fpga: 'lasercontrol_logic'
             cam: 'camera_logic'
@@ -83,7 +83,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # wait for signal from FPGA to DAQ ('acquisition ready')
         fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
         t0 = time()
-        t1 = time() - t0
 
         while not fpga_ready:
             sleep(0.001)
@@ -118,7 +117,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:   # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, self.save_path, image_data)
 
-
         self.ref['cam'].stop_acquisition()  # for tests as safety
 
         self.ref['cam'].reset_camera_after_multichannel_imaging()
@@ -143,7 +141,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # self.wavelengths = [3, 3, 3, 3, 3]
         # self.intensities = [3, 0, 4, 0, 5]
 
-
         # to be read from config later
 
     def calculate_start_position(self, centered_focal_plane):
@@ -162,5 +159,3 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return start_pos
         else:
             return current_pos  # the scan starts at the current position and moves up
-
-        # or calculate number of planes given the first and the last one and the spacing
