@@ -35,19 +35,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def startTask(self):
         """ """
         self.log.info('started Task')
+        # close default FPGA session
         self.ref['fpga'].close_default_session()
-        self.log.info('closed default session')
 
+        # read all user parameters from config
         self.load_user_parameters()
 
         # download the bitfile for the task on the FPGA
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'
         self.ref['fpga'].start_task_session(bitfile)
-        self.log.info('started task session')
 
-        # prepare the daq
+        # prepare the daq: set the digital output to 0 before starting the task
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
-        print('set daq output to 0')
 
         # prepare the camera
         self.num_frames = self.num_z_planes * len(self.wavelengths)
@@ -56,9 +55,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # initialize the counter (corresponding to the number of planes already acquired)
         self.step_counter = 0
 
-        # start the session
+        # start the session on the fpga using the user parameters
         self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities)
-        self.log.info('task session running ..')
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -105,20 +103,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+        # close the fpga session
         self.ref['fpga'].end_task_session()
-        self.log.info('closed task session')
 
+        # get acquired data from the camera and save it to file
         image_data = self.ref['cam'].get_acquired_data()
         print(image_data.shape)
 
         if self.file_format == 'fits':
-            metadata = {}
+            metadata = {}  # to be added
             self.ref['cam']._save_to_fits(self.save_path, image_data, metadata)
         else:   # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, self.save_path, image_data)
+            # add metadata saving
 
-        self.ref['cam'].stop_acquisition()  # for tests as safety
-
+        # self.ref['cam'].stop_acquisition()  # is also included in reset_camera_after_multichannel_imaging method
         self.ref['cam'].reset_camera_after_multichannel_imaging()
 
         self.ref['fpga'].restart_default_session()
@@ -129,8 +128,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.num_z_planes = 10
         self.z_step = 0.25  # in um
         self.centered_focal_plane = True
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)  # self.ref['piezo'].get_position()  # 10  # in um (to be modified, use get_position)
-        self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\teststack.tiff'
+        self.start_position = self.calculate_start_position(self.centered_focal_plane)
+        self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\teststack.tiff'  # to be defined how the default folder structure should be set up
         self.file_format = 'tiff'
 
         lightsource_dict = {'BF': 0, '405 nm': 1, '488 nm': 2, '561 nm': 3, '640 nm': 4}
