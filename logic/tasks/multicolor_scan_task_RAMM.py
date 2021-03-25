@@ -25,7 +25,7 @@ from logic.generic_task import InterruptableTask
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
-    """ This task does an acquisition of a series of images from different channels or using different intensities
+    """ This task does an acquisition of a series of planes in z direction using a sequence of lightsources for each plane
     """
 
     def __init__(self, **kwargs):
@@ -42,7 +42,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.load_user_parameters()
 
         # download the bitfile for the task on the FPGA
-        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'
+        # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'  #old version
+        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
         self.ref['fpga'].start_task_session(bitfile)
 
         # prepare the daq: set the digital output to 0 before starting the task

@@ -127,7 +127,7 @@ class Nifpga(Base, LaserControlInterface):
         """ helper function: fpga needs int16 (-32768 to + 32767) data format: do rescaling of value to apply in percent of max value
 
         apply min function to limit the allowed range """
-        return min(int(value/100*(2**15-1)), 36767)  # set to maximum in case value > 100
+        return min(int(value/100*(2**15-1)), 32767)  # set to maximum in case value > 100
 
     def read_values(self):
         """ for tests - returns the (converted) values applied to the registers """
