@@ -52,7 +52,8 @@ class Nifpga(Base, LaserControlInterface):
     default_bitfile = ConfigOption('default_bitfile', missing='error')
     _wavelengths = ConfigOption('wavelengths', missing='error')
     _registers = ConfigOption('registers', missing='error')
-
+    _registers_qpd = ConfigOption('registers_qpd', missing='error')
+    _integration_time_us = ConfigOption('integration_time_us', missing='error')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -68,6 +69,15 @@ class Nifpga(Base, LaserControlInterface):
         self.session.reset()
         for i in range(len(self._registers)):
             self.apply_voltage(0, self._registers[i])  # set initial value to each channel
+
+        self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
+        self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
+        self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
+        self.Integration_time_us = self.session.registers[self._registers_qpd[3]]
+        self.Duration_ms = self.session.registers[self._registers_qpd[4]]
+        self.Task = self.session.registers[self._registers_qpd[5]]
+
+        self.Task.write(False)
         self.session.run()
 
     def on_deactivate(self):
@@ -75,6 +85,17 @@ class Nifpga(Base, LaserControlInterface):
         for i in range(len(self._registers)):
             self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
         self.session.close()
+
+    def read_qpd(self, _integration_time_us):
+        self.Integration_time_us.write(_integration_time_us)
+        self.Task.write(True)
+        self.session.run()
+
+        X = self.QPD_X_read.read()
+        Y = self.QPD_Y_read.read()
+        I = self.QPD_I_read.read()
+        d = self.Duration_ms.read()
+        print([X, Y, I, d])
 
     def apply_voltage(self, voltage, channel):
         """ Writes a voltage to the specified channel.
@@ -199,9 +220,9 @@ class Nifpga(Base, LaserControlInterface):
         laser_lines.write(wavelength)
         laser_power.write(conv_values)
 
-        self.session.run()  # wait_until_done=True
+        self.session.run()  #  wait_until_done=True
         num_imgs = num_images_acquired.read()
-        print(num_imgs)
+        # print(num_imgs)
 
 
 
