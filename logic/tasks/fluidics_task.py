@@ -142,8 +142,14 @@ class Task(InterruptableTask):
             {'step_number': 3,
              'procedure': 'Hybridization',
              'product': 'Buffer1',
-             'volume': 120,
+             'volume': 200,
              'flowrate': 500,
+             'time': None},
+            {'step_number': 4,
+             'procedure': 'Hybridization',
+             'product': 'Buffer4',
+             'volume': 100,
+             'flowrate': 150,
              'time': None}
         ]
 
