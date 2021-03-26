@@ -51,6 +51,8 @@ class Nifpga(Base, LaserControlInterface):
     resource = ConfigOption('resource', missing='error')
     default_bitfile = ConfigOption('default_bitfile', missing='error')
     _wavelengths = ConfigOption('wavelengths', missing='error')
+    _registers_laser = ConfigOption('registers_laser', missing='error')
+    _registers_qpd = ConfigOption('registers_qpd', missing='error')
     _registers = ConfigOption('registers', missing='error')
 
 
@@ -60,10 +62,11 @@ class Nifpga(Base, LaserControlInterface):
     def on_activate(self):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
-        self.laser1_control = self.session.registers[self._registers[0]]
-        self.laser2_control = self.session.registers[self._registers[1]]
-        self.laser3_control = self.session.registers[self._registers[2]]
-        self.laser4_control = self.session.registers[self._registers[3]]
+        self.laser1_control = self.session.registers[self._registers_laser[0]]
+        self.laser2_control = self.session.registers[self._registers_laser[1]]
+        self.laser3_control = self.session.registers[self._registers_laser[2]]
+        self.laser4_control = self.session.registers[self._registers_laser[3]]
+        self.update = self.session.registers[self._registers_laser[4]]
         # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
         self.session.reset()
         for i in range(len(self._registers)):
@@ -72,29 +75,38 @@ class Nifpga(Base, LaserControlInterface):
         self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
         self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
         self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
-        self.Integration_time_us = self.session.registers[self._registers_qpd[3]]
+        self.Counter = self.session.registers[self._registers_qpd[3]]
         self.Duration_ms = self.session.registers[self._registers_qpd[4]]
-        self.Task = self.session.registers[self._registers_qpd[5]]
 
-        self.Task.write(False)
+        self.Stop = self.session.registers[self._registers[0]]
+        self.Integration_time_us = self.session.registers[self._registers[1]]
+        self.Reset_counter = self.session.registers[self._registers[2]]
+
+        self.Stop.write(False)
+        self.Integration_time_us.write(100)
         self.session.run()
 
     def on_deactivate(self):
         """ Required deactivation steps. """
         for i in range(len(self._registers)):
             self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
+
+        self.Stop.write(False)
         self.session.close()
 
-    def read_qpd(self, _integration_time_us):
-        self.Integration_time_us.write(_integration_time_us)
-        self.Task.write(True)
-        self.session.run()
+    def read_qpd(self):
 
         X = self.QPD_X_read.read()
         Y = self.QPD_Y_read.read()
         I = self.QPD_I_read.read()
+        count = self.Counter.read()
         d = self.Duration_ms.read()
-        print([X, Y, I, d])
+
+        print([X, Y, I,count, d])
+
+    def reset_QPD_counter(self):
+
+        self.Reset_counter.write(True)
 
     def apply_voltage(self, voltage, channel):
         """ Writes a voltage to the specified channel.
@@ -110,17 +122,17 @@ class Nifpga(Base, LaserControlInterface):
         # maybe think of replacing the hardcoded version of comparing channels with registers by something more dynamic
         value = max(0, voltage)
         conv_value = self.convert_value(value)
-        if channel == self._registers[0]:  # '405'
+        if channel == self._registers_laser[0]:  # '405'
             self.laser1_control.write(conv_value)
-        elif channel == self._registers[1]:  # '488'
+        elif channel == self._registers_laser[1]:  # '488'
             self.laser2_control.write(conv_value)
-        elif channel == self._registers[2]:  # '561'
+        elif channel == self._registers_laser[2]:  # '561'
             self.laser3_control.write(conv_value)
-        elif channel == self._registers[3]:  # '640'
+        elif channel == self._registers_laser[3]:  # '640'
             self.laser4_control.write(conv_value)
         else:
             pass
-        self.session.run()
+        self.update.write(True)
 
     def convert_value(self, value):
         """ helper function: fpga needs int16 (-32768 to + 32767) data format: do rescaling of value to apply in percent of max value
