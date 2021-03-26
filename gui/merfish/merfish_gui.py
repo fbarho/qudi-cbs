@@ -50,7 +50,7 @@ class MerfishGUI(GUIBase):
     sigDeleteBuffer = QtCore.Signal(QtCore.QModelIndex)
     sigAddProbe = QtCore.Signal(str, int)
     sigDeleteProbe = QtCore.Signal(QtCore.QModelIndex)
-    sigAddInjectionStep = QtCore.Signal(str, str, float, float)
+    sigAddInjectionStep = QtCore.Signal(str, str, int, int)
     sigAddIncubationTime = QtCore.Signal(str, int)
     sigDeleteHybrStep = QtCore.Signal(QtCore.QModelIndex)
     sigDeletePhotoblStep = QtCore.Signal(QtCore.QModelIndex)
@@ -186,8 +186,8 @@ class MerfishGUI(GUIBase):
         """ Callback of pushbutton inserting an entry into hybridization or photobleaching sequence """
         procedure = self._mw.procedure_ComboBox.currentText()  # 'Hybridization' or 'Photobleaching'
         product = self._mw.product_ComboBox.currentText()
-        volume = self._mw.volume_DSpinBox.value()
-        flowrate = self._mw.flowrate_DSpinBox.value()
+        volume = self._mw.volume_SpinBox.value()
+        flowrate = self._mw.flowrate_SpinBox.value()
         self.sigAddInjectionStep.emit(procedure, product, volume, flowrate)
 
     def add_incubation_time_clicked(self):
@@ -272,7 +272,7 @@ class MerfishGUI(GUIBase):
         the data should be saved. The path is handed over to the logic module where data saving is managed. """
         data_directory = self.default_path  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # default path for saving the file
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw,
-                                                          'Save experiment configuration',
+                                                          'Save injection sequence',
                                                           data_directory,
                                                           'txt files (*.txt)')[0]
         if this_file:
