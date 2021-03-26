@@ -210,3 +210,11 @@ class CameraInterface(metaclass=InterfaceMetaclass):
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
         pass
+
+    # @abstract_interface_method
+    # def prepare_camera_for_multichannel_imaging(self, exposure, n_frames):
+    #     pass
+    #
+    # @abstract_interface_method
+    # def reset_camera_after_multichannel_imaging(self):
+    #     pass

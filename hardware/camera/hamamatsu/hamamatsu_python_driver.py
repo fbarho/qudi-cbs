@@ -328,6 +328,8 @@ class HamamatsuCamera(object):
 
         # Get camera properties.
         self.properties = self.getCameraProperties()
+        # add also the array properties
+        self.properties = self.get_camera_array_properties()
 
         # Get camera max width, height.
         self.max_width = self.getPropertyValue("image_width")[0]
@@ -411,7 +413,32 @@ class HamamatsuCamera(object):
                                                    c_buf,
                                                    ctypes.c_int32(c_buf_len)),
                              "dcamprop_getname")
+
         return properties
+
+    def get_camera_array_properties(self):
+        """ Calculates the property id for camera properties in array format (here: output triggers)
+        for elements following the element at index 0 which is found by calling the method self.getCameraProperties.
+        Returns the updated dictionary of camera properties.
+
+        @returns: dict self.properties: updated dictionary with all properties including the array properties
+        """
+        c_buf_len = 64
+        c_buf = ctypes.create_string_buffer(c_buf_len)
+
+        array_properties = ['output_trigger_kind[0]', 'output_trigger_polarity[0]']  # 'output_trigger_source[0]', 'output_trigger_active[0]', 'output_trigger_delay[0]', 'output_trigger_period[0]', 'output_trigger_base_sensor[0]'
+        num = self.getPropertyValue('number_of_output_trigger_connector')[0]  # get number of elements in array corresponding to trigger outputs
+        # to be modified if another array property not concerning output triggers should be retrieved
+
+        for item in array_properties:
+            array_base = self.getPropertyAttribute(item).iProp_ArrayBase  # get the property id for the first element of the array
+            step_element = self.getPropertyAttribute('output_trigger_kind[0]').iPropStep_Element  # get the step until the next element
+            for i in range(1, num):
+                prop_id = ctypes.c_int32(array_base + step_element * i)  # calculate the property id to access the array element
+                self.checkStatus(self.dcam.dcamprop_getname(self.camera_handle, prop_id, c_buf, ctypes.c_int32(c_buf_len)),
+                    "dcamprop_getname")
+                self.properties[convertPropertyName(c_buf.value.decode(self.encoding))] = prop_id.value
+        return self.properties
 
     def getFrames(self):
         """
@@ -875,7 +902,7 @@ class HamamatsuCamera(object):
         return paramtransfer.nNewestFrameIndex  # index of the newest frame
 
     def getTriggerSource(self):
-        trigger_source = self.getPropertyValue("trigger_source")
+        trigger_source = self.getPropertyValue("trigger_source")  # returns a list [value, type] such as [1, 'MODE']
         return trigger_source[0]
     # would be a good idea to map the number to the description
 
@@ -891,6 +918,7 @@ class HamamatsuCamera(object):
         if isinstance(checkval, float):
             checkval = int(checkval)  # reformat to be an integer because setPropertyValue returns a float even for int properties
         return checkval
+
 
 
 

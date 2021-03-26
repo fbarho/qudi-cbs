@@ -247,6 +247,7 @@ class CameraLogic(GenericLogic):
         self.sigAcquisitionFinished.emit()
         
     ### low level methods for tasks ###       # specific to andor camera for the moment
+    # remove and use prepare_camera_.. reset_camera.. methods instead
     def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
         # need to think of how to organize this and how this method should be called .. 
         self._hardware._start_acquisition()
@@ -254,13 +255,6 @@ class CameraLogic(GenericLogic):
     def set_acquisition_mode(self, mode):
         self._hardware._set_acquisition_mode(mode)
 
-    #to be modified later # homogenize lowlevel methods or address directly hardware when running tasks
-    def set_acquisition_mode_hcam(self, mode, num_frames):
-       self._hardware._set_acquisition_mode(mode, num_frames)
-        
-    def get_acquired_data(self):
-        return self._hardware.get_acquired_data()
-    
     def wait_for_acquisition(self):
         self._hardware.wait_for_acquisition()
         
@@ -271,17 +265,32 @@ class CameraLogic(GenericLogic):
         self._hardware._set_number_kinetics(n_frames)
         
     def set_spool(self, active, method, path, framebuffersize): 
-        self._hardware._set_spool(active, method, path, framebuffersize)  
-    
-    def get_progress(self):
-        return self._hardware.get_progress()
-    
+        self._hardware._set_spool(active, method, path, framebuffersize)
+
     def set_shutter(self, typ, mode, closingtime, openingtime):
         self._hardware._set_shutter(typ, mode, closingtime, openingtime)
+    ###
+
+
+
+
+    # make these interface functions and remove the low level functions instead
+    def prepare_camera_for_multichannel_imaging(self, exposure, n_frames):
+        self._hardware.prepare_camera_for_multichannel_imaging(exposure, n_frames)
+
+    def reset_camera_after_multichannel_imaging(self):
+        self._hardware.reset_camera_after_multichannel_imaging()
+
+    def get_progress(self):
+        return self._hardware.get_progress()
+
+    def get_acquired_data(self):
+        return self._hardware.get_acquired_data()
 
     def stop_acquisition(self):
         self._hardware.stop_acquisition()
-        
+
+
     ##########################
 
 # the following functions concern the live display

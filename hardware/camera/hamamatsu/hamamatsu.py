@@ -129,7 +129,7 @@ class HCam(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
-        acq_mode = self.get_acquisiton_mode()
+        acq_mode = self.get_acquisition_mode()
 
         image_array = []  # or should this be initialized as an np array ??
         [frames,
@@ -304,24 +304,81 @@ class HCam(Base, CameraInterface):
         """ retrieves the total number of acquired images during a movie acquisition"""
         return self.camera.check_frame_number()
 
+    # put this on the interface
+    def prepare_camera_for_multichannel_imaging(self, exposure, n_frames):
+        self.stop_acquisition()
+        self.set_exposure(exposure)
+        self._set_acquisition_mode('fixed_length', n_frames)
+        self.n_frames = n_frames  # this ensures that the data retrieval format is correct
+        # external trigger mode, positive polarity
+        self._set_trigger_source('EXTERNAL')
+        self._set_trigger_polarity('POSITIVE')
+        # output trigger: trigger ready and global exposure
+        self._configure_output_trigger(1, 'TRIGGER READY', 'NEGATIVE')
+        self._configure_output_trigger(2, 'EXPOSURE', 'NEGATIVE')
+        self._start_acquisition()
+
+    def reset_camera_after_multichannel_imaging(self):
+        self.stop_acquisition()
+        self._set_trigger_source('INTERNAL')
+        self.n_frames = 1  # reset to default
+        self._set_acquisition_mode('run_till_abort')
+
+
+
+
+
     # non interface functions
-    def get_acquisiton_mode(self):
+    def get_acquisition_mode(self):
         acq_mode = self.camera.acquisition_mode
         return acq_mode
 
-    def _set_trigger_mode(self, mode):
+    def _set_trigger_source(self, source):
         """
-        corresponds to setting the trigger source in hamamatsu terminology ..
-        @param string mode: string corresponding to certain TriggerMode 'INTERNAL', 'EXTERNAL', 'SOFTWARE', 'MASTER PULSE'
+        Set the trigger source.
+        @param string source: string corresponding to certain TriggerMode 'INTERNAL', 'EXTERNAL', 'SOFTWARE', 'MASTER PULSE'
         @return int check_val: ok: 0, not ok: -1
         """
-        check_val = 0
-        trigger_set = self.camera.setTriggerSource(mode)
-        if not trigger_set:
-            check_val = -1
-        return check_val
+        # the supported trigger sources can be found as follows:
+        # self.camera.getPropertyText('trigger_source') returns {'INTERNAL': 1, 'EXTERNAL': 2, 'SOFTWARE': 3, 'MASTER PULSE': 4}
+        check_val = self.camera.setPropertyValue('trigger_source', source)
+        if isinstance(check_val, float):
+            return 0
+        else:
+            return -1
 
-    def _set_acquisition_mode(self, mode, n_frames):
+    def _get_trigger_source(self):
+        trigger_source = self.camera.getPropertyValue('trigger_source') # returns a list [value, type] such as [1, 'MODE']
+        return trigger_source[0]  # would be a good idea to map the number to the description
+
+    def _set_trigger_polarity(self, polarity):
+        """ Set the trigger polarity (default is negative)
+        @param: str polarity: 'NEGATIVE', 'POSITIVE'
+        @return int check_val: ok: 0, not ok: -1
+        """
+        check_val = self.camera.setPropertyValue('trigger_polarity', polarity)  # returns a float corresponding to the polarity (1.0: negative, 2.0: positive) or bool False if not set
+        if isinstance(check_val, float):
+            return 0
+        else:
+            return -1
+
+    def _get_trigger_polarity(self):
+        trigger_polarity = self.camera_getPropertyValue('trigger_polarity')
+        return trigger_polarity[0]
+
+    def _configure_output_trigger(self, channel, output_trigger_kind, output_trigger_polarity):
+        """
+        Configure the output trigger for the specified output channel
+        @param: int channel: index ranging up to the number of output trigger connectors - 1
+        @param: str output_trigger_kind: supported values 'LOW', 'EXPOSURE', 'PROGRAMABLE', 'TRIGGER READY', 'HIGH'
+        @param: str output_trigger_polarity: supported values 'NEGATIVE', 'POSITIVE'
+        """
+        trigger_kind = self.camera.setPropertyValue(f'output_trigger_kind[{channel}]', output_trigger_kind)
+        print(trigger_kind)
+        trigger_polarity = self.camera.setPropertyValue(f'output_trigger_polarity[{channel}]', output_trigger_polarity)
+        print(trigger_polarity)
+
+    def _set_acquisition_mode(self, mode, n_frames=None):
         self.camera.setACQMode(mode, n_frames)
         # add error handling etc.
 
