@@ -66,6 +66,9 @@ class PositioningLogic(GenericLogic):
         z_safety_position: 0
         num_x: 10
         num_y: 10
+        first_axis: 'X axis'
+        second_axis: 'Y axis'
+        third_axis: 'Z axis'
         connect:
             stage: 'motor_dummy'
     """
@@ -90,6 +93,9 @@ class PositioningLogic(GenericLogic):
     delta_x = 14.9  # in mm # to be defined by config later
     delta_y = 14.9  # in mm # to be defined by config later
     z_safety_pos = ConfigOption('z_safety_position', 0, missing='warn')
+    first_axis_label = ConfigOption('first_axis', 'X axis')
+    second_axis_label = ConfigOption('second_axis', 'Y axis')
+    third_axis_label = ConfigOption('third_axis', 'Z axis')
     # num_x = ConfigOption('num_x', 10, missing='warn')  # number of available probe positions in x direction
     # num_y = ConfigOption('num_y', 10, missing='warn')  # number of available probe positions in y direction
 
@@ -228,7 +234,7 @@ class PositioningLogic(GenericLogic):
             else:
                 self.moving = False
                 new_pos = self.get_position()
-                self.log.info(new_pos)
+                # self.log.info(new_pos)
 
                 # send the signal to the GUI depending on which button triggered the stage movement
                 if self.move_stage:
