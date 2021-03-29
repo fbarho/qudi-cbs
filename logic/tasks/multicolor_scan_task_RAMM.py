@@ -51,7 +51,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # prepare the camera
         self.num_frames = self.num_z_planes * len(self.wavelengths)
-        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.exposure, self.num_frames)
+        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure)
 
         # initialize the counter (corresponding to the number of planes already acquired)
         self.step_counter = 0
