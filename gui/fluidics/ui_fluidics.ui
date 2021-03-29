@@ -33,6 +33,9 @@
     <property name="title">
      <string>View</string>
     </property>
+    <addaction name="valves_dockwidget_view_Action"/>
+    <addaction name="flowcontrol_dockwidget_view_Action"/>
+    <addaction name="positioning_dockwidget_view_Action"/>
    </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
@@ -150,7 +153,11 @@
       </widget>
      </item>
      <item row="1" column="2">
-      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox"/>
+      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox">
+       <property name="maximum">
+        <double>50.000000000000000</double>
+       </property>
+      </widget>
      </item>
      <item row="1" column="3">
       <widget class="QLabel" name="pressure_unit_Label">
@@ -270,7 +277,7 @@
       </spacer>
      </item>
      <item row="2" column="0">
-      <widget class="QLabel" name="label">
+      <widget class="QLabel" name="first_axis_Label">
        <property name="text">
         <string>X axis</string>
        </property>
@@ -284,7 +291,7 @@
       </widget>
      </item>
      <item row="4" column="0">
-      <widget class="QLabel" name="label_5">
+      <widget class="QLabel" name="third_axis_Label">
        <property name="text">
         <string>Z axis</string>
        </property>
@@ -305,7 +312,7 @@
       </widget>
      </item>
      <item row="3" column="0">
-      <widget class="QLabel" name="label_4">
+      <widget class="QLabel" name="second_axis_Label">
        <property name="text">
         <string>Y axis</string>
        </property>
@@ -480,7 +487,137 @@
     <string>Start Flowrate Measurement</string>
    </property>
   </action>
+  <action name="valves_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Valves dockwidget</string>
+   </property>
+  </action>
+  <action name="flowcontrol_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Flowcontrol dockwidget</string>
+   </property>
+  </action>
+  <action name="positioning_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Positioning dockwidget</string>
+   </property>
+  </action>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>flowcontrol_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>pump_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>995</x>
+     <y>455</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pump_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>flowcontrol_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>995</x>
+     <y>455</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>positioning_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>positioning_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>184</x>
+     <y>615</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>positioning_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>positioning_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>184</x>
+     <y>615</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>valves_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>valves_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>184</x>
+     <y>210</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>valves_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>valves_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>184</x>
+     <y>210</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

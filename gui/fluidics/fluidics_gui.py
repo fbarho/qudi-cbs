@@ -11,6 +11,7 @@ from qtpy import uic
 
 from gui.guibase import GUIBase
 from core.connector import Connector
+from core.configoption import ConfigOption
 
 
 class Position1SettingDialog(QtWidgets.QDialog):
@@ -47,6 +48,9 @@ class FluidicsGUI(GUIBase):
 
     fluidics_gui:
         module.Class: 'fluidics.fluidics_gui.FluidicsGUI'
+        pos1_x_default: 12.0
+        pos1_y_default: 4.5
+        pos1_z_default: 89.0
         connect:
             valve_logic: 'valve_logic'
             flowcontrol_logic: 'flowcontrol_logic'
@@ -57,6 +61,11 @@ class FluidicsGUI(GUIBase):
     valve_logic = Connector(interface='ValveLogic')
     flowcontrol_logic = Connector(interface='FlowcontrolLogic')
     positioning_logic = Connector(interface='PositioningLogic')
+
+    # config options
+    pos1_x_default = ConfigOption('pos1_x_default', 0)
+    pos1_y_default = ConfigOption('pos1_y_default', 0)
+    pos1_z_default = ConfigOption('pos1_z_default', 0)
 
     # Signals
     # signals for valve settings
@@ -99,8 +108,10 @@ class FluidicsGUI(GUIBase):
         self._mw.valve2_Label.setText(self._valve_logic.valve_names[1])
         self._mw.valve3_Label.setText(self._valve_logic.valve_names[2])
         self._mw.valve1_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[0])])
-        self._mw.valve2_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[1])])
-        self._mw.valve3_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[2])])
+        # self._mw.valve2_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[1])])
+        # self._mw.valve3_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[2])])
+        self._mw.valve2_ComboBox.addItems(['1: Syringe', '2: Pump'])
+        self._mw.valve3_ComboBox.addItems(['1: Rinse needle', '2: Inject probe'])
 
         # set current index according to actual position of valve on start
         # call the method update_combobox_position to set the right index ..
@@ -162,10 +173,13 @@ class FluidicsGUI(GUIBase):
             self._mw.go_to_position_Action.setDisabled(True)
 
         # initialize indicators
+        self._mw.first_axis_Label.setText(self._positioning_logic.first_axis_label)
+        self._mw.second_axis_Label.setText(self._positioning_logic.second_axis_label)
+        self._mw.third_axis_Label.setText(self._positioning_logic.third_axis_label)
         stage_position = self._positioning_logic.get_position()
-        self._mw.x_axis_position_LineEdit.setText(str(stage_position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(stage_position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(stage_position[2]))
+        self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(stage_position[0]))
+        self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(stage_position[1]))
+        self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(stage_position[2]))
 
         self._mw.probe_position_LineEdit.setText('Please calibrate !')
 
@@ -207,10 +221,12 @@ class FluidicsGUI(GUIBase):
         self.sigSetPos1.emit(position1)
 
     def set_position1_canceled(self):
-        pass
+        self.sd_set_default_values()
 
     def sd_set_default_values(self):
-        pass
+        self._pos1_sd.x_pos_DSpinBox.setValue(self.pos1_x_default)  # 12.0
+        self._pos1_sd.y_pos_DSpinBox.setValue(self.pos1_y_default)  # 4.5
+        self._pos1_sd.z_pos_DSpinBox.setValue(self.pos1_z_default)  # 89.0
     # end of position1 settings window related methods
 
     # slots belonging to the positioning
@@ -241,9 +257,9 @@ class FluidicsGUI(GUIBase):
         self._mw.move_stage_Action.setText('Move Stage')
         if self._positioning_logic.origin is not None:
             self._mw.go_to_position_Action.setDisabled(False)
-        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
+        self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
+        self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
         # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
@@ -264,17 +280,17 @@ class FluidicsGUI(GUIBase):
         self._mw.x_axis_position_DSpinBox.setValue(position[0])
         self._mw.y_axis_position_DSpinBox.setValue(position[1])
         self._mw.z_axis_position_DSpinBox.setValue(position[2])
-        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
+        self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
+        self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
         self._mw.probe_position_LineEdit.setText(str(target_position))
 
     @QtCore.Slot(tuple)
     def update_stage_position(self, position):
         """ Callback of sigUpdatePosition in logic module. Updates the current position indicators"""
-        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
+        self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
+        self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
         # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
@@ -311,9 +327,9 @@ class FluidicsGUI(GUIBase):
             self._mw.go_to_position_Action.setDisabled(False)
             self._mw.go_to_position_Action.setText('Go to Target')
             self._mw.go_to_position_Action.setChecked(False)
-        self._mw.x_axis_position_LineEdit.setText(str(position[0]))
-        self._mw.y_axis_position_LineEdit.setText(str(position[1]))
-        self._mw.z_axis_position_LineEdit.setText(str(position[2]))
+        self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
+        self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
+        self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
             self._mw.probe_position_LineEdit.setText(str(self._positioning_logic._probe_xy_position_dict[xy_pos]))

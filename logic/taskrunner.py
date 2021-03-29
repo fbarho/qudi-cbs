@@ -75,13 +75,14 @@ class TaskListTableModel(ListTableModel):
             self.beginInsertRows(QtCore.QModelIndex(), n, n)
             self.storage.append(data)
             self.endInsertRows()
-            self.storage[-1]['object'].sigStateChanged.connect(
-                lambda x:
-                    self.dataChanged.emit(
-                        self.index(n, 1),
-                        self.index(n, 1)
-                        )
-                )
+            # the following produces the QT warning : # do we need this ?
+            # self.storage[-1]['object'].sigStateChanged.connect(
+            #     lambda x:
+            #         self.dataChanged.emit(
+            #             self.index(n, 1),
+            #             self.index(n, 1)
+            #             )
+            #     )
 
 
 class TaskRunner(GenericLogic):
@@ -206,9 +207,9 @@ class TaskRunner(GenericLogic):
             if not entry in task:
                 return False
         if (
-            isinstance(t['object'], gt.InterruptableTask) or isinstance(t['object'], gt.PrePostTask)
+            isinstance(task['object'], gt.InterruptableTask) or isinstance(task['object'], gt.PrePostTask)
             ):
-            self.model.append(t)
+            self.model.append(task)
         else:
             self.log.error('Not a subclass of allowd task classes {0}'.format(
                 task))
@@ -258,6 +259,7 @@ class TaskRunner(GenericLogic):
         # print('Inserted into task list: {} {}'.format(first, last))
         pass
 
+    @QtCore.Slot(QtCore.QModelIndex)
     def startTaskByIndex(self, index):
         """ Try starting a task identified by its list index.
 
@@ -296,6 +298,7 @@ class TaskRunner(GenericLogic):
         else:
             self.log.error('Task cannot be run: {0}'.format(task.name))
 
+    @QtCore.Slot(QtCore.QModelIndex)
     def pauseTaskByIndex(self, index):
         """ Try pausing a task identified by its list index.
 

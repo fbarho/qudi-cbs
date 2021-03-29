@@ -305,10 +305,10 @@ class HCam(Base, CameraInterface):
         return self.camera.check_frame_number()
 
     # put this on the interface
-    def prepare_camera_for_multichannel_imaging(self, exposure, n_frames):
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure):
         self.stop_acquisition()
         self.set_exposure(exposure)
-        self._set_acquisition_mode('fixed_length', n_frames)
+        self._set_acquisition_mode('fixed_length', frames)
         self.n_frames = n_frames  # this ensures that the data retrieval format is correct
         # external trigger mode, positive polarity
         self._set_trigger_source('EXTERNAL')

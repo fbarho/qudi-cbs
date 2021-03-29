@@ -133,9 +133,12 @@ class MerfishLogic(GenericLogic):
         @:param: QtCore.QModelIndex index
         """
         key = self.buffer_list_model.items[index.row()][1]  # the valve number
-        del self.buffer_dict[key]
-        del self.buffer_list_model.items[index.row()]
-        self.sigBufferListChanged.emit()
+        if key == self.merfish_valve_number:
+            pass
+        else:
+            del self.buffer_dict[key]
+            del self.buffer_list_model.items[index.row()]
+            self.sigBufferListChanged.emit()
 
     def delete_all_buffer(self):
         """ This method resets the buffer dict and deletes all items from the buffer list model. The GUI is informed
@@ -143,9 +146,9 @@ class MerfishLogic(GenericLogic):
         """
         self.buffer_dict = {}
         self.buffer_list_model.items = []
+        # add the default entry MerfishProbe
+        self.add_buffer('MerfishProbe', self.merfish_valve_number)
         self.sigBufferListChanged.emit()
-
-        # should the default entry MerfishProbe be added again ?
 
     def add_probe(self, probename, probe_position):
         """ This method adds an entry to the probe dict and to the probe position model and informs the GUI that the
@@ -177,14 +180,14 @@ class MerfishLogic(GenericLogic):
         self.probe_position_model.items = []
         self.sigProbeListChanged.emit()
 
-    @QtCore.Slot(str, str, float, float)
+    @QtCore.Slot(str, str, int, int)
     def add_injection_step(self, procedure, product, volume, flowrate):
         """ This method adds an entry tho the hybridization or photobleaching sequence model and informs the
         GUI that the underlying data has changed.
         @:param: str procedure: identifier to select to which model the entry should be added
         @:param: str product
-        @:param: float volume: amount of product to be injected (in ul)
-        @:param: float flowrate: target flowrate in ul/min
+        @:param: int volume: amount of product to be injected (in ul)
+        @:param: int flowrate: target flowrate in ul/min
         """
         if procedure == 'Hybridization':
             self.hybridization_injection_sequence_model.items.append((procedure, product, volume, flowrate, None))
@@ -301,7 +304,7 @@ class MerfishLogic(GenericLogic):
         # write a complete file containing buffer_dict, probe_dict, hybridization_list and photobleaching_list
         with open(path, 'w') as file:
             dict_file = {'buffer': self.buffer_dict, 'probes': self.probe_dict, 'hybridization list': hybridization_list, 'photobleaching list': photobleaching_list}
-            yaml.safe_dump(dict_file, file, default_flow_style=False)  #, sort_keys=False
+            yaml.safe_dump(dict_file, file, default_flow_style=False, sort_keys=False)  #, sort_keys=False
             self.log.info('Injections saved to {}'.format(path))
 
     @staticmethod
