@@ -134,6 +134,7 @@ class HCam(Base, CameraInterface):
         image_array = []  # or should this be initialized as an np array ??
         [frames,
          dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_width, image_height]
+
         if acq_mode == 'run_till_abort':
             data = frames[-1].getData()  # for run_till_abort acquisition: get the last (= most recent) frame
             image_array = np.reshape(data, (dim[1], dim[
@@ -305,11 +306,11 @@ class HCam(Base, CameraInterface):
         return self.camera.check_frame_number()
 
     # put this on the interface
-    def prepare_camera_for_multichannel_imaging(self, frames, exposure):
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
         self.stop_acquisition()
         self.set_exposure(exposure)
         self._set_acquisition_mode('fixed_length', frames)
-        self.n_frames = n_frames  # this ensures that the data retrieval format is correct
+        self.n_frames = frames  # this ensures that the data retrieval format is correct
         # external trigger mode, positive polarity
         self._set_trigger_source('EXTERNAL')
         self._set_trigger_polarity('POSITIVE')
