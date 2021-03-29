@@ -41,7 +41,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def startTask(self):
         """ """
         self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
-        self.plane_count = 0  # initialize the counter for the number of planes. Task step iterates over this counter
+        self.plane_counter = 0  # initialize the counter for the number of planes. Task step iterates over this counter
 
         
         # control if live mode in basic gui is running. Task can not be started then.
@@ -68,8 +68,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return
         ### all conditions to start the task have been tested: Task can now be started safely   
         
-        self.start_position = self.calculate_start_position()
-        self.log.info(f'start position: {self.start_position}')
+
         
         # set the filter to the specified position
         self.ref['filter'].set_position(self.filter_pos)
@@ -86,33 +85,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # initialize the analog input channel that reads the fire
         self.ref['daq'].set_up_ai_channel()
 
-        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later
-        self.ref['camera'].abort_acquisition()  # as safety
-        self.ref['camera'].set_acquisition_mode('KINETICS')
-        self.ref['camera'].set_trigger_mode('EXTERNAL')  
-        # add eventually other settings that may be read from user config .. frame transfer etc. 
-        self.ref['camera'].set_gain(self.gain)
-        # set the exposure time
-        self.ref['camera'].set_exposure(self.exposure) 
-        # set the number of frames
-        frames = len(self.imaging_sequence) * self.num_frames * self.num_planes # num_frames = 1 typically. Keep the option however. 
-        self.ref['camera'].set_number_kinetics(frames) 
-
+             
         # define save path
         self.complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Scan', 'testimg', '', False)
         # maybe add an extension with the current date to self.save_path. Could be done in load_user_param method
-
-        # set spooling
-        if self.file_format == 'fits':
-            self.ref['camera'].set_spool(1, 5, self.complete_path, 10)
-        else:  # use 'tiff' as default case # add other options if needed
-            self.ref['camera'].set_spool(1, 7, self.complete_path, 10)
         
-        # open the shutter
-        self.ref['camera'].set_shutter(0, 1, 0.1, 0.1)
-        sleep(1)  # wait until shutter is opened
-        # start the acquisition. Camera waits for trigger
-        self.ref['camera'].start_acquisition()
+        # prepare the camera
+        frames = len(self.imaging_sequence) * self.num_frames * self.num_z_planes  # self.num_frames = 1 typically, but keep as an option 
+        self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain, self.complete_path, self.file_format)
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -133,14 +113,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return False
         #########################
         
-        self.ref['focus'].go_to_position(self.start_position + self.plane_spacing * self.plane_count)
-        pos = self.ref['focus'].get_position()
-        self.log.info(pos)
+        self.plane_counter += 1
+        print(f'plane number {self.plane_counter}')
+
+        # position the piezo
+        position = self.start_position + (self.plane_counter - 1) * self.z_step
+        self.ref['focus'].go_to_position(position)
+        print(f'target position: {position} um')
+        sleep(0.03)  # how long is the stabilisation time for Pifoc ?
+        cur_pos = self.ref['focus'].get_position()
+        print(f'current position: {cur_pos} um')
         
-        
-        
-        
-        # this task only has one step until a data set is prepared and saved (but loops over the number of frames per channel and the channels)
+
         # outer loop over the number of frames per color
         for j in range(self.num_frames):  # per default only one frame per plane per color but keep it as an option 
 
@@ -178,9 +162,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 else:
                     i += 1  # increment to continue with the next image
 
-
-        self.plane_count += 1
-        return self.plane_count < self.num_planes
+        return self.plane_counter < self.num_z_planes
 
     def pauseTask(self):
         """ """
@@ -204,12 +186,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['camera']._add_fits_header(complete_path, metadata)
         else:  # default case, add a txt file with the metadata
             self.ref['camera']._save_metadata_txt_file(self.save_path, '_Scan', metadata)
-            
-        self.ref['camera'].set_spool(0, 7, '', 10)
-        self.ref['camera'].set_acquisition_mode('RUN_TILL_ABORT')
-        self.ref['camera'].set_trigger_mode('INTERNAL') 
-        # reactivate later. For tests avoid opening and closing all the time
-        # self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
+        
+        self.ref['camera'].reset_camera_after_multichannel_imaging()
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask called')
         
@@ -254,8 +232,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
         self.file_format = 'tiff'
         self.imaging_sequence_raw = [('561 nm', 3), ('561 nm', 1), ('561 nm', 5)] 
-        self.num_planes = 5
-        self.plane_spacing = 0.25  # in um
+        self.num_z_planes = 5
+        self.z_step = 0.25  # in um  # plane_spacing
+        self.centered_focal_plane = True
+        self.start_position = self.calculate_start_position(self.centered_focal_plane)
+        self.log.info(f'start position: {self.start_position}')
         
         # for the imaging sequence, we need to access the corresponding labels
         laser_dict = self.ref['daq'].get_laser_dict()
@@ -263,8 +244,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                                      self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
         self.log.info(imaging_sequence)
         self.imaging_sequence = imaging_sequence
-        
-
+    
 #        try:
 #            with open(self.user_config_path, 'r') as stream:
 #                self.user_param_dict = yaml.safe_load(stream)
@@ -274,9 +254,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 #                self.gain = self.user_param_dict['gain']
 #                self.num_frames = self.user_param_dict['num_frames']
 #                self.save_path = self.user_param_dict['save_path']
-#                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
 #                self.file_format = self.user_param_dict['file_format']
-##                self.file_format = 'tiff'
+#                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
+#                self.num_z_planes = self.user_param_dict['num_z_plane']
+#                self.z_step = self.user_param_dict['z_step']  # in um
+#                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+#                
 #                self.log.debug(self.imaging_sequence_raw)  # remove after tests
 #
 #                # for the imaging sequence, we need to access the corresponding labels
@@ -305,20 +288,24 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             if item in [self.imaging_sequence[i][0] for i in range(len(self.imaging_sequence))]:
                 lasers_allowed = False
                 break  # stop if at least one forbidden laser is found
-        return lasers_allowed
-    
-    def calculate_start_position(self):
+        return lasers_allowed       
+        
+    def calculate_start_position(self, centered_focal_plane):
+        """
+        @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
+        """
         current_pos = self.ref['focus'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
-        # even number of planes:
-        if self.num_planes % 2 == 0:
-            start_pos = current_pos - self.num_planes / 2 * self.plane_spacing  # focal plane is the first one of the upper half of the number of planes
-        # odd number of planes:
+
+        if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
+            # even number of planes:
+            if self.num_z_planes % 2 == 0:
+                start_pos = current_pos - self.num_z_planes / 2 * self.z_step  # focal plane is the first one of the upper half of the number of planes
+            # odd number of planes:
+            else:
+                start_pos = current_pos - (self.num_z_planes - 1)/2 * self.z_step
+            return start_pos
         else:
-            start_pos = current_pos - (self.num_planes - 1)/2 * self.plane_spacing
-        return start_pos 
-        # add also the option that the current plane is the start plane.
-        ## use an entry in the user config for this option 
-        # or calculate number of planes given the first and the last one and the spacing
+            return current_pos  # the scan starts at the current position and moves up
                 
 
 
