@@ -270,8 +270,8 @@ class LaserControlLogic(GenericLogic):
             pass
 
 
-    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values):
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values, num_laserlines):
         if self.controllertype == 'fpga':
-            self._controller.run_multicolor_imaging_task_session(z_planes, wavelength, values)
+            self._controller.run_multicolor_imaging_task_session(z_planes, wavelength, values, num_laserlines)
         else:
             pass
