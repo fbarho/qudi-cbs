@@ -4,7 +4,7 @@ Created on Tue Mars 2 2021
 
 @author: fbarho
 
-This module contains the logic to configure a merfish injection sequence
+This module contains the logic to configure an injection sequence
 """
 import yaml
 from qtpy import QtCore
@@ -71,7 +71,7 @@ class InjectionSequenceModel(QtCore.QAbstractListModel):
 
 class MerfishLogic(GenericLogic):
     """
-    Class containing the logic to configure and save a merfish injection sequence
+    Class containing the logic to configure and save an injection sequence
 
     Example config for copy-paste:
 
@@ -93,7 +93,7 @@ class MerfishLogic(GenericLogic):
 
     # attributes
     procedures = ['Hybridization', 'Photobleaching']
-    products = ['Merfish Probe']
+    products = ['Probe']
 
     buffer_dict = {}  # key: value = valve_number: buffer_name (to make sure that each valve is only used once, although it would be good to be able to address the valve number via the buffer name, but we will handle this differently
     probe_dict = {}  # key: value = position_number: probe_name (same comment)
@@ -110,7 +110,7 @@ class MerfishLogic(GenericLogic):
         self.photobleaching_injection_sequence_model = InjectionSequenceModel()
 
         # add the merfish probe entry as default into the bufferlist
-        self.add_buffer('MerfishProbe', self.merfish_valve_number)
+        self.add_buffer('Probe', self.merfish_valve_number)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -146,8 +146,8 @@ class MerfishLogic(GenericLogic):
         """
         self.buffer_dict = {}
         self.buffer_list_model.items = []
-        # add the default entry MerfishProbe
-        self.add_buffer('MerfishProbe', self.merfish_valve_number)
+        # add the default entry Probe
+        self.add_buffer('Probe', self.merfish_valve_number)
         self.sigBufferListChanged.emit()
 
     def add_probe(self, probename, probe_position):

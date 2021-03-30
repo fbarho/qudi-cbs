@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-This module contains a GUI that allows to create a merFISH injection sequence
+This module contains a GUI that allows to create an injection sequence
 """
 import os
 from qtpy import QtCore
@@ -29,7 +29,7 @@ class MerfishWindow(QtWidgets.QMainWindow):
 
 
 class MerfishGUI(GUIBase):
-    """ Main window that allows to create a merFISH injection sequence, save it to a file, or load it from file.
+    """ Main window that allows to create an injection sequence, save it to a file, or load it from file.
 
     Example config for copy-paste:
 
