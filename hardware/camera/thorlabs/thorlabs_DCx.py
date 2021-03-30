@@ -390,6 +390,13 @@ class CameraThorlabs(Base, CameraInterface):
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
         pass
+    
+
+    def prepare_camera_for_multichannel_imaging(self, frames, file_format, exposure, gain, save_path):
+        self.log.info('This method is not supported by Thorlabs camera')
+    
+    def reset_camera_after_multichannel_imaging(self):
+        self.log.info('This method is not supported by Thorlabs camera')
 ########################################################################
 
 # does not work yet .. 

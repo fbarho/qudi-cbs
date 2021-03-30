@@ -26,6 +26,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 from enum import Enum
 from ctypes import *
 import numpy as np
+from time import sleep
 
 from core.module import Base
 from core.configoption import ConfigOption
@@ -1144,5 +1145,43 @@ class IxonUltra(Base, CameraInterface):
         if ERROR_DICT[error_code] != 'DRV_SUCCESS':
             self.log.info('non-acquisition event occured')
         return ERROR_DICT[error_code]
-            
+    
+    # new interface functions
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
+        self._abort_acquisition()  # as safety 
+        self._set_acquisition_mode('KINETICS')
+        self._set_trigger_mode('EXTERNAL')        
+        # add eventually other settings .. frame transfer etc. 
+        # ..
+        self.set_gain(gain)
+        self.set_exposure(exposure) 
+        
+        # set the number of frames
+        self._set_number_kinetics(frames)  
+
+        # set spooling
+        if file_format == 'fits':
+            self._set_spool(1, 5, save_path, 10)
+        else:  # use 'tiff' as default case # add other options if needed
+            self._set_spool(1, 7, save_path, 10)
+        
+        # open the shutter
+        if self._shutter == 'closed':
+            msg = self._set_shutter(0, 1, 0.1, 0.1)
+            if msg == 'DRV_SUCCESS':
+                self._shutter = 'open'
+            else:
+                self.log.error('shutter did non open. {}'.format(msg))
+        sleep(1.5)  # wait until shutter is opened
+        
+        # start the acquisition. Camera waits for trigger
+        self._start_acquisition()
+        
+        
+    def reset_camera_after_multichannel_imaging(self):
+        self._abort_acquisition()
+        self._set_spool(0, 7, '', 10)
+        self._set_acquisition_mode('RUN_TILL_ABORT')
+        self._set_trigger_mode('INTERNAL') 
+
         

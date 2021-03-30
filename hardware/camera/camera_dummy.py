@@ -332,3 +332,10 @@ class CameraDummy(Base, CameraInterface):
             self.log.info('Camera dummy: specify the transfer_mode to set frame transfer, transfer_mode {}'.format(transfer_mode))
             err = -1
         return err
+    
+    
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
+        pass
+    
+    def reset_camera_after_multichannel_imaging(self):
+        pass

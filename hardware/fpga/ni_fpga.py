@@ -198,7 +198,7 @@ class Nifpga(Base, LaserControlInterface):
         self.session.run()
 
 
-    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values):
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values, num_laserlines):
         """
         associated bitfile 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'
         @param: int z_planes: number of z planes
@@ -214,15 +214,14 @@ class Nifpga(Base, LaserControlInterface):
         self.session.reset()
 
         conv_values = [self.convert_value(item) for item in values]
-        n = len(wavelength)
-        num_lines.write(n)
+        num_lines.write(num_laserlines)
         num_z_pos.write(z_planes)
         laser_lines.write(wavelength)
         laser_power.write(conv_values)
 
         self.session.run()  #  wait_until_done=True
         num_imgs = num_images_acquired.read()
-        # print(num_imgs)
+        print(f'number images acquired: {num_imgs}')
 
 
 

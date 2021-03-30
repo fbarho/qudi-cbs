@@ -80,34 +80,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         
         # initialize the analog input channel that reads the fire
         self.ref['daq'].set_up_ai_channel()
-
-        # prepare the camera  # this version is quite specific for andor camera -- implement compatibility later
-        self.ref['camera'].abort_acquisition()  # as safety
-        self.ref['camera'].set_acquisition_mode('KINETICS')
-        self.ref['camera'].set_trigger_mode('EXTERNAL')  
-        # add eventually other settings that may be read from user config .. frame transfer etc. 
-        self.ref['camera'].set_gain(self.gain)
-        # set the exposure time
-        self.ref['camera'].set_exposure(self.exposure) 
-        # set the number of frames
-        frames = len(self.imaging_sequence) * self.num_frames # num_frames: number of frames per channel
-        self.ref['camera'].set_number_kinetics(frames)  # lets assume a single image per channel for this first version
-
+        
         # define save path
         self.complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Stack', 'testimg', '', False)
         # maybe add an extension with the current date to self.save_path. Could be done in load_user_param method
-
-        # set spooling
-        if self.file_format == 'fits':
-            self.ref['camera'].set_spool(1, 5, self.complete_path, 10)
-        else:  # use 'tiff' as default case # add other options if needed
-            self.ref['camera'].set_spool(1, 7, self.complete_path, 10)
         
-        # open the shutter
-        self.ref['camera'].set_shutter(0, 1, 0.1, 0.1)
-        sleep(1)  # wait until shutter is opened
-        # start the acquisition. Camera waits for trigger
-        self.ref['camera'].start_acquisition()
+        # prepare the camera
+        frames = len(self.imaging_sequence) * self.num_frames 
+        self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain, self.complete_path, self.file_format)
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -193,12 +173,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
         self.ref['daq'].close_ai_task()
-        self.ref['camera'].abort_acquisition()
-        self.ref['camera'].set_spool(0, 7, '', 10)
-        self.ref['camera'].set_acquisition_mode('RUN_TILL_ABORT')
-        self.ref['camera'].set_trigger_mode('INTERNAL') 
-        # reactivate later. For tests avoid opening and closing all the time
-        # self.ref['camera'].set_shutter(0, 0, 0.1, 0.1)
+        self.ref['camera'].reset_camera_after_multichannel_imaging()
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask called')
         
@@ -235,16 +210,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             file_format: 'tiff'
             imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)]
         """
-         # for tests 
-#        self.filter_pos = 1
-#        self.exposure = 0.05  # in s
-#        self.gain = 50
-#        self.num_frames = 5
-#        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
-#        self.file_format = 'fits'
-#        self.imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)] 
-        # a dictionary is not a good option for the imaging sequence. is a list better ? preserves order (dictionary would do as well), allows repeated entries
-
         try:
             with open(self.user_config_path, 'r') as stream:
                 self.user_param_dict = yaml.safe_load(stream)
@@ -256,7 +221,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.save_path = self.user_param_dict['save_path']
                 self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
                 self.file_format = self.user_param_dict['file_format']
-#                self.file_format = 'tiff'
                 self.log.debug(self.imaging_sequence_raw)  # remove after tests
 
                 # for the imaging sequence, we need to access the corresponding labels
@@ -286,16 +250,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 lasers_allowed = False
                 break  # stop if at least one forbidden laser is found
         return lasers_allowed
-                
-
-       
-        
-        
-            
-            
-
-            
-            
+    
             
     def _create_metadata_dict(self):
         """ create a dictionary containing the metadata

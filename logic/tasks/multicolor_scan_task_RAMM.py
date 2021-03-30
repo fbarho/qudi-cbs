@@ -50,14 +50,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
         # prepare the camera
-        self.num_frames = self.num_z_planes * len(self.wavelengths)
-        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.exposure, self.num_frames)
+        self.num_frames = self.num_z_planes * 2  # len(self.wavelengths)
+        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
 
         # initialize the counter (corresponding to the number of planes already acquired)
         self.step_counter = 0
 
         # start the session on the fpga using the user parameters
-        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities)
+        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines)
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -134,10 +134,20 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.file_format = 'tiff'
 
         lightsource_dict = {'BF': 0, '405 nm': 1, '488 nm': 2, '561 nm': 3, '640 nm': 4}
-        self.imaging_sequence = [('561 nm', 3), ('561 nm', 0), ('561 nm', 4), ('561 nm', 0), ('561 nm', 5)]
+        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
+        self.num_laserlines = len(self.imaging_sequence)
         wavelengths = [self.imaging_sequence[i][0] for i, item in enumerate(self.imaging_sequence)]
-        self.wavelengths = [lightsource_dict[key] for key in wavelengths]
+        wavelengths = [lightsource_dict[key] for key in wavelengths]
+        for i in range(self.num_laserlines, 5):
+            wavelengths.append(0)  # must always be a list of length 5: append zeros until necessary length reached
+        self.wavelengths = wavelengths
+        print(self.wavelengths)
+
         self.intensities = [self.imaging_sequence[i][1] for i, item in enumerate(self.imaging_sequence)]
+        for i in range(self.num_laserlines, 5):
+            self.intensities.append(0)
+        print(self.intensities)
+
         # self.wavelengths = [3, 3, 3, 3, 3]
         # self.intensities = [3, 0, 4, 0, 5]
 

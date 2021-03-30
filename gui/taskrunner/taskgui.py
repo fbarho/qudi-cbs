@@ -35,9 +35,9 @@ class TaskGui(GUIBase):
     # declare connectors
     tasklogic = Connector(interface='TaskRunner')
 
-    sigRunTaskFromList = QtCore.Signal(object)
-    sigPauseTaskFromList = QtCore.Signal(object)
-    sigStopTaskFromList = QtCore.Signal(object)
+    sigRunTaskFromList = QtCore.Signal(QtCore.QModelIndex)
+    sigPauseTaskFromList = QtCore.Signal(QtCore.QModelIndex)
+    sigStopTaskFromList = QtCore.Signal(QtCore.QModelIndex)
 
     def on_activate(self):
         """Create all UI objects and show the window.

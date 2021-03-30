@@ -246,37 +246,10 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
         
-    ### low level methods for tasks ###       # specific to andor camera for the moment
-    # remove and use prepare_camera_.. reset_camera.. methods instead
-    def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
-        # need to think of how to organize this and how this method should be called .. 
-        self._hardware._start_acquisition()
-        
-    def set_acquisition_mode(self, mode):
-        self._hardware._set_acquisition_mode(mode)
-
-    def wait_for_acquisition(self):
-        self._hardware.wait_for_acquisition()
-        
-    def abort_acquisition(self):
-        self._hardware._abort_acquisition()
-    
-    def set_number_kinetics(self, n_frames):
-        self._hardware._set_number_kinetics(n_frames)
-        
-    def set_spool(self, active, method, path, framebuffersize): 
-        self._hardware._set_spool(active, method, path, framebuffersize)
-
-    def set_shutter(self, typ, mode, closingtime, openingtime):
-        self._hardware._set_shutter(typ, mode, closingtime, openingtime)
-    ###
-
-
-
 
     # make these interface functions and remove the low level functions instead
-    def prepare_camera_for_multichannel_imaging(self, exposure, n_frames):
-        self._hardware.prepare_camera_for_multichannel_imaging(exposure, n_frames)
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
+        self._hardware.prepare_camera_for_multichannel_imaging(frames, exposure, gain, save_path, file_format)
 
     def reset_camera_after_multichannel_imaging(self):
         self._hardware.reset_camera_after_multichannel_imaging()
@@ -289,6 +262,9 @@ class CameraLogic(GenericLogic):
 
     def stop_acquisition(self):
         self._hardware.stop_acquisition()
+        
+    def abort_acquisition(self):
+        self._hardware._abort_acquisition()
 
 
     ##########################
