@@ -18,10 +18,11 @@ from time import sleep
 
 from core.module import Base
 from interface.lasercontrol_interface import LaserControlInterface
+from interface.fpga_interface import FPGAInterface
 from core.configoption import ConfigOption
 
 
-class Nifpga(Base, LaserControlInterface):
+class Nifpga(Base, LaserControlInterface, FPGAInterface):
     """ National Instruments FPGA that controls the lasers via an OTF.
 
     Example config for copy-paste:
@@ -54,6 +55,7 @@ class Nifpga(Base, LaserControlInterface):
     _registers_laser = ConfigOption('registers_laser', missing='error')
     _registers_qpd = ConfigOption('registers_qpd', missing='error')
     _registers = ConfigOption('registers', missing='error')
+    _registers_autofocus = ConfigOption('registers_autofocus', missing='error')
 
 
     def __init__(self, config, **kwargs):
@@ -62,6 +64,7 @@ class Nifpga(Base, LaserControlInterface):
     def on_activate(self):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
+
         self.laser1_control = self.session.registers[self._registers_laser[0]]
         self.laser2_control = self.session.registers[self._registers_laser[1]]
         self.laser3_control = self.session.registers[self._registers_laser[2]]
@@ -82,6 +85,14 @@ class Nifpga(Base, LaserControlInterface):
         self.Integration_time_us = self.session.registers[self._registers[1]]
         self.Reset_counter = self.session.registers[self._registers[2]]
 
+        self.setpoint = self.session.registers[self._registers_autofocus[0]]
+        self.P = self.session.registers[self._registers_autofocus[1]]
+        self.I = self.session.registers[self._registers_autofocus[2]]
+        self.reset = self.session.registers[self._registers_autofocus[3]]
+        self.autofocus = self.session.registers[self._registers_autofocus[4]]
+        self.ref_axis = self.session.registers[self._registers_autofocus[5]]
+        self.output = self.session.registers[self._registers_autofocus[6]]
+
         self.Stop.write(False)
         self.Integration_time_us.write(100)
         self.session.run()
@@ -91,22 +102,44 @@ class Nifpga(Base, LaserControlInterface):
         for i in range(len(self._registers)):
             self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
 
-        self.Stop.write(False)
+        self.Stop.write(True)
         self.session.close()
 
     def read_qpd(self):
-
+        """ read QPD signal and return a list containing the X,Y position of the spot, the SUM signal,
+        the number of counts (iterations) since the session was launched and the duration of each iteration
+        """
         X = self.QPD_X_read.read()
         Y = self.QPD_Y_read.read()
         I = self.QPD_I_read.read()
         count = self.Counter.read()
         d = self.Duration_ms.read()
 
-        print([X, Y, I,count, d])
+        return([X, Y, I,count, d])
 
-    def reset_QPD_counter(self):
-
+    def reset_qpd_counter(self):
         self.Reset_counter.write(True)
+
+    def init_pid(self, p_gain, i_gain, setpoint, ref_axis):
+        self.reset_qpd_counter()
+        self.setpoint.write(setpoint)
+        self.P.write(p_gain)
+        self.I.write(i_gain)
+        if ref_axis == 'X':
+            self.ref_axis.write(True)
+        elif ref_axis == 'Y':
+            self.ref_axis.write(False)
+        self.reset.write(True)
+        self.autofocus.write(True)
+        sleep(0.1)
+        self.reset.write(False)
+
+    def read_pid(self):
+        pid_output = self.output.read()
+        return pid_output
+
+    def stop_pid(self):
+        self.autofocus.write(False)
 
     def apply_voltage(self, voltage, channel):
         """ Writes a voltage to the specified channel.
