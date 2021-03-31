@@ -317,7 +317,7 @@ class HCam(Base, CameraInterface):
         # output trigger: trigger ready and global exposure
         self._configure_output_trigger(1, 'TRIGGER READY', 'NEGATIVE')
         self._configure_output_trigger(2, 'EXPOSURE', 'NEGATIVE')
-        self._start_acquisition()
+        # self._start_acquisition()
 
     def reset_camera_after_multichannel_imaging(self):
         self.stop_acquisition()

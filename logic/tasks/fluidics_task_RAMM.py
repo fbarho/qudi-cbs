@@ -118,7 +118,7 @@ class Task(InterruptableTask):
 
     def _load_injection_parameters(self):
         """ """
-        buffer_dict = {1: 'Buffer1', 2: 'Buffer2', 3: 'Buffer3', 4: 'Buffer4', 7: 'MerfishProbe'}  # later version: read this from file
+        buffer_dict = {1: 'Buffer1', 2: 'Buffer2', 3: 'Buffer3', 4: 'Buffer4', 7: 'Probe'}  # later version: read this from file
         # invert the buffer dict to address the valve by the product name as key
         self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
         print(self.buffer_dict)

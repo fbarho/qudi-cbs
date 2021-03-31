@@ -91,6 +91,7 @@ class FlowcontrolLogic(GenericLogic):
 
     # signals
     sigUpdateFlowMeasurement = QtCore.Signal(float, float)
+    sigUpdatePressureSetpoint = QtCore.Signal(float)
 
     # attributes
     measuring = False
@@ -108,10 +109,11 @@ class FlowcontrolLogic(GenericLogic):
         """
         # connector
         self._pump = self.pump()
+        self.set_pressure(0.0)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
-        pass
+        self.set_pressure(0.0)
 
     def get_pressure(self, channels=None):
         """
@@ -138,6 +140,7 @@ class FlowcontrolLogic(GenericLogic):
                 unit = self.get_pressure_unit()
                 self._pump.set_pressure(param_dict)
                 self.log.info(f'Pressure set to {pressures} {unit}')
+                self.sigUpdatePressureSetpoint.emit(pressures)
         else:
             param_dict = dict(zip(channels, pressures))
             self._pump.set_pressure(param_dict)
@@ -227,14 +230,14 @@ class FlowcontrolLogic(GenericLogic):
         but you can indicate which channel in case there are more than one)
         """
         flowrate = self.get_flowrate(sensor_channel)
-        print(f'flowrate {flowrate}')
+        print('flowrate {:.0f}'.format(flowrate))
         # if 10 != abs(flowrate - target_flowrate):  # which precision ?   #use math.isclose function instead when precision defined
-        if not math.isclose(flowrate, target_flowrate, rel_tol=0.1, abs_tol=0):  # allow 10 % tolerance
+        if not math.isclose(flowrate, target_flowrate, rel_tol=0.05, abs_tol=0):  # allow 5 % tolerance
             diff = target_flowrate - flowrate
-            print(f'relative error: {abs(diff)/max(flowrate, target_flowrate)}')
+            print('relative error: {:.2f}'.format(abs(diff)/max(flowrate, target_flowrate)))
             pressure = self.get_pressure(pressure_channel)
-            const = 1  # which proportionality constant do we need ?
-            new_pressure = max(min(50.0, pressure + const * diff), 0.0)
+            const = 0.1  # which proportionality constant do we need ?
+            new_pressure = max(min(15.0, pressure + const * diff), 0.0)
             print(f'new_pressure {new_pressure}')
             self.set_pressure(new_pressure, pressure_channel)
         else:
@@ -273,7 +276,7 @@ class FlowcontrolLogic(GenericLogic):
     def volume_measurement_loop(self, target_volume, sampling_interval):
         flowrate = self.get_flowrate()
         self.total_volume += flowrate * sampling_interval / 60  # abs(flowrate) ???
-        print(self.total_volume)
+        print(f'Total volume: {self.total_volume:.0f} ul')
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         else:

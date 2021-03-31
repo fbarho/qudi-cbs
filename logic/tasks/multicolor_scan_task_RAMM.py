@@ -34,6 +34,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def startTask(self):
         """ """
+        print('start Task')
         self.log.info('started Task')
         # close default FPGA session
         self.ref['fpga'].close_default_session()
@@ -50,7 +51,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
         # prepare the camera
-        self.num_frames = self.num_z_planes * 2  # len(self.wavelengths)
+        self.num_frames = self.num_z_planes * self.num_laserlines
         self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
 
         # initialize the counter (corresponding to the number of planes already acquired)
@@ -104,27 +105,28 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
-        # close the fpga session
-        self.ref['fpga'].end_task_session()
+        # get acquired data from the camera and save it to file in case the task has not been aborted during acquisition
+        if self.step_counter == self.num_z_planes:
+            image_data = self.ref['cam'].get_acquired_data()
+            print(image_data.shape)
 
-        # get acquired data from the camera and save it to file
-        image_data = self.ref['cam'].get_acquired_data()
-        print(image_data.shape)
+            if self.file_format == 'fits':
+                metadata = {}  # to be added
+                self.ref['cam']._save_to_fits(self.save_path, image_data, metadata)
+            else:   # use tiff as default format
+                self.ref['cam']._save_to_tiff(self.num_frames, self.save_path, image_data)
+                # add metadata saving
 
-        if self.file_format == 'fits':
-            metadata = {}  # to be added
-            self.ref['cam']._save_to_fits(self.save_path, image_data, metadata)
-        else:   # use tiff as default format
-            self.ref['cam']._save_to_tiff(self.num_frames, self.save_path, image_data)
-            # add metadata saving
-
-        # self.ref['cam'].stop_acquisition()  # is also included in reset_camera_after_multichannel_imaging method
+        # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
-
+        # close the fpga session and restart the default session
+        self.ref['fpga'].end_task_session()
         self.ref['fpga'].restart_default_session()
         self.log.info('restarted default session')
+        self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
+        # to be read from config later
         self.exposure = 0.1
         self.num_z_planes = 10
         self.z_step = 0.25  # in um
@@ -151,7 +153,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # self.wavelengths = [3, 3, 3, 3, 3]
         # self.intensities = [3, 0, 4, 0, 5]
 
-        # to be read from config later
+
 
     def calculate_start_position(self, centered_focal_plane):
         """

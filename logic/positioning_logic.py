@@ -255,6 +255,10 @@ class PositioningLogic(GenericLogic):
 
         @param: int target_position: number of the target merfish probe
         """
+        if not self.origin:
+            self.log.warn('Move to target is not possible. Please define the origin')
+            return
+
         self.go_to_target = True  # flag indicating later on that the translation stage movement was initiated by start_move_to_target method
         self.target_position = target_position  # keep this variable accessible until movement is finished
         self.moving = True
