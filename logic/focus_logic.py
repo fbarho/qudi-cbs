@@ -25,7 +25,7 @@ class AutofocusWorker(QtCore.QRunnable):
     """ Worker thread to monitor the QPD signal and adjust the piezo position when autofocus in ON
     The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
 
-    def __init__(self, dt, **kwargs):
+    def __init__(self, dt, *args, **kwargs):
         super(AutofocusWorker, self).__init__()
         self.signals = WorkerSignals()
         self.frequency = dt
@@ -68,6 +68,7 @@ class FocusLogic(GenericLogic):
     _I_gain = ConfigOption('Integration_gain', 0, missing='warn')
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
     _run_autofocus = False
+    _autofocus_lost = False
     _dt = None # in s, frequency for the autofocus update
     _z0 = None
 
@@ -95,6 +96,9 @@ class FocusLogic(GenericLogic):
 
         # initialize the fpga
         self._fpga = self.fpga()
+
+        # initialize the ms2000 stage
+        self._stage = self.stage()
 
         # initialize the timer, it is then started when start_tracking is called
         self.timer = QtCore.QTimer()
@@ -202,20 +206,25 @@ class FocusLogic(GenericLogic):
 
     # methods for autofocus
 
-    def qpd(self):
-        """ Read the QPD signal from the FPGA. In order to make sure we are always reading from the latest piezo
-            position, the method is waiting for a new count.
+    def qpd(self, *args):
+        """ Read the QPD signal from the FPGA. When no argument is specified, the signal is read from X/Y positions. In
+        order to make sure we are always reading from the latest piezo position, the method is waiting for a new count.
+        If the argument 'sum' is specified, the SUM signal is read.
         """
         qpd = self._fpga.read_qpd()
-        last_count = qpd[3]
-        while last_count == qpd[3]:
-            qpd = self._fpga.read_qpd()
-            sleep(0.01)
 
-        if self._ref_axis == 'X':
-            return qpd[0]
-        elif self._ref_axis == 'Y':
-            return qpd[1]
+        if args[0] == 'sum':
+            return qpd[2]
+        else:
+            last_count = qpd[3]
+            while last_count == qpd[3]:
+                qpd = self._fpga.read_qpd()
+                sleep(0.01)
+
+            if self._ref_axis == 'X':
+                return qpd[0]
+            elif self._ref_axis == 'Y':
+                return qpd[1]
 
     def worker_frequency(self):
         """ Update the worker frequency according to the iteration time of the fpga
@@ -236,11 +245,24 @@ class FocusLogic(GenericLogic):
         self._setpoint_defined = True
         print(self._setpoint)
 
+    def check_autofocus(self):
+        """Check whether there is signal detected by the QPD
+        """
+        qpd_sum = self.qpd('sum')
+        if qpd_sum < 50:
+            self.log.warning('autofocus lost')
+            self._autofocus_lost = True
+        else:
+            self._autofocus_lost = False
+
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
+            A check is also performed in order to make sure there is enough signal detected by the QPD.
         """
 
-        if self._calibrated and self._setpoint_defined:
+        self.check_autofocus()
+        if self._calibrated and self._setpoint_defined and not self._autofocus_lost:
+
             self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
             self._run_autofocus = True
             self._dt = self.worker_frequency()
@@ -257,7 +279,10 @@ class FocusLogic(GenericLogic):
             self.log.warning('setpoint not yet defined')
 
     def run_autofocus(self):
-        if self._run_autofocus:
+
+        self.check_autofocus()
+        if self._run_autofocus and not self._autofocus_lost:
+
             worker = AutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
@@ -265,7 +290,7 @@ class FocusLogic(GenericLogic):
             pid = self._fpga.read_pid()
             z = self._z0 + pid/self._slope
 
-            if z>self._min_z and z<self._max_z:
+            if self._min_z < z < self._max_z:
                 self.go_to_position(z)
             else:
                 print('piezo position out of constraints')
@@ -276,6 +301,23 @@ class FocusLogic(GenericLogic):
     def stop_autofocus(self):
         self._fpga.stop_pid()
         self._run_autofocus = False
+
+    def rescue_autofocus(self, z_range):
+
+        axis_label = ('x', 'y', 'z')
+        positions = (0, 0, z_range//2)
+        pos_dict = dict([*zip(axis_label, positions)])
+        self._stage.move_rel(pos_dict)
+
+        for z in range(z_range):
+            positions = (0, 0, -1)
+            pos_dict = dict([*zip(axis_label, positions)])
+            self._stage.move_rel(pos_dict)
+
+            qpd_sum = self.qpd('sum')
+            print(qpd_sum)
+            if qpd_sum>300:
+                break
 
     def pid_gains(self, p_gain, i_gain):
         self._P_gain = p_gain
