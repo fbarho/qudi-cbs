@@ -115,10 +115,14 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         count = self.Counter.read()
         d = self.Duration_ms.read()
 
-        return([X, Y, I,count, d])
+        return [X, Y, I,count, d]
 
     def reset_qpd_counter(self):
         self.Reset_counter.write(True)
+
+    def update_pid_gains(self, p_gain, i_gain):
+        self.P.write(p_gain)
+        self.I.write(i_gain)
 
     def init_pid(self, p_gain, i_gain, setpoint, ref_axis):
         self.reset_qpd_counter()

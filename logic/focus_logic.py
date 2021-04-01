@@ -11,7 +11,7 @@ from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 from time import sleep
 import numpy as np
-from numpy.polynomial import Polynomial as poly
+from numpy.polynomial import Polynomial as Poly
 import matplotlib.pyplot as plt
 
 
@@ -42,7 +42,8 @@ class FocusLogic(GenericLogic):
     """
     # declare connectors
     piezo = Connector(interface='MotorInterface')  # to check if the motor interface can be reused here or if we should better define a PiezoInterface
-    fpga = Connector(interface='FPGAInterface') # to check _ a new interface was defined fpr FPGA connection
+    fpga = Connector(interface='FPGAInterface') # to check _ a new interface was defined for FPGA connection
+    stage = Connector(interface='MotorInterface')
 
     # signals
     sigStepChanged = QtCore.Signal(float)
@@ -68,6 +69,7 @@ class FocusLogic(GenericLogic):
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
     _run_autofocus = False
     _dt = None # in s, frequency for the autofocus update
+    _z0 = None
 
     refresh_time = 100 # time in ms for timer interval
 
@@ -87,6 +89,9 @@ class FocusLogic(GenericLogic):
         self._piezo = self.piezo()
         self._axis = self._piezo._axis_label
         self._max_step = self._piezo.get_constraints()[self._axis]['max_step']
+        self._min_z = self._piezo.get_constraints()[self._axis]['pos_min']
+        self._max_z = self._piezo.get_constraints()[self._axis]['pos_max']
+        self.go_to_position(self._init_position)
 
         # initialize the fpga
         self._fpga = self.fpga()
@@ -229,6 +234,7 @@ class FocusLogic(GenericLogic):
         """
         self._setpoint = self.qpd()
         self._setpoint_defined = True
+        print(self._setpoint)
 
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
@@ -238,6 +244,8 @@ class FocusLogic(GenericLogic):
             self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
             self._run_autofocus = True
             self._dt = self.worker_frequency()
+            self._z0 = self.get_position()
+
             worker = AutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
@@ -253,12 +261,26 @@ class FocusLogic(GenericLogic):
             worker = AutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
+
             pid = self._fpga.read_pid()
-            print(pid/self._slope)
+            z = self._z0 + pid/self._slope
+
+            if z>self._min_z and z<self._max_z:
+                self.go_to_position(z)
+            else:
+                print('piezo position out of constraints')
+                self.stop_autofocus()
+
+            print(z)
 
     def stop_autofocus(self):
         self._fpga.stop_pid()
         self._run_autofocus = False
+
+    def pid_gains(self, p_gain, i_gain):
+        self._P_gain = p_gain
+        self._I_gain = i_gain
+        self._fpga.update_pid_gains(p_gain, i_gain)
 
     def calibrate_autofocus(self):
         """ Calibrate the autofocus.
@@ -281,7 +303,7 @@ class FocusLogic(GenericLogic):
             qpd_signal[n] = self.qpd()
 
         # Calculate the slope of the calibration curve
-        p = poly.fit(piezo_position, qpd_signal, deg=1)
+        p = Poly.fit(piezo_position, qpd_signal, deg=1)
         self._slope = p(1)-p(0)
         self._calibrated = True
 
