@@ -18,10 +18,12 @@ Config example pour copy-paste:
             daq: 'nidaq_6259_logic'
             piezo: 'focus_logic'
             roi: 'roi_logic'
+        path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_configs\\roi_multicolor_scan_task_RAMM'
 """
 
 import numpy as np
 import os
+import yaml
 from time import sleep, time
 from logic.generic_task import InterruptableTask
 
@@ -34,6 +36,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
+        # self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
@@ -43,6 +46,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # read all user parameters from config
         self.load_user_parameters()
+
+        # set stage velocity
+        self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
         self.ref['fpga'].start_task_session(bitfile)
@@ -80,14 +86,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # prepare the daq: set the digital output to 0 before starting the task
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
-        # # prepare the camera
-        # self.num_frames = self.num_z_planes * self.num_laserlines
-        # self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
+        # start camera acquisition
         self.ref['cam'].stop_acquisition()  # for safety
         self.ref['cam'].start_acquisition()
-
-        # initialize the counter (corresponding to the number of planes already acquired)
-        self.step_counter = 0
 
         for plane in range(self.num_z_planes):
             print(f'plane number {plane + 1}')
@@ -121,7 +122,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         image_data = self.ref['cam'].get_acquired_data()
         print(image_data.shape)
 
-        # save path needs to be adapted as a function of
+        # save path needs to be adapted depending on the file hierarchy
 
         if self.file_format == 'fits':
             metadata = {}  # to be added
@@ -151,6 +152,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['fpga'].end_task_session()
         self.ref['fpga'].restart_default_session()
         self.log.info('restarted default session')
+        # reset stage velocity to default
+        self.ref['roi'].set_stage_velocity({'x': 7, 'y': 7})  # 5.74592
         self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
@@ -165,6 +168,23 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.file_format = 'tiff'
         self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
 
+        # try:
+        #     with open(self.user_config_path, 'r') as stream:
+        #         self.user_param_dict = yaml.safe_load(stream)
+        #
+        #         self.exposure = self.user_param_dict['exposure']
+        #         self.num_z_planes = self.user_param_dict['num_z_planes']
+        #         self.z_step = self.user_param_dict['z_step']  # in um
+        #         self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+        #         self.imaging_sequence = self.user_param_dict['imaging_sequence']
+        #         self.save_path = self.user_param_dict['save_path']
+        #         self.file_format = self.user_param_dict['file_format']
+        #         self.roi_list_path = self.user_param_dict['roi_list_path']
+        #
+        # except Exception as e:  # add the type of exception
+        #     self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+
+        # establish further user parameters derived from the given ones:
         # create a list of roi names
         self.ref['roi'].load_roi_list(self.roi_list_path)
         # get the list of the roi names

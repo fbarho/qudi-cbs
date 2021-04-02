@@ -17,9 +17,11 @@ Config example pour copy-paste:
             cam: 'camera_logic'
             daq: 'nidaq_6259_logic'
             piezo: 'focus_logic'
+        path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_configs\\multicolor_scan_task_RAMM'
 """
 
 import numpy as np
+import yaml
 from time import sleep, time
 from logic.generic_task import InterruptableTask
 
@@ -31,6 +33,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
+        # self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
@@ -43,7 +46,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.load_user_parameters()
 
         # download the bitfile for the task on the FPGA
-        # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'  #old version
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
         self.ref['fpga'].start_task_session(bitfile)
 
@@ -53,6 +55,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # prepare the camera
         self.num_frames = self.num_z_planes * self.num_laserlines
         self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
+        self.ref['cam'].start_acquisition()
 
         # initialize the counter (corresponding to the number of planes already acquired)
         self.step_counter = 0
@@ -132,28 +135,40 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.z_step = 0.25  # in um
         self.centered_focal_plane = True
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
+        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
         self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\teststack.tiff'  # to be defined how the default folder structure should be set up
         self.file_format = 'tiff'
 
+        # try:
+        #     with open(self.user_config_path, 'r') as stream:
+        #         self.user_param_dict = yaml.safe_load(stream)
+        #
+        #         self.exposure = self.user_param_dict['exposure']
+        #         self.num_z_planes = self.user_param_dict['num_z_planes']
+        #         self.z_step = self.user_param_dict['z_step']  # in um
+        #         self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+        #         self.imaging_sequence = self.user_param_dict['imaging_sequence']
+        #         self.save_path = self.user_param_dict['save_path']
+        #         self.file_format = self.user_param_dict['file_format']
+        #
+        # except Exception as e:  # add the type of exception
+        #     self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+
+        # establish further user parameters derived from the given ones
+        self.start_position = self.calculate_start_position(self.centered_focal_plane)
+
         lightsource_dict = {'BF': 0, '405 nm': 1, '488 nm': 2, '561 nm': 3, '640 nm': 4}
-        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
         self.num_laserlines = len(self.imaging_sequence)
+
         wavelengths = [self.imaging_sequence[i][0] for i, item in enumerate(self.imaging_sequence)]
         wavelengths = [lightsource_dict[key] for key in wavelengths]
         for i in range(self.num_laserlines, 5):
             wavelengths.append(0)  # must always be a list of length 5: append zeros until necessary length reached
         self.wavelengths = wavelengths
-        print(self.wavelengths)
 
         self.intensities = [self.imaging_sequence[i][1] for i, item in enumerate(self.imaging_sequence)]
         for i in range(self.num_laserlines, 5):
             self.intensities.append(0)
-        print(self.intensities)
-
-        # self.wavelengths = [3, 3, 3, 3, 3]
-        # self.intensities = [3, 0, 4, 0, 5]
-
-
 
     def calculate_start_position(self, centered_focal_plane):
         """

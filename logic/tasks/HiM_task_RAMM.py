@@ -10,8 +10,8 @@ obtained from <https://github.com/Ulm-IQO/qudi/>
 Merfish Experiment for the RAMM setup
 
 Config example pour copy-paste:
-    MerfishTask:
-        module: 'merfish_task_RAMM'
+    HiMTask:
+        module: 'HiM_task_RAMM'
         needsmodules:
             fpga: 'lasercontrol_logic'
             cam: 'camera_logic'
@@ -45,6 +45,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if not self.ref['pos'].origin:
             self.log.warning('No position 1 defined for injections. Experiment can not be started. Please define position 1')
             return
+
+        # set stage velocity
+        self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
         # close default FPGA session
         self.ref['fpga'].close_default_session()
@@ -276,6 +279,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['fpga'].end_task_session()
         self.ref['fpga'].restart_default_session()
         self.log.info('restarted default session')
+        # reset stage velocity to default
+        self.ref['roi'].set_stage_velocity({'x': 7, 'y': 7})  # 5.74592
         self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
