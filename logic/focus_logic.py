@@ -37,13 +37,27 @@ class AutofocusWorker(QtCore.QRunnable):
         self.signals.sigFinished.emit()
 
 
+class AutofocusRAMM(object):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def qpd_reset(self, fpga):
+        fpga.reset_qpd_counter()
+
+class AutofocusPALM(object):
+    pass
+
+
 class FocusLogic(GenericLogic):
     """
     """
     # declare connectors
     piezo = Connector(interface='MotorInterface')  # to check if the motor interface can be reused here or if we should better define a PiezoInterface
-    fpga = Connector(interface='FPGAInterface') # to check _ a new interface was defined for FPGA connection
+    fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
     stage = Connector(interface='MotorInterface')
+
+    # system = ConfigOption('system', missing='error')
 
     # signals
     sigStepChanged = QtCore.Signal(float)
@@ -59,7 +73,7 @@ class FocusLogic(GenericLogic):
     timetrace_enabled = False
 
     # autofocus attributes
-    _calibration_range = 2 # Autofocus calibration range in µm
+    _calibration_range = 2  # Autofocus calibration range in µm
     _calibrated = False
     _slope = None
     _setpoint_defined = False
@@ -69,10 +83,10 @@ class FocusLogic(GenericLogic):
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
     _run_autofocus = False
     _autofocus_lost = False
-    _dt = None # in s, frequency for the autofocus update
+    _dt = None  # in s, frequency for the autofocus update
     _z0 = None
 
-    refresh_time = 100 # time in ms for timer interval
+    refresh_time = 100  # time in ms for timer interval
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -85,6 +99,12 @@ class FocusLogic(GenericLogic):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
+        #
+        # if self.system == 'RAMM':
+        #     self.autofocus = AutofocusRAMM()
+        # elif self.system == 'PALM':
+        #     self.autofocus = AutofocusPALM
+
 
         # initialize the piezo
         self._piezo = self.piezo()
@@ -104,6 +124,8 @@ class FocusLogic(GenericLogic):
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)  # instead of using intervall. Repetition is then handled via the slot loop (and start_tracking at first)
         self.timer.timeout.connect(self.loop)
+
+        self.autofocus = AutofocusRAMM()
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -213,9 +235,7 @@ class FocusLogic(GenericLogic):
         """
         qpd = self._fpga.read_qpd()
 
-        if args[0] == 'sum':
-            return qpd[2]
-        else:
+        if not args:
             last_count = qpd[3]
             while last_count == qpd[3]:
                 qpd = self._fpga.read_qpd()
@@ -225,18 +245,22 @@ class FocusLogic(GenericLogic):
                 return qpd[0]
             elif self._ref_axis == 'Y':
                 return qpd[1]
+        else:
+            if args[0] == "sum":
+                return qpd[2]
 
     def worker_frequency(self):
         """ Update the worker frequency according to the iteration time of the fpga
         """
         qpd = self._fpga.read_qpd()
-        iteration_duration = qpd[4]/1000+0.01
+        iteration_duration = qpd[4] / 1000 + 0.01
         return iteration_duration
 
     def qpd_reset(self):
         """ Reset the QPD counter
         """
-        self._fpga.reset_qpd_counter()
+        # self._fpga.reset_qpd_counter()
+        self.autofocus.qpd_reset(self._fpga)
 
     def define_autofocus_setpoint(self):
         """ Define the setpoint for the autofocus
@@ -248,6 +272,7 @@ class FocusLogic(GenericLogic):
     def check_autofocus(self):
         """Check whether there is signal detected by the QPD
         """
+
         qpd_sum = self.qpd('sum')
         if qpd_sum < 50:
             self.log.warning('autofocus lost')
@@ -288,7 +313,7 @@ class FocusLogic(GenericLogic):
             self.threadpool.start(worker)
 
             pid = self._fpga.read_pid()
-            z = self._z0 + pid/self._slope
+            z = self._z0 + pid / self._slope
 
             if self._min_z < z < self._max_z:
                 self.go_to_position(z)
@@ -305,7 +330,7 @@ class FocusLogic(GenericLogic):
     def rescue_autofocus(self, z_range):
 
         axis_label = ('x', 'y', 'z')
-        positions = (0, 0, z_range//2)
+        positions = (0, 0, z_range // 2)
         pos_dict = dict([*zip(axis_label, positions)])
         self._stage.move_rel(pos_dict)
 
@@ -316,7 +341,7 @@ class FocusLogic(GenericLogic):
 
             qpd_sum = self.qpd('sum')
             print(qpd_sum)
-            if qpd_sum>300:
+            if qpd_sum > 300:
                 break
 
     def pid_gains(self, p_gain, i_gain):
@@ -329,8 +354,8 @@ class FocusLogic(GenericLogic):
         """
         self.qpd_reset()
         z0 = self.get_position()
-        dz = self._calibration_range//2
-        Z = np.arange(z0-dz, z0+dz, 0.1)
+        dz = self._calibration_range // 2
+        Z = np.arange(z0 - dz, z0 + dz, 0.1)
         n_positions = len(Z)
         piezo_position = np.zeros((n_positions,))
         qpd_signal = np.zeros((n_positions,))
@@ -346,7 +371,7 @@ class FocusLogic(GenericLogic):
 
         # Calculate the slope of the calibration curve
         p = Poly.fit(piezo_position, qpd_signal, deg=1)
-        self._slope = p(1)-p(0)
+        self._slope = p(1) - p(0)
         self._calibrated = True
 
         fig, ax = plt.subplots()
