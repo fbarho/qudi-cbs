@@ -13,14 +13,60 @@
   <property name="windowTitle">
    <string>Focustools</string>
   </property>
-  <widget class="QWidget" name="centralwidget"/>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QWidget" name="gridLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>-1</x>
+      <y>29</y>
+      <width>291</width>
+      <height>261</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout_2">
+     <item row="0" column="2">
+      <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
+     </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QLabel" name="exposure_Label_2">
+       <property name="text">
+        <string>I gain: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="2">
+      <widget class="QLineEdit" name="slope_lineEdit"/>
+     </item>
+     <item row="1" column="2">
+      <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
+     </item>
+     <item row="2" column="0" colspan="3">
+      <widget class="PlotWidget" name="Calibration_QtPlot"/>
+     </item>
+     <item row="0" column="0" colspan="2">
+      <widget class="QLabel" name="exposure_Label">
+       <property name="text">
+        <string>P gain: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0" colspan="2">
+      <widget class="QLabel" name="exposure_Label_3">
+       <property name="text">
+        <string>Slope</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
      <width>572</width>
-     <height>22</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuMenu">
@@ -154,6 +200,8 @@
    </attribute>
    <addaction name="piezo_init_Action"/>
    <addaction name="separator"/>
+   <addaction name="actionStart_Calibration"/>
+   <addaction name="separator"/>
    <addaction name="tracking_Action"/>
   </widget>
   <widget class="QDockWidget" name="timetrace_DockWidget">
@@ -219,6 +267,17 @@
    </property>
    <property name="text">
     <string>Start Tracking</string>
+   </property>
+  </action>
+  <action name="actionStart_Calibration">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start Calibration</string>
+   </property>
+   <property name="toolTip">
+    <string>Start autofocus calibration procedure</string>
    </property>
   </action>
  </widget>
