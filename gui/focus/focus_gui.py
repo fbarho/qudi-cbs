@@ -47,7 +47,9 @@ class FocusGUI(GUIBase):
     sigInitPiezo = QtCore.Signal()
     sigTimetraceOn = QtCore.Signal()
     sigTimetraceOff = QtCore.Signal()
-
+    sigReadPID = QtCore.Signal()
+    sigUpdatePIDgain = QtCore.Signal(float, float)
+    sigLaunchCalibration = QtCore.Signal()
 
     _mw = None
 
@@ -88,6 +90,9 @@ class FocusGUI(GUIBase):
         self._mw.move_down_PushButton.clicked.connect(self.move_down_button_clicked)
         self._mw.piezo_init_Action.triggered.connect(self.piezo_init_clicked)
         self._mw.tracking_Action.triggered.connect(self.start_tracking_clicked)
+        self._mw.Pgain_doubleSpinBox.valueChanged.connect(self.pid_changed)
+        self._mw.Igain_doubleSpinBox.valueChanged.connect(self.pid_changed)
+        self._mw.calibration_pushButton.clicked.connect(self.calibrate_autofocus)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
@@ -96,6 +101,9 @@ class FocusGUI(GUIBase):
         self.sigInitPiezo.connect(self._focus_logic.init_piezo)
         self.sigTimetraceOn.connect(self._focus_logic.start_tracking)
         self.sigTimetraceOff.connect(self._focus_logic.stop_tracking)
+        self.sigReadPID.connect(self._focus_logic.read_pid)
+        self.sigUpdatePIDgain.connect(self._focus_logic.update_pid)
+        self.sigLaunchCalibration.connect(self._focus_logic.calibrate_autofocus)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -106,6 +114,11 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigPositionChanged.connect(self.update_position)
         self._focus_logic.sigPiezoInitFinished.connect(self.piezo_init_finished)
         self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
+        self._focus_logic.sigPIDChanged.connect(self.update_pid)
+        self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
+
+        # update pid values
+        self.sigReadPID.emit()
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -114,7 +127,6 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigStepChanged.disconnect()
         self._focus_logic.sigPositionChanged.disconnect()
         self._mw.close()
-
 
     def show(self):
         """Make window visible and put it above all other windows.
@@ -159,7 +171,6 @@ class FocusGUI(GUIBase):
         self._mw.piezo_init_Action.setEnabled(True)
         self._mw.piezo_init_Action.setChecked(False)
 
-
     def start_tracking_clicked(self):
 
         if self._focus_logic.timetrace_enabled:  # timetrace already running
@@ -178,3 +189,27 @@ class FocusGUI(GUIBase):
 
         # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
         self._timetrace.setData(self.y_data)  # x axis values do not move
+
+    # Functions for the autofocus
+
+    def pid_changed(self):
+        p_gain = self._mw.Pgain_doubleSpinBox.value()
+        i_gain = self._mw.Igain_doubleSpinBox.value()
+        self.sigUpdatePIDgain.emit(p_gain, i_gain)
+
+    def update_pid(self, p_gain, i_gain):
+        self._mw.Pgain_doubleSpinBox.setValue(p_gain)
+        self._mw.Igain_doubleSpinBox.setValue(i_gain)
+
+    def calibrate_autofocus(self):
+        self.sigLaunchCalibration.emit()
+
+    def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
+        self._mw.calibration_PlotWidget.clear()
+        self._mw.calibration_PlotWidget.plot(piezo_position, qpd_signal, symbol='o')
+        self._mw.calibration_PlotWidget.plot(piezo_position, fit)
+        self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
+        self._mw.calibration_PlotWidget.setLabel('left', 'QPD signal')
+        self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
+
+
