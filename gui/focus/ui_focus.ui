@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>576</width>
-    <height>506</height>
+    <width>572</width>
+    <height>600</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,8 +24,11 @@
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
+     <item row="2" column="0" colspan="4">
+      <widget class="PlotWidget" name="calibration_PlotWidget"/>
+     </item>
      <item row="1" column="0">
-      <widget class="QLabel" name="exposure_Label_2">
+      <widget class="QLabel" name="i_Label">
        <property name="text">
         <string>I gain: </string>
        </property>
@@ -43,15 +46,8 @@
      <item row="1" column="1" colspan="3">
       <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
      </item>
-     <item row="3" column="1" colspan="2">
-      <widget class="QLabel" name="exposure_Label_3">
-       <property name="text">
-        <string>Slope</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="0">
-      <widget class="QLabel" name="exposure_Label">
+      <widget class="QLabel" name="p_Label">
        <property name="text">
         <string>P gain: </string>
        </property>
@@ -60,15 +56,19 @@
        </property>
       </widget>
      </item>
+     <item row="3" column="1" colspan="2">
+      <widget class="QLabel" name="slope_Label">
+       <property name="text">
+        <string>Slope</string>
+       </property>
+      </widget>
+     </item>
      <item row="3" column="0">
-      <widget class="QPushButton" name="Calibration_pushButton">
+      <widget class="QPushButton" name="calibration_pushButton">
        <property name="text">
         <string>Calibration</string>
        </property>
       </widget>
-     </item>
-     <item row="2" column="0" colspan="4">
-      <widget class="PlotWidget" name="Calibration_PlotWidget"/>
      </item>
     </layout>
    </widget>
@@ -78,7 +78,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>576</width>
+     <width>572</width>
      <height>20</height>
     </rect>
    </property>
