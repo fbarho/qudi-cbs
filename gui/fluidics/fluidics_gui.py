@@ -136,6 +136,10 @@ class FluidicsGUI(GUIBase):
         # initialize the positioning dockwidget and its toolbar
         self.init_positioning()
 
+        # open a message box to validate that needle cover has been removed
+        text = 'Please check if needle cover has been removed!'
+        QtWidgets.QMessageBox.information(self._mw, 'Safety check', text, QtWidgets.QMessageBox.Ok)
+
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
         """
