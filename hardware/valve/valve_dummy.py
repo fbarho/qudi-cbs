@@ -24,6 +24,19 @@ class ValveDummy(Base, ValveInterface):
             - 8
             - 2
             - 2
+        valve_positions:
+            - - '1'
+              - '2'
+              - '3'
+              - '4'
+              - '5'
+              - '6'
+              - '7'
+              - '8'
+            - - '1: Rinse needle'
+              - '2: Inject probe'
+            - - '1: Syringe'
+              - '2: Pump'
 
     # please specify for all elements corresponding information in the same order,
     # starting from the first valve in the daisychain (valve 'a')
@@ -33,6 +46,7 @@ class ValveDummy(Base, ValveInterface):
     _valve_names = ConfigOption('name', missing='warn')
     _daisychain_IDs = ConfigOption('daisychain_ID', missing='warn')
     _number_outputs = ConfigOption('number_outputs', missing='warn')
+    _valve_positions = ConfigOption('valve_positions', [])
 
     init_pos = 1  # initial  position for all valves
     position_dict = {}

@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 This module contains a GUI that allows to handle the fluidics devices
-(valves, pump, flow rate measurement, merfish probes positionning)
+(valves, pump, flow rate measurement, probes positioning)
 """
 import os
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
 from qtpy import uic
+from functools import partial
 
 from gui.guibase import GUIBase
 from core.connector import Connector
@@ -102,33 +103,8 @@ class FluidicsGUI(GUIBase):
         # menu actions
         self._mw.close_MenuAction.triggered.connect(self._mw.close)
 
-        # to do: create the widgets according to the number of specified valves in config
         # initialize the valve control dockwidget
-        self._mw.valve1_Label.setText(self._valve_logic.valve_names[0])
-        self._mw.valve2_Label.setText(self._valve_logic.valve_names[1])
-        self._mw.valve3_Label.setText(self._valve_logic.valve_names[2])
-        self._mw.valve1_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[0])])
-        # self._mw.valve2_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[1])])
-        # self._mw.valve3_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[2])])
-        self._mw.valve2_ComboBox.addItems(['1: Rinse needle', '2: Inject probe'])
-        self._mw.valve3_ComboBox.addItems(['1: Syringe', '2: Pump'])
-
-        # set current index according to actual position of valve on start
-        # call the method update_combobox_position to set the right index ..
-
-        # signals
-        self._mw.valve1_ComboBox.activated[str].connect(self.change_valve1_position)
-        self._mw.valve2_ComboBox.activated[str].connect(self.change_valve2_position)
-        self._mw.valve3_ComboBox.activated[str].connect(self.change_valve3_position)
-
-        # signals to logic
-        self.sigSetValvePosition.connect(self._valve_logic.set_valve_position)
-
-        # signqls from logic
-        self._valve_logic.sigPositionChanged.connect(self.update_combobox_index)
-
-
-
+        self.init_valves()
 
         # initialize the flow control dockwidget and its toolbar
         self.init_flowcontrol()
@@ -152,8 +128,38 @@ class FluidicsGUI(GUIBase):
         self._mw.activateWindow()
         self._mw.raise_()
 
+    def init_valves(self):
+        """ Create the widgets in the valve dockwidget depending on the number of valves specified in hardware config.
+        Estabilsh signal connections.
+        """
+        self.valve_Labels = []
+        self.valve_ComboBoxes = []
+        for i in range(len(self._valve_logic.valve_names)):
+            valve_label = QtWidgets.QLabel(self._valve_logic.valve_names[i])
+            self.valve_Labels.append(valve_label)
+            valve_combobox = QtWidgets.QComboBox()
+            self.valve_ComboBoxes.append(valve_combobox)
+            if not self._valve_logic.valve_positions:
+                self.valve_ComboBoxes[i].addItems([str(n+1) for n in range(self._valve_logic.max_positions[i])])
+            else:  # using the optional list of valve positions containing information where each valve port goes to
+                self.valve_ComboBoxes[i].addItems(self._valve_logic.valve_positions[i])
+            self._mw.formLayout.addRow(self.valve_Labels[i], self.valve_ComboBoxes[i])
+
+            # set current index according to actual position of valve on start
+            valve_combobox.setCurrentIndex(self._valve_logic.get_valve_position(self._valve_logic.valve_IDs[i])-1)
+
+        # internal signals
+        for i in range(len(self.valve_ComboBoxes)):
+            self.valve_ComboBoxes[i].currentIndexChanged.connect(partial(self.change_valve_position, i))
+
+        # signals to logic
+        self.sigSetValvePosition.connect(self._valve_logic.set_valve_position)
+
+        # signals from logic
+        self._valve_logic.sigPositionChanged.connect(self.update_combobox_index)
+
     def init_flowcontrol(self):
-        """ Initializes the labels on the flowcontrol dockwidget and the toolbar actions """
+        """ Initialize the labels on the flowcontrol dockwidget and the toolbar actions. """
         # set text to unit labels
         self._mw.pressure_unit_Label.setText(self._flow_logic.get_pressure_unit())
         self._mw.pressure_unit_Label2.setText(self._flow_logic.get_pressure_unit())
@@ -173,7 +179,7 @@ class FluidicsGUI(GUIBase):
         self._flow_logic.sigUpdatePressureSetpoint.connect(self.update_pressure_setpoint)
 
     def init_positioning(self):
-        """ Initializes the indicators on the positioning dockwidget and the toolbar actions """
+        """ Initialize the indicators on the positioning dockwidget and the toolbar actions. """
         if self._positioning_logic.origin is None:
             self._mw.go_to_position_Action.setDisabled(True)
 
@@ -237,12 +243,12 @@ class FluidicsGUI(GUIBase):
     # slots belonging to the positioning
     @QtCore.Slot()
     def move_stage_clicked(self):
-        """ Callback of move_stage toolbutton. Handles the state of the toolbutton and sends a signal to the logic
+        """ Callback of move_stage toolbutton. Handle the state of the toolbutton and send a signal to the logic
         to either do a movement or to stop it depending on the current state.
         """
         if self._positioning_logic.moving:  # stage already in movement, will be stopped by clicking the toolbutton
             self._mw.move_stage_Action.setText('Move Stage')
-            if self._positioning_logic.origin is not None:  # allow access to go to target toolbutton when position 1 is already defined
+            if self._positioning_logic.origin is not None:  # allow access to go to target toolbutton when position 1 has been defined
                 self._mw.go_to_position_Action.setDisabled(False)
             self.sigStopMovement.emit()
         else:
@@ -257,7 +263,8 @@ class FluidicsGUI(GUIBase):
     @QtCore.Slot(tuple)
     def stage_movement_finished(self, position):
         """ Callback of sigStageMoved in logic module. Movement is finished and toolbutton state needs to be reset.
-        Updates the current position indicators"""
+        Update the current position indicators.
+        """
         self._mw.move_stage_Action.setChecked(False)
         self._mw.move_stage_Action.setText('Move Stage')
         if self._positioning_logic.origin is not None:
@@ -265,7 +272,7 @@ class FluidicsGUI(GUIBase):
         self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
         self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
         self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
-        # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
+        # set the current position of the probe to its indicator if the stage coordinates correspond to a position
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
             self._mw.probe_position_LineEdit.setText(str(self._positioning_logic._probe_xy_position_dict[xy_pos]))
@@ -277,7 +284,8 @@ class FluidicsGUI(GUIBase):
     @QtCore.Slot(tuple, int)
     def update_target_position(self, position, target_position):
         """ Callback of sigStageMovedToTarget in logic module. Movement is finished and toolbutton state needs to be reset.
-        Updates the current position indicators (stage and target)"""
+        Update the current position indicators (stage and target).
+        """
         self._mw.go_to_position_Action.setChecked(False)
         self._mw.go_to_position_Action.setText('Go to Target')
         self._mw.move_stage_Action.setDisabled(False)
@@ -292,7 +300,8 @@ class FluidicsGUI(GUIBase):
 
     @QtCore.Slot(tuple)
     def update_stage_position(self, position):
-        """ Callback of sigUpdatePosition in logic module. Updates the current position indicators"""
+        """ Callback of sigUpdatePosition in logic module. This updates the current position indicators.
+        """
         self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
         self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
         self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
@@ -308,7 +317,7 @@ class FluidicsGUI(GUIBase):
     @QtCore.Slot()
     def go_to_position_clicked(self):
         """ Callback of go_to_position toolbutton. Handles the state of the toolbutton and sends a signal to the logic
-        to either do a movement to a target position (position of a merfish probe)
+        to either do a movement to a target position (position of a probe)
         or to stop the movement depending on the current state.
         """
         if self._positioning_logic.moving:  # stage already in movement
@@ -324,7 +333,8 @@ class FluidicsGUI(GUIBase):
     @QtCore.Slot(tuple)
     def stage_stopped(self, position):
         """ Callback of sigStageStopped in logic module. Movement has been aborted by user. Toolbutton state needs to be reset.
-        Updates the current position indicators (stage and target)"""
+        Updates the current position indicators (stage and target).
+        """
         self._mw.move_stage_Action.setDisabled(False)
         self._mw.move_stage_Action.setText('Move Stage')
         self._mw.move_stage_Action.setChecked(False)
@@ -351,7 +361,8 @@ class FluidicsGUI(GUIBase):
     @QtCore.Slot()
     def origin_defined(self):
         """ Callback of the signal sigOriginDefined in the logic module. Enables the functionality that can only be used
-        when an origin is defined (addressing stage positions via the merfish probe number)"""
+        when an origin is defined (addressing stage positions via the probe number).
+        """
         self._mw.go_to_position_Action.setDisabled(False)
         position = self._positioning_logic.get_position()
         xy_pos = (position[0], position[1])
@@ -360,7 +371,7 @@ class FluidicsGUI(GUIBase):
         else:
             self._mw.probe_position_LineEdit.setText('Not at a probe XY position')
 
-
+    # slots related to pressure settings
     @QtCore.Slot()
     def set_pressure_clicked(self):
         """ Callback of the set pressure toolbutton. Retrieves the setpoint value from the spinbox and sends a
@@ -369,9 +380,10 @@ class FluidicsGUI(GUIBase):
         pressure = self._mw.pressure_setpoint_DSpinBox.value()
         self.sigSetPressure.emit(pressure)
 
+    @QtCore.Slot()
     def measure_flow_clicked(self):
         """ Callback of start flow measurement toolbutton. Handles the toolbutton state and initiates the start / stop
-        of flowrate and pressure measurements
+        of flowrate and pressure measurements.
         """
         if self._flow_logic.measuring:  # measurement already running
             self._mw.start_flow_measurement_Action.setText('Start Flowrate measurement')
@@ -382,40 +394,39 @@ class FluidicsGUI(GUIBase):
 
     @QtCore.Slot(float, float)
     def update_flowrate_and_pressure(self, pressure, flowrate):
+        """ Callback of a signal emitted from logic informing the GUI about the new pressure and flowrate values.
+        """
         self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
         self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
 
     @QtCore.Slot(float)
     def update_pressure_setpoint(self, pressure):
+        """ Callback of a signal emitted from logic updating the pressure setpoint display. """
         self._mw.pressure_setpoint_DSpinBox.setValue(pressure)
 
-# all valve related methods have to be made more dynamic to match the valve ID to the belonging widgets.
-    # maybe combine these slots into one and getting the valve number with lambda function
-    def change_valve1_position(self):
-        # get current index of the valve position combobox
-        index = self._mw.valve1_ComboBox.currentIndex()
+    # slots related to valve dockwidget
+    @QtCore.Slot(int)
+    def change_valve_position(self, valve_num):
+        """ Callback of the valve comboboxes. Retrieves the target position and emits a signal containing the valve_id
+        and the target position.
+        """
+        index = self.valve_ComboBoxes[valve_num].currentIndex()
         valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('a', valve_pos)
-
-    def change_valve2_position(self):
-        # get current index of the valve position combobox
-        index = self._mw.valve2_ComboBox.currentIndex()
-        valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('b', valve_pos)
-
-    def change_valve3_position(self):
-        # get current index of the valve position combobox
-        index = self._mw.valve3_ComboBox.currentIndex()
-        valve_pos = index + 1  # zero indexing
-        self.sigSetValvePosition.emit('c', valve_pos)  #precedemment valve3
+        valve_id = self._valve_logic.valve_IDs[valve_num]
+        self.sigSetValvePosition.emit(valve_id, valve_pos)
 
     def update_combobox_index(self, valve_ID, valve_pos):
+        """ Callback of the signal sent from the logic indicating that the position of a valve controller has been
+        changed. Changes the GUI accordingly.
+        """
         if valve_ID == 'a':
-            self._mw.valve1_ComboBox.setCurrentIndex(valve_pos-1)  # zero indexing
+            self.valve_ComboBoxes[0].setCurrentIndex(valve_pos-1)  # zero indexing
         elif valve_ID == 'b':
-            self._mw.valve2_ComboBox.setCurrentIndex(valve_pos - 1)  # zero indexing
+            self.valve_ComboBoxes[1].setCurrentIndex(valve_pos-1)
         elif valve_ID == 'c':
-            self._mw.valve3_ComboBox.setCurrentIndex(valve_pos - 1)  # zero indexing
+            self.valve_ComboBoxes[2].setCurrentIndex(valve_pos-1)
+        elif valve_ID == 'd':
+            self.valve_ComboBoxes[3].setCurrentIndex(valve_pos-1)
         else:
             pass
 

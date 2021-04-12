@@ -49,7 +49,7 @@ class ValveInterface(metaclass=InterfaceMetaclass):
 
     @abstract_interface_method
     def get_valve_position(self, valve_address):
-        """ Gets current position of the hamilton valve
+        """ Gets current position of the valve positioner
 
         @param str valve_address: ID of the valve
 
@@ -69,7 +69,7 @@ class ValveInterface(metaclass=InterfaceMetaclass):
     @abstract_interface_method
     def wait_for_idle(self):
         """ Wait for the valves to be idle. This is important when one wants to
-        read the position of a valve or make sure the valve are not moving before
+        read the position of a valve or make sure the valves are not moving before
         starting an injection.
         """
         pass
