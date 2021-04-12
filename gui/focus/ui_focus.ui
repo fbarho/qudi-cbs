@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>572</width>
-    <height>600</height>
+    <width>576</width>
+    <height>506</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,45 +17,58 @@
    <widget class="QWidget" name="gridLayoutWidget">
     <property name="geometry">
      <rect>
-      <x>-1</x>
+      <x>9</x>
       <y>29</y>
-      <width>291</width>
+      <width>281</width>
       <height>261</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="0" column="2">
-      <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
-     </item>
-     <item row="1" column="0" colspan="2">
+     <item row="1" column="0">
       <widget class="QLabel" name="exposure_Label_2">
        <property name="text">
         <string>I gain: </string>
        </property>
-      </widget>
-     </item>
-     <item row="3" column="2">
-      <widget class="QLineEdit" name="slope_lineEdit"/>
-     </item>
-     <item row="1" column="2">
-      <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
-     </item>
-     <item row="2" column="0" colspan="3">
-      <widget class="PlotWidget" name="Calibration_QtPlot"/>
-     </item>
-     <item row="0" column="0" colspan="2">
-      <widget class="QLabel" name="exposure_Label">
-       <property name="text">
-        <string>P gain: </string>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
-     <item row="3" column="0" colspan="2">
+     <item row="3" column="3">
+      <widget class="QLineEdit" name="slope_lineEdit"/>
+     </item>
+     <item row="0" column="1" colspan="3">
+      <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
+     </item>
+     <item row="1" column="1" colspan="3">
+      <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
+     </item>
+     <item row="3" column="1" colspan="2">
       <widget class="QLabel" name="exposure_Label_3">
        <property name="text">
         <string>Slope</string>
        </property>
       </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="exposure_Label">
+       <property name="text">
+        <string>P gain: </string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QPushButton" name="Calibration_pushButton">
+       <property name="text">
+        <string>Calibration</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0" colspan="4">
+      <widget class="PlotWidget" name="Calibration_PlotWidget"/>
      </item>
     </layout>
    </widget>
@@ -65,7 +78,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>572</width>
+     <width>576</width>
      <height>20</height>
     </rect>
    </property>
@@ -200,7 +213,7 @@
    </attribute>
    <addaction name="piezo_init_Action"/>
    <addaction name="separator"/>
-   <addaction name="actionStart_Calibration"/>
+   <addaction name="Calibration_Action"/>
    <addaction name="separator"/>
    <addaction name="tracking_Action"/>
   </widget>
@@ -269,7 +282,7 @@
     <string>Start Tracking</string>
    </property>
   </action>
-  <action name="actionStart_Calibration">
+  <action name="Calibration_Action">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -285,7 +298,7 @@
   <customwidget>
    <class>PlotWidget</class>
    <extends>QGraphicsView</extends>
-   <header>pyqtgraph</header>
+   <header location="global">pyqtgraph</header>
   </customwidget>
  </customwidgets>
  <resources/>
