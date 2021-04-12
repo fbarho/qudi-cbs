@@ -167,6 +167,8 @@ class LaserControlLogic(GenericLogic):
         """
         if self.controllertype == 'daq':
             self._controller.apply_voltage(voltage, channel, autostart, timeout)
+        elif self.controllertype == 'fpga':
+            self._controller.apply_voltage(voltage, channel)
         else:
             pass
 

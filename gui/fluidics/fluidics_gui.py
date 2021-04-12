@@ -110,8 +110,8 @@ class FluidicsGUI(GUIBase):
         self._mw.valve1_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[0])])
         # self._mw.valve2_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[1])])
         # self._mw.valve3_ComboBox.addItems([str(i+1) for i in range(self._valve_logic.max_positions[2])])
-        self._mw.valve2_ComboBox.addItems(['1: Syringe', '2: Pump'])
-        self._mw.valve3_ComboBox.addItems(['1: Rinse needle', '2: Inject probe'])
+        self._mw.valve2_ComboBox.addItems(['1: Rinse needle', '2: Inject probe'])
+        self._mw.valve3_ComboBox.addItems(['1: Syringe', '2: Pump'])
 
         # set current index according to actual position of valve on start
         # call the method update_combobox_position to set the right index ..
@@ -170,6 +170,7 @@ class FluidicsGUI(GUIBase):
 
         # signals from logic
         self._flow_logic.sigUpdateFlowMeasurement.connect(self.update_flowrate_and_pressure)
+        self._flow_logic.sigUpdatePressureSetpoint.connect(self.update_pressure_setpoint)
 
     def init_positioning(self):
         """ Initializes the indicators on the positioning dockwidget and the toolbar actions """
@@ -383,6 +384,10 @@ class FluidicsGUI(GUIBase):
     def update_flowrate_and_pressure(self, pressure, flowrate):
         self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
         self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
+
+    @QtCore.Slot(float)
+    def update_pressure_setpoint(self, pressure):
+        self._mw.pressure_setpoint_DSpinBox.setValue(pressure)
 
 # all valve related methods have to be made more dynamic to match the valve ID to the belonging widgets.
     # maybe combine these slots into one and getting the valve number with lambda function

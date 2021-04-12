@@ -312,7 +312,8 @@ class RoiGUI(GUIBase):
         self._mw.save_path_LineEdit.setText(self.default_path)
         # Add validator to LineEdits
         self._mw.roi_list_name_LineEdit.setValidator(NameValidator())
-        self._mw.save_path_LineEdit.setValidator(NameValidator(path=True))
+        # self._mw.save_path_LineEdit.setValidator(NameValidator(path=True))
+        # to reactivate later !!!!!!!
 
         # Initialize plot
         self.__init_roi_map_image()

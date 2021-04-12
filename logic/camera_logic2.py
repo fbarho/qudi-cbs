@@ -262,6 +262,9 @@ class CameraLogic(GenericLogic):
 
     def stop_acquisition(self):
         self._hardware.stop_acquisition()
+
+    def start_acquisition(self):
+        self._hardware._start_acquisition()
         
     def abort_acquisition(self):
         self._hardware._abort_acquisition()

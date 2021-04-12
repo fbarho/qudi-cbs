@@ -826,3 +826,7 @@ class RoiLogic(GenericLogic):
             worker = Worker()
             worker.signals.sigFinished.connect(self.tracking_loop)
             self.threadpool.start(worker)
+
+    def set_stage_velocity(self, param_dict):
+        self.stage().set_velocity(param_dict)
+
