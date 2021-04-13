@@ -6,79 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>572</width>
-    <height>600</height>
+    <width>631</width>
+    <height>647</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Focustools</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="gridLayoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>9</x>
-      <y>29</y>
-      <width>281</width>
-      <height>261</height>
-     </rect>
-    </property>
-    <layout class="QGridLayout" name="gridLayout_2">
-     <item row="2" column="0" colspan="4">
-      <widget class="PlotWidget" name="calibration_PlotWidget"/>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="i_Label">
-       <property name="text">
-        <string>I gain: </string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="3">
-      <widget class="QLineEdit" name="slope_lineEdit"/>
-     </item>
-     <item row="0" column="1" colspan="3">
-      <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
-     </item>
-     <item row="1" column="1" colspan="3">
-      <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
-     </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="p_Label">
-       <property name="text">
-        <string>P gain: </string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1" colspan="2">
-      <widget class="QLabel" name="slope_Label">
-       <property name="text">
-        <string>Slope</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QPushButton" name="calibration_pushButton">
-       <property name="text">
-        <string>Calibration</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-  </widget>
+  <widget class="QWidget" name="centralwidget"/>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>572</width>
+     <width>631</width>
      <height>20</height>
     </rect>
    </property>
@@ -94,6 +35,7 @@
     </property>
     <addaction name="focus_dockwidget_view_Action"/>
     <addaction name="timetrace_dockwidget_view_Action"/>
+    <addaction name="Autofocus-dockwidget_view_Action"/>
    </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
@@ -213,11 +155,13 @@
    </attribute>
    <addaction name="piezo_init_Action"/>
    <addaction name="separator"/>
-   <addaction name="Calibration_Action"/>
    <addaction name="separator"/>
    <addaction name="tracking_Action"/>
   </widget>
   <widget class="QDockWidget" name="timetrace_DockWidget">
+   <property name="layoutDirection">
+    <enum>Qt::LeftToRight</enum>
+   </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
    </attribute>
@@ -234,6 +178,120 @@
       <widget class="PlotWidget" name="timetrace_PlotWidget"/>
      </item>
     </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="Autofocus_dockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>350</width>
+     <height>385</height>
+    </size>
+   </property>
+   <property name="layoutDirection">
+    <enum>Qt::RightToLeft</enum>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_3">
+    <widget class="QWidget" name="gridLayoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>0</y>
+       <width>271</width>
+       <height>351</height>
+      </rect>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_8">
+      <item row="7" column="0" colspan="2">
+       <widget class="PlotWidget" name="image_PlotWidget">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>100</width>
+          <height>100</height>
+         </size>
+        </property>
+        <property name="transformationAnchor">
+         <enum>QGraphicsView::AnchorUnderMouse</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <item>
+         <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox_5"/>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox_5"/>
+        </item>
+       </layout>
+      </item>
+      <item row="0" column="1">
+       <layout class="QVBoxLayout" name="verticalLayout_6">
+        <item>
+         <widget class="QLabel" name="p_Label_5">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>2</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>P gain: </string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="i_Label_5">
+          <property name="text">
+           <string>I gain: </string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLineEdit" name="slope_lineEdit_5"/>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <widget class="QPushButton" name="calibration_pushButton_5">
+        <property name="text">
+         <string>Calibration</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <layout class="QVBoxLayout" name="verticalLayout_7">
+        <item>
+         <widget class="PlotWidget" name="calibration_PlotWidget_5"/>
+        </item>
+       </layout>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLabel" name="slope_Label_5">
+        <property name="text">
+         <string>Slope</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </widget>
   </widget>
   <action name="close_MenuAction">
@@ -282,15 +340,15 @@
     <string>Start Tracking</string>
    </property>
   </action>
-  <action name="Calibration_Action">
+  <action name="Autofocus-dockwidget_view_Action">
    <property name="checkable">
     <bool>true</bool>
    </property>
-   <property name="text">
-    <string>Start Calibration</string>
+   <property name="checked">
+    <bool>true</bool>
    </property>
-   <property name="toolTip">
-    <string>Start autofocus calibration procedure</string>
+   <property name="text">
+    <string>Autofocus-dockwidget_view_Action</string>
    </property>
   </action>
  </widget>
@@ -360,6 +418,38 @@
     <hint type="sourcelabel">
      <x>285</x>
      <y>501</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>Autofocus-dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>Autofocus_dockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>460</x>
+     <y>246</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>Autofocus_dockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>Autofocus-dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>460</x>
+     <y>246</y>
     </hint>
     <hint type="destinationlabel">
      <x>-1</x>
