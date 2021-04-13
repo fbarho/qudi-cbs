@@ -63,7 +63,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # activate lightsources
         for item in self.imaging_sequence:
             self.ref['fpga'].apply_voltage_single_channel(item[1], item[0])  #  param: intensity, channel
-            sleep(self.exposure_time)
+            sleep(self.illumination_time)
             self.ref['fpga'].apply_voltage_single_channel(0, item[0])
 
         self.roi_counter += 1
@@ -92,7 +92,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def load_user_parameters(self):
         # define user parameters  # to be read from config later
-        self.exposure_time = 1  # in s
+        self.illumination_time = 1  # in s
         imaging_sequence = [('561 nm', 5), ('561 nm', 3)]
         self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
 
@@ -100,7 +100,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         #     with open(self.user_config_path, 'r') as stream:
         #         self.user_param_dict = yaml.safe_load(stream)
         #
-        #         self.exposure_time = self.user_param_dict['exposure_time']
+        #         self.illumination_time = self.user_param_dict['illumination_time']
         #         imaging_sequence = self.user_param_dict['imaging_sequence']
         #         self.roi_list_path = self.user_param_dict['roi_list_path']
         #
