@@ -180,7 +180,7 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QDockWidget" name="Autofocus_dockWidget">
+  <widget class="QDockWidget" name="Autofocus_PID_dockWidget">
    <property name="minimumSize">
     <size>
      <width>350</width>
@@ -226,17 +226,17 @@
       <item row="0" column="0">
        <layout class="QVBoxLayout" name="verticalLayout_5">
         <item>
-         <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox_5"/>
+         <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox_5"/>
+         <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
         </item>
        </layout>
       </item>
       <item row="0" column="1">
        <layout class="QVBoxLayout" name="verticalLayout_6">
         <item>
-         <widget class="QLabel" name="p_Label_5">
+         <widget class="QLabel" name="p_Label">
           <property name="minimumSize">
            <size>
             <width>100</width>
@@ -252,7 +252,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="i_Label_5">
+         <widget class="QLabel" name="i_Label">
           <property name="text">
            <string>I gain: </string>
           </property>
@@ -267,7 +267,7 @@
        <widget class="QLineEdit" name="slope_lineEdit_5"/>
       </item>
       <item row="4" column="0" colspan="2">
-       <widget class="QPushButton" name="calibration_pushButton_5">
+       <widget class="QPushButton" name="calibration_pushButton">
         <property name="text">
          <string>Calibration</string>
         </property>
@@ -276,12 +276,12 @@
       <item row="3" column="0" colspan="2">
        <layout class="QVBoxLayout" name="verticalLayout_7">
         <item>
-         <widget class="PlotWidget" name="calibration_PlotWidget_5"/>
+         <widget class="PlotWidget" name="calibration_PlotWidget"/>
         </item>
        </layout>
       </item>
       <item row="6" column="1">
-       <widget class="QLabel" name="slope_Label_5">
+       <widget class="QLabel" name="slope_Label">
         <property name="text">
          <string>Slope</string>
         </property>
@@ -428,7 +428,7 @@
   <connection>
    <sender>Autofocus-dockwidget_view_Action</sender>
    <signal>triggered(bool)</signal>
-   <receiver>Autofocus_dockWidget</receiver>
+   <receiver>Autofocus_PID_dockWidget</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -442,7 +442,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>Autofocus_dockWidget</sender>
+   <sender>Autofocus_PID_dockWidget</sender>
    <signal>visibilityChanged(bool)</signal>
    <receiver>Autofocus-dockwidget_view_Action</receiver>
    <slot>setChecked(bool)</slot>
