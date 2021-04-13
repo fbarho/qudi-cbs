@@ -13,7 +13,7 @@ The piezo carries the microscope objective and is used to manually set the focus
 """
 
 from core.connector import Connector
-#from core.configoption import ConfigOption
+from core.configoption import ConfigOption
 from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
@@ -38,83 +38,60 @@ class AutofocusLogic(GenericLogic):
     """
 
     # declare connectors
-    piezo = Connector(interface='PiezoInterface')
-    
-    
-    # signals
-    sigUpdateDisplay = QtCore.Signal()
-    
-    
-    # attributes    
-    _position = None
-    _step = 0.1 # maybe use configoption instead 
-    
-    refresh_time = 100 # time in ms for timer interval
+    camera = Connector(interface='CameraInterface')
+    fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
 
+    # declare the system used for the experiment
+    _system = ConfigOption('System', missing='error')
+
+    # autofocus attributes
+    _autofocus_signal = None
+    _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
 
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        self.threadlock = Mutex()
-        
-
+        #self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        self._piezo = self.piezo()
-        
-        self.enabled = False # timetrace not running on activation of the module
-        
-        # initialize the timer, it is then started when start_tracking is called
-        self.timer = QtCore.QTimer()
-        self.timer.setSingleShot(True)  # instead of using intervall. Repetition is then handled via the slot loop (and start_tracking at first)
-        self.timer.timeout.connect(self.loop)
-        
-        
+        # initialize the fpga
+        self._fpga = self.fpga()
+
+        # initialize the camera
+        self._camera = self.camera()
+
     def on_deactivate(self):
         """ Required deactivation.
         """
         pass
         
-    def start_tracking(self):
-        """ slot called from gui signal sigTimetraceOn. 
-        """
-        self.enabled = True      
-        self.timer.start()
-        
-    def stop_tracking(self):
-        """ slot called from gui signal sigTimetraceOff
-        """
-        self.timer.stop()
-        self.enabled = False
-        
-    
-    def loop(self):
-        """ Execute step in the data recording loop, get the current z position
-        """
-        self._position = self._piezo.get_position() # to be replaced with get physical data
-        self.sigUpdateDisplay.emit()
-        if self.enabled:
-            self.timer.start(self.refresh_time)
+    def read_autofocus_signal(self):
 
+        if self._system == 'RAMM':
+            self._autofocus_signal = self.qpd()
 
-        
-    def get_last_position(self):
-        """ called from GUI to get the last registered position
+        return self._autofocus_signal
+
+    def qpd(self, *args):
+        """ Read the QPD signal from the FPGA. When no argument is specified, the signal is read from X/Y positions. In
+        order to make sure we are always reading from the latest piezo position, the method is waiting for a new count.
+        If the argument 'sum' is specified, the SUM signal is read without waiting for the latest iteration.
         """
-        return self._position
-    
-    
-    def set_step(self, step):
-        """ sets the step entered on the GUI by the user
-        """
-        self._piezo.set_step(step)
-        
+        qpd = self._fpga.read_qpd()
 
-        
+        if not args:
+            last_count = qpd[3]
+            while last_count == qpd[3]:
+                qpd = self._fpga.read_qpd()
+                sleep(0.01)
 
-        
-    
-
+            if self._ref_axis == 'X':
+                return qpd[0]
+            elif self._ref_axis == 'Y':
+                return qpd[1]
+        else:
+            if args[0] == "sum":
+                return qpd[2]

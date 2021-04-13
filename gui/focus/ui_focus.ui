@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>631</width>
-    <height>647</height>
+    <height>890</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -36,6 +36,7 @@
     <addaction name="focus_dockwidget_view_Action"/>
     <addaction name="timetrace_dockwidget_view_Action"/>
     <addaction name="Autofocus-dockwidget_view_Action"/>
+    <addaction name="Camera_live_dockwidget_view_Action"/>
    </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
@@ -155,15 +156,17 @@
    </attribute>
    <addaction name="piezo_init_Action"/>
    <addaction name="separator"/>
-   <addaction name="separator"/>
    <addaction name="tracking_Action"/>
+   <addaction name="separator"/>
+   <addaction name="live_Action"/>
+   <addaction name="separator"/>
   </widget>
   <widget class="QDockWidget" name="timetrace_DockWidget">
    <property name="layoutDirection">
     <enum>Qt::LeftToRight</enum>
    </property>
    <attribute name="dockWidgetArea">
-    <number>8</number>
+    <number>4</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -180,7 +183,7 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QDockWidget" name="Autofocus_PID_dockWidget">
+  <widget class="QDockWidget" name="Autofocus_dockWidget">
    <property name="minimumSize">
     <size>
      <width>350</width>
@@ -194,104 +197,166 @@
     <number>2</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_3">
-    <widget class="QWidget" name="gridLayoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>0</y>
-       <width>271</width>
-       <height>351</height>
-      </rect>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_8">
-      <item row="7" column="0" colspan="2">
-       <widget class="PlotWidget" name="image_PlotWidget">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>100</width>
-          <height>100</height>
-         </size>
-        </property>
-        <property name="transformationAnchor">
-         <enum>QGraphicsView::AnchorUnderMouse</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <layout class="QVBoxLayout" name="verticalLayout_5">
-        <item>
-         <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
-        </item>
-        <item>
-         <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
-        </item>
-       </layout>
-      </item>
-      <item row="0" column="1">
-       <layout class="QVBoxLayout" name="verticalLayout_6">
-        <item>
-         <widget class="QLabel" name="p_Label">
-          <property name="minimumSize">
-           <size>
-            <width>100</width>
-            <height>2</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>P gain: </string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="i_Label">
-          <property name="text">
-           <string>I gain: </string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLineEdit" name="slope_lineEdit_5"/>
-      </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QPushButton" name="calibration_pushButton">
-        <property name="text">
-         <string>Calibration</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="2">
-       <layout class="QVBoxLayout" name="verticalLayout_7">
-        <item>
-         <widget class="PlotWidget" name="calibration_PlotWidget"/>
-        </item>
-       </layout>
-      </item>
-      <item row="6" column="1">
-       <widget class="QLabel" name="slope_Label">
-        <property name="text">
-         <string>Slope</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignCenter</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
+    <layout class="QGridLayout" name="gridLayout_2">
+     <item row="0" column="0">
+      <layout class="QGridLayout" name="gridLayout_8">
+       <item row="0" column="1">
+        <layout class="QVBoxLayout" name="verticalLayout_6">
+         <item>
+          <widget class="QLabel" name="p_Label">
+           <property name="minimumSize">
+            <size>
+             <width>100</width>
+             <height>2</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>P gain: </string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="i_Label">
+           <property name="text">
+            <string>I gain: </string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignCenter</set>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="0" column="0">
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QDoubleSpinBox" name="Pgain_doubleSpinBox"/>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="Igain_doubleSpinBox"/>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <layout class="QVBoxLayout" name="verticalLayout_7">
+         <item>
+          <widget class="PlotWidget" name="calibration_PlotWidget"/>
+         </item>
+        </layout>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLineEdit" name="slope_lineEdit"/>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QPushButton" name="calibration_pushButton">
+         <property name="text">
+          <string>Calibration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLabel" name="slope_Label">
+         <property name="text">
+          <string>Slope</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="im_display_dockWidget">
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_4">
+    <layout class="QGridLayout" name="gridLayout_4">
+     <item row="1" column="0">
+      <widget class="PlotWidget" name="raw_image_PlotWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>200</width>
+         <height>200</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>300</width>
+         <height>300</height>
+        </size>
+       </property>
+       <property name="transformationAnchor">
+        <enum>QGraphicsView::AnchorUnderMouse</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="PlotWidget" name="threshold_image_PlotWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>200</width>
+         <height>200</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>300</width>
+         <height>300</height>
+        </size>
+       </property>
+       <property name="transformationAnchor">
+        <enum>QGraphicsView::AnchorUnderMouse</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="live_label">
+       <property name="text">
+        <string>Thorlabs camera raw</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QLabel" name="threshold_label">
+         <property name="text">
+          <string>Threshold</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="threshold_spinBox">
+         <property name="minimum">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <number>254</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </widget>
   </widget>
   <action name="close_MenuAction">
@@ -348,7 +413,29 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Autofocus-dockwidget_view_Action</string>
+    <string>Autofocus</string>
+   </property>
+  </action>
+  <action name="live_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start live</string>
+   </property>
+   <property name="toolTip">
+    <string>start thorlabs camera live</string>
+   </property>
+  </action>
+  <action name="Camera_live_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Camera live thresholding</string>
    </property>
   </action>
  </widget>
@@ -428,7 +515,7 @@
   <connection>
    <sender>Autofocus-dockwidget_view_Action</sender>
    <signal>triggered(bool)</signal>
-   <receiver>Autofocus_PID_dockWidget</receiver>
+   <receiver>Autofocus_dockWidget</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -442,7 +529,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>Autofocus_PID_dockWidget</sender>
+   <sender>Autofocus_dockWidget</sender>
    <signal>visibilityChanged(bool)</signal>
    <receiver>Autofocus-dockwidget_view_Action</receiver>
    <slot>setChecked(bool)</slot>
@@ -450,6 +537,38 @@
     <hint type="sourcelabel">
      <x>460</x>
      <y>246</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>Camera_live_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>im_display_dockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>315</x>
+     <y>733</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>im_display_dockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>Camera_live_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>315</x>
+     <y>733</y>
     </hint>
     <hint type="destinationlabel">
      <x>-1</x>

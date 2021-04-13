@@ -6,13 +6,14 @@ This module contains a class to control the focus of the microscope objective ca
 """
 from core.connector import Connector
 from core.configoption import ConfigOption
-from core.util.mutex import Mutex
+# from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 from time import sleep
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 
 
 class WorkerSignals(QtCore.QObject):
@@ -21,12 +22,12 @@ class WorkerSignals(QtCore.QObject):
     sigFinished = QtCore.Signal()
 
 
-class AutofocusWorker(QtCore.QRunnable):
+class QPDAutofocusWorker(QtCore.QRunnable):
     """ Worker thread to monitor the QPD signal and adjust the piezo position when autofocus in ON
     The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
 
     def __init__(self, dt, *args, **kwargs):
-        super(AutofocusWorker, self).__init__()
+        super(QPDAutofocusWorker, self).__init__()
         self.signals = WorkerSignals()
         self.frequency = dt
 
@@ -37,24 +38,29 @@ class AutofocusWorker(QtCore.QRunnable):
         self.signals.sigFinished.emit()
 
 
-class AutofocusRAMM(object):
+class CameraAutofocusWorker(QtCore.QRunnable):
+    """ Worker thread to monitor the camera IR signal and adjust the piezo position when autofocus in ON
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(CameraAutofocusWorker, self).__init__()
+        self.signals = WorkerSignals()
 
-    def qpd_reset(self, fpga):
-        fpga.reset_qpd_counter()
-
-class AutofocusPALM(object):
-    pass
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(0.1)  # 1 second as time constant
+        self.signals.sigFinished.emit()
 
 
 class FocusLogic(GenericLogic):
     """
     """
     # declare connectors
-    piezo = Connector(interface='MotorInterface')  # to check if the motor interface can be reused here or if we should better define a PiezoInterface
+    piezo = Connector(
+        interface='MotorInterface')  # to check if the motor interface can be reused here or if we should better define a PiezoInterface
     stage = Connector(interface='MotorInterface')
+    # autofocus = Connector(interface='AutofocusLogic')
     camera = Connector(interface='CameraInterface')
     fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
 
@@ -68,6 +74,7 @@ class FocusLogic(GenericLogic):
     sigUpdateDisplay = QtCore.Signal()
     sigPIDChanged = QtCore.Signal(float, float)
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
+    sigDisplayImage = QtCore.Signal(object, object)
 
     # piezo attributes
     _step = 0.01
@@ -75,6 +82,13 @@ class FocusLogic(GenericLogic):
     _max_step = 0
     _axis = None
     timetrace_enabled = False
+
+    # camera attributes
+    _live_display = False
+    _cam_status = False
+    _threshold = 150
+    _im = None
+    _im_threshold = None
 
     # autofocus attributes
     _calibration_range = 2  # Autofocus calibration range in µm
@@ -104,11 +118,6 @@ class FocusLogic(GenericLogic):
         """ Initialisation performed during activation of the module.
         """
 
-        if self._system == 'RAMM':
-            self.autofocus = AutofocusRAMM()
-        elif self._system == 'PALM':
-            self.autofocus = AutofocusPALM()
-
         # initialize the piezo
         self._piezo = self.piezo()
         self._axis = self._piezo._axis_label
@@ -117,18 +126,23 @@ class FocusLogic(GenericLogic):
         self._max_z = self._piezo.get_constraints()[self._axis]['pos_max']
         self.go_to_position(self._init_position)
 
+        # # initialize the autofocus class
+        # self._autofocus = self.autofocus()
+
         # initialize the fpga
         self._fpga = self.fpga()
 
         # initialize the camera
         self._camera = self.camera()
+        self._im_size = self._camera.get_size()
 
         # initialize the ms2000 stage
         self._stage = self.stage()
 
         # initialize the timer, it is then started when start_tracking is called
         self.timer = QtCore.QTimer()
-        self.timer.setSingleShot(True)  # instead of using intervall. Repetition is then handled via the slot loop (and start_tracking at first)
+        self.timer.setSingleShot(
+            True)  # instead of using intervall. Repetition is then handled via the slot loop (and start_tracking at first)
         self.timer.timeout.connect(self.loop)
 
     def on_deactivate(self):
@@ -230,7 +244,8 @@ class FocusLogic(GenericLogic):
         if self.timetrace_enabled:
             self.timer.start(self.refresh_time)
 
-    # methods for autofocus
+    # methods for autofocus (common to all methods)
+    # ---------------------------------------------
 
     def set_pid(self, p_gain, i_gain):
         self._P_gain = p_gain
@@ -243,6 +258,9 @@ class FocusLogic(GenericLogic):
     def update_pid(self, p_gain, i_gain):
         self._P_gain = p_gain
         self._I_gain = i_gain
+
+    # autofocus methods based on FPGA and QPD detection
+    # -------------------------------------------------
 
     def qpd(self, *args):
         """ Read the QPD signal from the FPGA. When no argument is specified, the signal is read from X/Y positions. In
@@ -275,8 +293,7 @@ class FocusLogic(GenericLogic):
     def qpd_reset(self):
         """ Reset the QPD counter
         """
-        # self._fpga.reset_qpd_counter()
-        self.autofocus.qpd_reset(self._fpga)
+        self._fpga.reset_qpd_counter()
 
     def define_autofocus_setpoint(self):
         """ Define the setpoint for the autofocus
@@ -309,7 +326,7 @@ class FocusLogic(GenericLogic):
             self._dt = self.worker_frequency()
             self._z0 = self.get_position()
 
-            worker = AutofocusWorker(self._dt)
+            worker = QPDAutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
@@ -324,7 +341,7 @@ class FocusLogic(GenericLogic):
         self.check_autofocus()
         if self._run_autofocus and not self._autofocus_lost:
 
-            worker = AutofocusWorker(self._dt)
+            worker = QPDAutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
@@ -360,11 +377,6 @@ class FocusLogic(GenericLogic):
             if qpd_sum > 300:
                 break
 
-    def pid_gains(self, p_gain, i_gain):
-        self._P_gain = p_gain
-        self._I_gain = i_gain
-        self._fpga.update_pid_gains(p_gain, i_gain)
-
     def calibrate_autofocus(self):
         """ Calibrate the autofocus.
         """
@@ -390,11 +402,60 @@ class FocusLogic(GenericLogic):
         self._slope = p(1) - p(0)
         self._calibrated = True
 
-        # fig, ax = plt.subplots()
-        # ax.plot(piezo_position, qpd_signal, 'bo')
-        # ax.plot(piezo_position, p(piezo_position), 'r-')
-        # ax.set(xlabel='z (um)', ylabel='QPD signal (V)')
-        # plt.show()
-
         self.sigPlotCalibration.emit(piezo_position, qpd_signal, p(piezo_position), self._slope)
 
+    # autofocus methods based on camera detection
+    # -------------------------------------------
+
+    def update_threshold(self, threshold):
+        self._threshold = threshold
+
+    def start_live_display(self):
+
+        self._live_display = True
+        self._cam_status = self._camera.start_live_acquisition()
+
+        if self._cam_status:
+            worker = CameraAutofocusWorker()
+            worker.signals.sigFinished.connect(self.live_display)
+            self.threadpool.start(worker)
+        else:
+            self.log.warning('enable to start the live acquisition')
+
+    def live_display(self):
+
+        if self._live_display and self._cam_status:
+            self._im = self._camera.get_acquired_data()
+            self._im_threshold = np.copy(self._im)
+            self._im_threshold[self._im_threshold > self._threshold] = 254
+            self._im_threshold[self._im_threshold <= self._threshold] = 0
+
+            X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
+            Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
+
+            im_X = np.sum(self._im, 0)
+            im_Y = np.sum(self._im, 1)
+            x0 = sum(X*im_X)/sum(im_X)
+            y0 = sum(Y * im_Y) / sum(im_Y)
+
+            im_X = np.sum(self._im_threshold/255, 0)
+            im_Y = np.sum(self._im_threshold/255, 1)
+            xx0 = sum(X*im_X)/sum(im_X)
+            yy0 = sum(Y * im_Y) / sum(im_Y)
+            print(x0, y0, xx0, yy0)
+
+            self.sigDisplayImage.emit(self._im, self._im_threshold)
+
+            worker = CameraAutofocusWorker()
+            worker.signals.sigFinished.connect(self.live_display)
+            self.threadpool.start(worker)
+
+    def stop_live_display(self):
+        self._live_display = False
+        self._camera.stop_acquisition()
+
+    ## TEST
+
+    def test(self):
+        a = self._autofocus.read_autofocus_signal()
+        print(a)

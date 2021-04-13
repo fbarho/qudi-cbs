@@ -50,6 +50,9 @@ class FocusGUI(GUIBase):
     sigReadPID = QtCore.Signal()
     sigUpdatePIDgain = QtCore.Signal(float, float)
     sigLaunchCalibration = QtCore.Signal()
+    sigLiveOn = QtCore.Signal()
+    sigLiveOff = QtCore.Signal()
+    sigUpdateThreshold = QtCore.Signal(int)
 
     _mw = None
 
@@ -73,6 +76,8 @@ class FocusGUI(GUIBase):
 
         # to modify: data for initialization
         self.y_data = np.zeros(100)
+        self._image = None
+        self._binary = None
 
         # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
         self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data)
@@ -93,6 +98,8 @@ class FocusGUI(GUIBase):
         self._mw.Pgain_doubleSpinBox.valueChanged.connect(self.pid_changed)
         self._mw.Igain_doubleSpinBox.valueChanged.connect(self.pid_changed)
         self._mw.calibration_pushButton.clicked.connect(self.calibrate_autofocus)
+        self._mw.threshold_spinBox.valueChanged.connect(self.threshold_changed)
+        self._mw.live_Action.triggered.connect(self.start_live)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
@@ -104,6 +111,9 @@ class FocusGUI(GUIBase):
         self.sigReadPID.connect(self._focus_logic.read_pid)
         self.sigUpdatePIDgain.connect(self._focus_logic.update_pid)
         self.sigLaunchCalibration.connect(self._focus_logic.calibrate_autofocus)
+        self.sigLiveOn.connect(self._focus_logic.start_live_display)
+        self.sigLiveOff.connect(self._focus_logic.stop_live_display)
+        self.sigUpdateThreshold.connect(self._focus_logic.update_threshold)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -116,6 +126,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
         self._focus_logic.sigPIDChanged.connect(self.update_pid)
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
+        self._focus_logic.sigDisplayImage.connect(self.live_display)
 
         # update pid values
         self.sigReadPID.emit()
@@ -197,12 +208,17 @@ class FocusGUI(GUIBase):
         i_gain = self._mw.Igain_doubleSpinBox.value()
         self.sigUpdatePIDgain.emit(p_gain, i_gain)
 
+    def threshold_changed(self):
+        threshold = self._mw.threshold_spinBox.value()
+        self.sigUpdateThreshold.emit(threshold)
+
     def update_pid(self, p_gain, i_gain):
         self._mw.Pgain_doubleSpinBox.setValue(p_gain)
         self._mw.Igain_doubleSpinBox.setValue(i_gain)
 
     def calibrate_autofocus(self):
-        self.sigLaunchCalibration.emit()
+        if not self._mw.calibration_pushButton.isChecked():
+            self.sigLaunchCalibration.emit()
 
     def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
         self._mw.calibration_PlotWidget.clear()
@@ -212,4 +228,21 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('left', 'QPD signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
 
+    def start_live(self):
+        if self._focus_logic._live_display:
+            self._mw.live_Action.setText('Start Live')
+            self.sigLiveOff.emit()
+        else:
+            self._mw.live_Action.setText('Stop Live')
+            self.sigLiveOn.emit()
+
+    def live_display(self, im, im_thresh):
+        self._image = pg.ImageItem(image=im, axisOrder='row-major')
+        self._mw.raw_image_PlotWidget.addItem(self._image)
+        self._mw.raw_image_PlotWidget.setAspectLocked(True)
+
+        self._binary = pg.ImageItem(image=im_thresh, axisOrder='row-major')
+        self._mw.threshold_image_PlotWidget.addItem(self._binary)
+        self._mw.threshold_image_PlotWidget.setAspectLocked(True)
+        #self._mw.raw_image_PlotWidget.plot([500], [500], symbol='o')
 
