@@ -82,7 +82,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ """
         self.log.info('cleanupTask called')
         # reset stage velocity to default
-        self.ref['roi'].set_stage_velocity({'x': 7, 'y': 7})  # 5.74592
+        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
         # for safety, make sure all lasers are off
         for item in self.imaging_sequence:
@@ -93,8 +93,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def load_user_parameters(self):
         # define user parameters  # to be read from config later
         self.illumination_time = 1  # in s
-        imaging_sequence = [('561 nm', 5), ('561 nm', 3)]
-        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
+        imaging_sequence = [('488 nm', 20), ('561 nm', 10), ('640 nm', 10)]
+        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist1.json'
 
         # try:
         #     with open(self.user_config_path, 'r') as stream:

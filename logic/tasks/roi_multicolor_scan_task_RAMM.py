@@ -159,14 +159,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def load_user_parameters(self):
         # define user parameters  # to be read from config later
         self.exposure = 0.1
-        self.num_z_planes = 10
-        self.z_step = 0.25  # in um
+        self.num_z_planes = 50
+        self.z_step = 0.2  # in um
         self.centered_focal_plane = True
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
-        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
+        self.imaging_sequence = [('488 nm', 20), ('561 nm', 10), ('640 nm', 10)]
         self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\2021_03_31'  # to be defined how the default folder structure should be set up
-        self.file_format = 'tiff'
-        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
+        self.file_format = 'fits'
+        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist1.json'
 
         # try:
         #     with open(self.user_config_path, 'r') as stream:
@@ -210,7 +210,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
-        current_pos = 20  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        current_pos = self.ref['piezo'].get_position()  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        print(f'current position: {current_pos}')
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
