@@ -413,39 +413,36 @@ class FocusLogic(GenericLogic):
     def start_live_display(self):
 
         self._live_display = True
-        self._cam_status = self._camera.start_live_acquisition()
+        self._camera.start_live_acquisition()
 
-        if self._cam_status:
-            worker = CameraAutofocusWorker()
-            worker.signals.sigFinished.connect(self.live_display)
-            self.threadpool.start(worker)
-        else:
-            self.log.warning('enable to start the live acquisition')
+        worker = CameraAutofocusWorker()
+        worker.signals.sigFinished.connect(self.live_display)
+        self.threadpool.start(worker)
 
     def live_display(self):
 
+        self._im = self._camera.get_acquired_data()
+        self._im_threshold = np.copy(self._im)
+        self._im_threshold[self._im_threshold > self._threshold] = 254
+        self._im_threshold[self._im_threshold <= self._threshold] = 0
+
+        X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
+        Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
+
+        im_X = np.sum(self._im, 0)
+        im_Y = np.sum(self._im, 1)
+        x0 = sum(X * im_X) / sum(im_X)
+        y0 = sum(Y * im_Y) / sum(im_Y)
+
+        im_X = np.sum(self._im_threshold / 255, 0)
+        im_Y = np.sum(self._im_threshold / 255, 1)
+        xx0 = sum(X * im_X) / sum(im_X)
+        yy0 = sum(Y * im_Y) / sum(im_Y)
+        print(x0, y0, xx0, yy0)
+
+        self.sigDisplayImage.emit(self._im, self._im_threshold)
+
         if self._live_display and self._cam_status:
-            self._im = self._camera.get_acquired_data()
-            self._im_threshold = np.copy(self._im)
-            self._im_threshold[self._im_threshold > self._threshold] = 254
-            self._im_threshold[self._im_threshold <= self._threshold] = 0
-
-            X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
-            Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
-
-            im_X = np.sum(self._im, 0)
-            im_Y = np.sum(self._im, 1)
-            x0 = sum(X*im_X)/sum(im_X)
-            y0 = sum(Y * im_Y) / sum(im_Y)
-
-            im_X = np.sum(self._im_threshold/255, 0)
-            im_Y = np.sum(self._im_threshold/255, 1)
-            xx0 = sum(X*im_X)/sum(im_X)
-            yy0 = sum(Y * im_Y) / sum(im_Y)
-            print(x0, y0, xx0, yy0)
-
-            self.sigDisplayImage.emit(self._im, self._im_threshold)
-
             worker = CameraAutofocusWorker()
             worker.signals.sigFinished.connect(self.live_display)
             self.threadpool.start(worker)
