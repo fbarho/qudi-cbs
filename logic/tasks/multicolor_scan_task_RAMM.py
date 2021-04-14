@@ -18,7 +18,7 @@ Config example pour copy-paste:
             daq: 'nidaq_6259_logic'
             piezo: 'focus_logic'
         config:
-            path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_config_files\\multicolor_scan_task_RAMM.yaml'
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/multicolor_scan_task_RAMM.yaml'
 """
 
 import numpy as np
