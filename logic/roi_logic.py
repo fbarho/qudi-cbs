@@ -587,15 +587,17 @@ class RoiLogic(GenericLogic):
         if not isinstance(name, str):
             self.log.error('ROI name to move to must be of type str.')
             return None
-        x, y, z = self.get_roi_position(name)
-        # self._move_stage(self.get_roi_position(name))
+        x_roi, y_roi, z_roi = self.get_roi_position(name)
+        x_stage, y_stage, z_stage = self.stage_position
+        target_pos = np.array((x_roi, y_roi, z_stage))  # conversion from tuple to np.ndarray for call of _move_stage
+        self._move_stage(target_pos)
         return None
 
     def _move_stage(self, position):
         """ 
         Move the translation stage to position.
         
-        @param float position: tuple (x, y, z)
+        @param float position: np.ndarray[3]
         """
         # this functions accepts a tuple (x, y, z) as argument because it will be called with the roi position as argument. 
         # Hence, the input argument has to be converted into a dictionary of format {'x': x, 'y': y} to be passed to the translation stage function.
