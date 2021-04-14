@@ -50,9 +50,11 @@ class Task(InterruptableTask):
         self.step_counter = 0
 
         self.ref['valves'].set_valve_position('b', 2)
-        self.ref['valves'].wait_for_idle()
+        # self.ref['valves'].wait_for_idle()
+        sleep(2)
         self.ref['valves'].set_valve_position('c', 2)
-        self.ref['valves'].wait_for_idle()
+        # self.ref['valves'].wait_for_idle()
+        sleep(2)
 
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
@@ -63,7 +65,8 @@ class Task(InterruptableTask):
             product = self.hybridization_list[self.step_counter]['product']
             valve_pos = self.buffer_dict[product]
             self.ref['valves'].set_valve_position('a', valve_pos)
-            self.ref['valves'].wait_for_idle()
+            sleep(2)
+            # self.ref['valves'].wait_for_idle()
 
             # as an initial value, set the pressure to 0 mbar
             self.ref['flow'].set_pressure(0.0)
@@ -108,17 +111,20 @@ class Task(InterruptableTask):
         """ Cleanup """
         self.ref['flow'].set_pressure(0.0)
         self.ref['valves'].set_valve_position('b', 1)
-        self.ref['valves'].wait_for_idle()
+        # self.ref['valves'].wait_for_idle()
+        sleep(2)
         self.ref['valves'].set_valve_position('a', 1)
-        self.ref['valves'].wait_for_idle()
+        # self.ref['valves'].wait_for_idle()
+        sleep(2)
         self.ref['valves'].set_valve_position('c', 1)
-        self.ref['valves'].wait_for_idle()
+        sleep(2)
+        # self.ref['valves'].wait_for_idle()
 
         self.log.info('Cleanup task called')
 
     def _load_injection_parameters(self):
         """ """
-        buffer_dict = {1: 'Buffer1', 2: 'Buffer2', 3: 'Buffer3', 4: 'Buffer4', 7: 'Probe'}  # later version: read this from file
+        buffer_dict = {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}  # later version: read this from file
         # invert the buffer dict to address the valve by the product name as key
         self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
         print(self.buffer_dict)
@@ -129,21 +135,21 @@ class Task(InterruptableTask):
         self.hybridization_list = [
             {'step_number': 1,
              'procedure': 'Hybridization',
-             'product': 'Buffer4',
-             'volume': 100,
-             'flowrate': 250,
+             'product': 'Buffer3',
+             'volume': 500,
+             'flowrate': 150,
              'time': None},
             {'step_number': 2,
              'procedure': 'Hybridization',
              'product': None,
              'volume': None,
              'flowrate': None,
-             'time': 20},
+             'time': 10},
             {'step_number': 3,
              'procedure': 'Hybridization',
-             'product': 'Buffer1',
-             'volume': 120,
-             'flowrate': 500,
+             'product': 'Buffer8',
+             'volume': 500,
+             'flowrate': 250,
              'time': None}
         ]
 
