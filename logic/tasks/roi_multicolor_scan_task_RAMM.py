@@ -18,7 +18,9 @@ Config example pour copy-paste:
             daq: 'nidaq_6259_logic'
             piezo: 'focus_logic'
             roi: 'roi_logic'
-        path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_configs\\roi_multicolor_scan_task_RAMM'
+        config:
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/ROI_multicolor_scan_task_RAMM.yaml'
+
 """
 
 import numpy as np
@@ -36,7 +38,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
-        # self.user_config_path = self.config['path_to_user_config']
+        self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
@@ -71,8 +73,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         # go to roi
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
-        self.ref['roi'].go_to_roi()
-        self.log.info('Moved to {}'.format(self.roi_names[self.roi_counter]))
+        self.ref['roi'].go_to_roi_xy()
+        self.log.info('Moved to {} xy position'.format(self.roi_names[self.roi_counter]))
         # waiting time needed ???
         sleep(1)  # replace maybe by wait for idle
 
@@ -146,6 +148,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+
+        # reset piezo position to the initial one
+        self.ref['piezo'].go_to_position(self.focal_plane_position)
+
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
         # close the fpga session
@@ -153,38 +159,28 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['fpga'].restart_default_session()
         self.log.info('restarted default session')
         # reset stage velocity to default
-        self.ref['roi'].set_stage_velocity({'x': 7, 'y': 7})  # 5.74592
+        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
         self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
-        # define user parameters  # to be read from config later
-        self.exposure = 0.1
-        self.num_z_planes = 10
-        self.z_step = 0.25  # in um
-        self.centered_focal_plane = True
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)
-        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
-        self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\2021_03_31'  # to be defined how the default folder structure should be set up
-        self.file_format = 'tiff'
-        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.safe_load(stream)
 
-        # try:
-        #     with open(self.user_config_path, 'r') as stream:
-        #         self.user_param_dict = yaml.safe_load(stream)
-        #
-        #         self.exposure = self.user_param_dict['exposure']
-        #         self.num_z_planes = self.user_param_dict['num_z_planes']
-        #         self.z_step = self.user_param_dict['z_step']  # in um
-        #         self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
-        #         self.imaging_sequence = self.user_param_dict['imaging_sequence']
-        #         self.save_path = self.user_param_dict['save_path']
-        #         self.file_format = self.user_param_dict['file_format']
-        #         self.roi_list_path = self.user_param_dict['roi_list_path']
-        #
-        # except Exception as e:  # add the type of exception
-        #     self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+                self.exposure = self.user_param_dict['exposure']
+                self.num_z_planes = self.user_param_dict['num_z_planes']
+                self.z_step = self.user_param_dict['z_step']  # in um
+                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+                self.imaging_sequence = self.user_param_dict['imaging_sequence']
+                self.save_path = self.user_param_dict['save_path']
+                self.file_format = self.user_param_dict['file_format']
+                self.roi_list_path = self.user_param_dict['roi_list_path']
+
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones:
+        self.start_position = self.calculate_start_position(self.centered_focal_plane)
         # create a list of roi names
         self.ref['roi'].load_roi_list(self.roi_list_path)
         # get the list of the roi names
@@ -203,14 +199,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         for i in range(self.num_laserlines, 5):
             self.intensities.append(0)
 
-
-
-
     def calculate_start_position(self, centered_focal_plane):
         """
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
-        current_pos = 20  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        current_pos = self.ref['piezo'].get_position()  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        print(f'current position: {current_pos}')
+        self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:

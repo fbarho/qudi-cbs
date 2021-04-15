@@ -22,7 +22,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 from pyqtgraph import PlotWidget, ImageItem, ViewBox, InfiniteLine, ROI
 from qtpy import QtCore
-from core.util.filters import scan_blink_correction
+# from core.util.filters import scan_blink_correction  # in comments 14/4/21 FB because of conflict with scipy package
 
 __all__ = ['ScanImageItem', 'ScanPlotWidget', 'ScanViewBox']
 
@@ -84,7 +84,7 @@ class ScanImageItem(ImageItem):
         """
         if self.use_blink_correction:
             self.orig_image = image
-            image = scan_blink_correction(image=image, axis=self.blink_correction_axis)
+            # image = scan_blink_correction(image=image, axis=self.blink_correction_axis)  # in comments 14/4/21 FB because of conflict with scipy package
         return super().setImage(image=image, autoLevels=autoLevels, **kwargs)
 
     def mouseClickEvent(self, ev):

@@ -236,7 +236,7 @@ class FlowcontrolLogic(GenericLogic):
             diff = target_flowrate - flowrate
             print('relative error: {:.2f}'.format(abs(diff)/max(flowrate, target_flowrate)))
             pressure = self.get_pressure(pressure_channel)
-            const = 0.1  # which proportionality constant do we need ?
+            const = 0.005  # which proportionality constant do we need ?
             new_pressure = max(min(15.0, pressure + const * diff), 0.0)
             print(f'new_pressure {new_pressure}')
             self.set_pressure(new_pressure, pressure_channel)

@@ -208,5 +208,8 @@ class HamiltonValve(Base, ValveInterface):
         @returns str output: read from the valve buffer
         """
         self._serial_connection.read()
-        output = self._serial_connection.read().decode('utf-8')
+        output = self._serial_connection.read()
+        output = output.decode('utf-8')
+        # output = self._serial_connection.read().decode('utf-8')
+        print(output)
         return output

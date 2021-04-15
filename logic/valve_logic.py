@@ -66,6 +66,7 @@ class ValveLogic(GenericLogic):
         :return None
         """
         self._valves.set_valve_position(valve_id, position)
+        print(f'valve id: {valve_id}, position {position}')
         self.sigPositionChanged.emit(valve_id, position)  # signal to update gui when position manually changed
 
     def get_valve_dict(self):

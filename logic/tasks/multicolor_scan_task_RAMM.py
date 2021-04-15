@@ -17,7 +17,8 @@ Config example pour copy-paste:
             cam: 'camera_logic'
             daq: 'nidaq_6259_logic'
             piezo: 'focus_logic'
-        path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_configs\\multicolor_scan_task_RAMM'
+        config:
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/multicolor_scan_task_RAMM.yaml'
 """
 
 import numpy as np
@@ -33,7 +34,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
-        # self.user_config_path = self.config['path_to_user_config']
+        self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
@@ -108,6 +109,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+
+        # reset piezo position to the initial one
+        self.ref['piezo'].go_to_position(self.focal_plane_position)
+
         # get acquired data from the camera and save it to file in case the task has not been aborted during acquisition
         if self.step_counter == self.num_z_planes:
             image_data = self.ref['cam'].get_acquired_data()
@@ -129,30 +134,20 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
-        # to be read from config later
-        self.exposure = 0.1
-        self.num_z_planes = 10
-        self.z_step = 0.25  # in um
-        self.centered_focal_plane = True
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)
-        self.imaging_sequence = [('561 nm', 5), ('640 nm', 50)]
-        self.save_path = 'C:\\Users\\sCMOS-1\\Desktop\\teststack.tiff'  # to be defined how the default folder structure should be set up
-        self.file_format = 'tiff'
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.safe_load(stream)
 
-        # try:
-        #     with open(self.user_config_path, 'r') as stream:
-        #         self.user_param_dict = yaml.safe_load(stream)
-        #
-        #         self.exposure = self.user_param_dict['exposure']
-        #         self.num_z_planes = self.user_param_dict['num_z_planes']
-        #         self.z_step = self.user_param_dict['z_step']  # in um
-        #         self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
-        #         self.imaging_sequence = self.user_param_dict['imaging_sequence']
-        #         self.save_path = self.user_param_dict['save_path']
-        #         self.file_format = self.user_param_dict['file_format']
-        #
-        # except Exception as e:  # add the type of exception
-        #     self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+                self.exposure = self.user_param_dict['exposure']
+                self.num_z_planes = self.user_param_dict['num_z_planes']
+                self.z_step = self.user_param_dict['z_step']  # in um
+                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+                self.imaging_sequence = self.user_param_dict['imaging_sequence']
+                self.save_path = self.user_param_dict['save_path']
+                self.file_format = self.user_param_dict['file_format']
+
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
@@ -175,6 +170,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
         current_pos = self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:

@@ -15,12 +15,14 @@ Config example pour copy-paste:
         needsmodules:
             fpga: 'lasercontrol_logic'
             roi: 'roi_logic'
-        path_to_user_config: 'C:\\Users\\sCMOS-1\\qudi_task_configs\\photobleaching_task_RAMM'
+        config:
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/photobleaching_task_RAMM.yaml'
 """
 
 
 import numpy as np
 import os
+import yaml
 from time import sleep, time
 from logic.generic_task import InterruptableTask
 
@@ -32,7 +34,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
-        # self.user_config_path = self.config['path_to_user_config']
+        self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
@@ -82,7 +84,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ """
         self.log.info('cleanupTask called')
         # reset stage velocity to default
-        self.ref['roi'].set_stage_velocity({'x': 7, 'y': 7})  # 5.74592
+        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
         # for safety, make sure all lasers are off
         for item in self.imaging_sequence:
@@ -92,20 +94,20 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def load_user_parameters(self):
         # define user parameters  # to be read from config later
-        self.illumination_time = 1  # in s
-        imaging_sequence = [('561 nm', 5), ('561 nm', 3)]
-        self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist.json'
+        # self.illumination_time = 1  # in s
+        # imaging_sequence = [('488 nm', 20), ('561 nm', 10), ('640 nm', 10)]
+        # self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist1.json'
 
-        # try:
-        #     with open(self.user_config_path, 'r') as stream:
-        #         self.user_param_dict = yaml.safe_load(stream)
-        #
-        #         self.illumination_time = self.user_param_dict['illumination_time']
-        #         imaging_sequence = self.user_param_dict['imaging_sequence']
-        #         self.roi_list_path = self.user_param_dict['roi_list_path']
-        #
-        # except Exception as e:  # add the type of exception
-        #     self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.safe_load(stream)
+
+                self.illumination_time = self.user_param_dict['illumination_time']
+                imaging_sequence = self.user_param_dict['imaging_sequence']
+                self.roi_list_path = self.user_param_dict['roi_list_path']
+
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones:
         # create a list of roi names
