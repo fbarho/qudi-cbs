@@ -38,11 +38,7 @@ class AutofocusLogic(GenericLogic):
     """
 
     # declare connectors
-    camera = Connector(interface='CameraInterface')
     fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
-
-    # declare the system used for the experiment
-    _system = ConfigOption('System', missing='error')
 
     # autofocus attributes
     _autofocus_signal = None
@@ -60,20 +56,33 @@ class AutofocusLogic(GenericLogic):
         # initialize the fpga
         self._fpga = self.fpga()
 
-        # initialize the camera
-        self._camera = self.camera()
-
     def on_deactivate(self):
         """ Required deactivation.
         """
         pass
         
     def read_autofocus_signal(self):
+        """ General function returning the reference signal for the autofocus correction. In the case of the
+        method using a FPGA, it returns the QPD signal measured along the reference axis.
+        """
+        return self.qpd()
 
-        if self._system == 'RAMM':
-            self._autofocus_signal = self.qpd()
+    def set_point(self):
+        """ Define the autofocus reference set_point
+        """
+        return self.qpd()
 
-        return self._autofocus_signal
+    def autofocus_check_signal(self):
+        """ Check that the intensity detected by the QPD is above a specific threshold (50). If the signal is too low,
+        the function returns a TRUE signal indicating that the autofocus has been lost.
+        """
+        self.qpd_reset()
+        qpd_sum = self.qpd('sum')
+        if qpd_sum < 50:
+            self.log.warning('autofocus lost')
+            return True
+        else:
+            return False
 
     def qpd(self, *args):
         """ Read the QPD signal from the FPGA. When no argument is specified, the signal is read from X/Y positions. In
@@ -95,3 +104,16 @@ class AutofocusLogic(GenericLogic):
         else:
             if args[0] == "sum":
                 return qpd[2]
+
+    def worker_frequency(self):
+        """ Update the worker frequency according to the iteration time of the fpga
+        """
+        qpd = self._fpga.read_qpd()
+        iteration_duration = qpd[4] / 1000 + 0.01
+        return iteration_duration
+
+    def qpd_reset(self):
+        """ Reset the QPD counter
+        """
+        self._fpga.reset_qpd_counter()
+
