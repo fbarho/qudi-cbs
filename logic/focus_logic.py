@@ -12,6 +12,7 @@ from qtpy import QtCore
 from time import sleep
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
+from simple_pid import PID
 
 # import matplotlib.pyplot as plt
 
@@ -49,7 +50,7 @@ class CameraAutofocusWorker(QtCore.QRunnable):
     @QtCore.Slot()
     def run(self):
         """ """
-        sleep(0.1)  # 1 second as time constant
+        sleep(0.2)  # 1 second as time constant
         self.signals.sigFinished.emit()
 
 
@@ -62,6 +63,9 @@ class FocusLogic(GenericLogic):
     stage = Connector(interface='MotorInterface')
     autofocus = Connector(interface='AutofocusLogic')
 
+    # define the setup we are working on
+    _setup = ConfigOption('Setup', missing='error')
+
     # signals
     sigStepChanged = QtCore.Signal(float)
     sigPositionChanged = QtCore.Signal(float)
@@ -69,7 +73,7 @@ class FocusLogic(GenericLogic):
     sigUpdateDisplay = QtCore.Signal()
     sigPIDChanged = QtCore.Signal(float, float)
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
-    sigDisplayImage = QtCore.Signal(object, object)
+    sigDisplayImage = QtCore.Signal(object, object, float, float)
 
     # piezo attributes
     _step = 0.01
@@ -80,10 +84,6 @@ class FocusLogic(GenericLogic):
 
     # camera attributes
     _live_display = False
-    _cam_status = False
-    _threshold = 150
-    _im = None
-    _im_threshold = None
 
     # autofocus attributes
     _calibration_range = 2  # Autofocus calibration range in µm
@@ -256,7 +256,7 @@ class FocusLogic(GenericLogic):
     def define_autofocus_setpoint(self):
         """ Define the setpoint for the autofocus
         """
-        self._setpoint = self._autofocus.set_point()
+        self._setpoint = self._autofocus.read_autofocus_signal()
         self._setpoint_defined = True
 
     def check_autofocus(self):
@@ -274,32 +274,40 @@ class FocusLogic(GenericLogic):
     def calibrate_autofocus(self):
         """ Calibrate the autofocus.
         """
-        self.check_autofocus()
-        if not self._autofocus_lost:
+        if self._setup == 'PALM' and not self._live_display:
+            self._autofocus.start_camera_live()
 
-            z0 = self.get_position()
-            dz = self._calibration_range // 2
-            Z = np.arange(z0 - dz, z0 + dz, 0.1)
-            n_positions = len(Z)
-            piezo_position = np.zeros((n_positions,))
-            autofocus_signal = np.zeros((n_positions,))
+        z0 = self.get_position()
+        dz = self._calibration_range // 2
+        Z = np.arange(z0 - dz, z0 + dz, 0.1)
+        n_positions = len(Z)
+        piezo_position = np.zeros((n_positions,))
+        autofocus_signal = np.zeros((n_positions,))
 
-            for n in range(n_positions):
-                z = Z[n]
-                self.go_to_position(z)
-                # Timer necessary to make sure the piezo has reached the position and is stable
-                sleep(0.03)
-                piezo_position[n] = self.get_position()
-                # Read the latest QPD signal
-                autofocus_signal[n] = self.read_autofocus_signal()
+        # Position the piezo (the first position is taking longer to stabilize)
+        self.go_to_position(Z[0])
+        sleep(0.5)
 
-            # Calculate the slope of the calibration curve
-            p = Poly.fit(piezo_position, autofocus_signal, deg=1)
-            self._slope = p(1) - p(0)
-            self._calibrated = True
+        # Start the calibration
+        for n in range(n_positions):
+            z = Z[n]
+            self.go_to_position(z)
+            # Timer necessary to make sure the piezo has reached the position and is stable
+            sleep(0.05)
+            piezo_position[n] = self.get_position()
+            # Read the latest QPD signal
+            autofocus_signal[n] = self.read_autofocus_signal()
 
-            self.go_to_position(z0)
-            self.sigPlotCalibration.emit(piezo_position, autofocus_signal, p(piezo_position), self._slope)
+        # Calculate the slope of the calibration curve
+        p = Poly.fit(piezo_position, autofocus_signal, deg=1)
+        self._slope = p(1) - p(0)
+        self._calibrated = True
+
+        self.go_to_position(z0)
+        self.sigPlotCalibration.emit(piezo_position, autofocus_signal, p(piezo_position), self._slope)
+
+        if self._setup == 'PALM' and not self._live_display:
+            self._autofocus.stop_camera()
 
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
@@ -309,9 +317,16 @@ class FocusLogic(GenericLogic):
         self.check_autofocus()
         if self._calibrated and self._setpoint_defined and not self._autofocus_lost:
 
-            self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
+            if self._setup == 'PALM' and not self._live_display:
+                self._autofocus.start_camera_live()
+
+            self.pid = PID(self._P_gain, self._I_gain, 0, setpoint=self._setpoint)
+            self._dt = 0.2
+            self.pid.sample_time = self._dt
+
+            # self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
             self._run_autofocus = True
-            self._dt = self.worker_frequency()
+            # self._dt = self.worker_frequency()
             self._z0 = self.get_position()
 
             worker = QPDAutofocusWorker(self._dt)
@@ -333,19 +348,24 @@ class FocusLogic(GenericLogic):
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
-            pid = self._fpga.read_pid()
+            pid = self.pid(self.read_autofocus_signal())
             z = self._z0 + pid / self._slope
+            z = np.around(z, 3)
+            print(z)
 
+            # pid = self._fpga.read_pid()
+            # z = self._z0 + pid / self._slope
+            #
             if self._min_z < z < self._max_z:
                 self.go_to_position(z)
             else:
                 print('piezo position out of constraints')
                 self.stop_autofocus()
 
-            print(z)
+
 
     def stop_autofocus(self):
-        self._fpga.stop_pid()
+        # self._fpga.stop_pid()
         self._run_autofocus = False
 
     def rescue_autofocus(self, z_range):
@@ -369,12 +389,12 @@ class FocusLogic(GenericLogic):
     # -------------------------------------------
 
     def update_threshold(self, threshold):
-        self._threshold = threshold
+        self._autofocus._threshold = threshold
 
     def start_live_display(self):
 
         self._live_display = True
-        self._camera.start_live_acquisition()
+        self._autofocus.start_camera_live()
 
         worker = CameraAutofocusWorker()
         worker.signals.sigFinished.connect(self.live_display)
@@ -382,33 +402,18 @@ class FocusLogic(GenericLogic):
 
     def live_display(self):
 
-        self._im = self._camera.get_acquired_data()
-        self._im_threshold = np.copy(self._im)
-        self._im_threshold[self._im_threshold > self._threshold] = 254
-        self._im_threshold[self._im_threshold <= self._threshold] = 0
+        im = self._autofocus.get_latest_image()
+        mask = self._autofocus.calculate_threshold_image(im)
+        x, y = self._autofocus.calculate_centroid(im, mask)
 
-        X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
-        Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
+        self.sigDisplayImage.emit(im, mask, x, y)
 
-        im_X = np.sum(self._im, 0)
-        im_Y = np.sum(self._im, 1)
-        x0 = sum(X * im_X) / sum(im_X)
-        y0 = sum(Y * im_Y) / sum(im_Y)
-
-        im_X = np.sum(self._im_threshold / 255, 0)
-        im_Y = np.sum(self._im_threshold / 255, 1)
-        xx0 = sum(X * im_X) / sum(im_X)
-        yy0 = sum(Y * im_Y) / sum(im_Y)
-        print(x0, y0, xx0, yy0)
-
-        self.sigDisplayImage.emit(self._im, self._im_threshold)
-
-        if self._live_display and self._cam_status:
+        if self._live_display:
             worker = CameraAutofocusWorker()
             worker.signals.sigFinished.connect(self.live_display)
             self.threadpool.start(worker)
 
     def stop_live_display(self):
         self._live_display = False
-        self._camera.stop_acquisition()
+        self._autofocus.stop_camera()
 

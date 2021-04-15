@@ -18,7 +18,7 @@ from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
-import pyqtgraph as pg
+# import pyqtgraph as pg
 import numpy as np
 from time import sleep
 
@@ -36,83 +36,98 @@ class AutofocusLogic(GenericLogic):
     """
 
     # declare connectors
-    fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
     camera = Connector(interface='CameraInterface')
 
     # autofocus attributes
     _autofocus_signal = None
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
 
+    # camera attributes
+    _threshold = 150
+    _exposure = ConfigOption('Exposure', 0.001, missing='warn')
+    _camera_acquiring = False
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        #self.threadlock = Mutex()
+        # self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        # initialize the fpga
-        self._fpga = self.fpga()
+        # initialize the camera
         self._camera = self.camera()
+        self._camera.set_exposure(self._exposure)
+        self._im_size = self._camera.get_size()
+        self._idx_X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
+        self._idx_Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
 
     def on_deactivate(self):
         """ Required deactivation.
         """
-        pass
-        
+        if self._camera_acquiring:
+            self.stop_camera()
+
     def read_autofocus_signal(self):
         """ General function returning the reference signal for the autofocus correction. In the case of the
         method using a FPGA, it returns the QPD signal measured along the reference axis.
         """
-        return self.qpd()
+        im = self.get_latest_image()
+        mask = self.calculate_threshold_image(im)
+        x0, y0 = self.calculate_centroid(im, mask)
 
-    def set_point(self):
-        """ Define the autofocus reference set_point
-        """
-        return self.qpd()
+        if self._ref_axis == 'X':
+            return x0
+        else:
+            return y0
 
     def autofocus_check_signal(self):
-        """ Check that the intensity detected by the QPD is above a specific threshold (50). If the signal is too low,
-        the function returns a TRUE signal indicating that the autofocus has been lost.
+        """ Check that the camera is properly detecting a spot
         """
-        self.qpd_reset()
-        qpd_sum = self.qpd('sum')
-        if qpd_sum < 50:
+        im = self.get_latest_image()
+        im_threshold = self.calculate_threshold_image(im)
+
+        if np.sum(im_threshold) < 50:
             self.log.warning('autofocus lost')
             return True
         else:
             return False
 
-    def qpd(self, *args):
-        """ Read the QPD signal from the FPGA. When no argument is specified, the signal is read from X/Y positions. In
-        order to make sure we are always reading from the latest piezo position, the method is waiting for a new count.
-        If the argument 'sum' is specified, the SUM signal is read without waiting for the latest iteration.
+    def start_camera_live(self):
+        """ Launch live acquisition of the camera
         """
-        qpd = self._fpga.read_qpd()
 
-        if not args:
-            last_count = qpd[3]
-            while last_count == qpd[3]:
-                qpd = self._fpga.read_qpd()
-                sleep(0.01)
+        self._camera.start_live_acquisition()
+        self._camera_acquiring = True
 
-            if self._ref_axis == 'X':
-                return qpd[0]
-            elif self._ref_axis == 'Y':
-                return qpd[1]
-        else:
-            if args[0] == "sum":
-                return qpd[2]
-
-    def worker_frequency(self):
-        """ Update the worker frequency according to the iteration time of the fpga
+    def stop_camera(self):
+        """ Stop live acquisition of the camera
         """
-        qpd = self._fpga.read_qpd()
-        iteration_duration = qpd[4] / 1000 + 0.01
-        return iteration_duration
+        self._camera.stop_acquisition()
+        self._camera_acquiring = False
 
-    def qpd_reset(self):
-        """ Reset the QPD counter
+    def get_latest_image(self):
+        """ Get the latest acquired image from the camera. This function returns the raw image as well as the
+        threshold image
         """
-        self._fpga.reset_qpd_counter()
+        im = self._camera.get_acquired_data()
+        return im
+
+    def calculate_threshold_image(self, im):
+        """ Calculate the threshold image according to the threshold value
+        """
+        mask = np.copy(im)
+        mask[mask > self._threshold] = 254
+        mask[mask <= self._threshold] = 0
+        return mask
+
+    def calculate_centroid(self, im, mask):
+        """ Calculate the centroid of the raw image using the threshold image as mask
+        """
+        im_x = np.sum(im * mask, 0)  # Calculate the projection along the X axis
+        im_y = np.sum(im * mask, 1)  # Calculate the projection along the Y axis
+        x0 = sum(self._idx_X * im_x) / sum(im_x)
+        y0 = sum(self._idx_Y * im_y) / sum(im_y)
+
+        return x0, y0
 
