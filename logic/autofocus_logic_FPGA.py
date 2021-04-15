@@ -24,26 +24,24 @@ from time import sleep
 
 
 class AutofocusLogic(GenericLogic):
-    """ Controls the piezo and the focus and autofocus procedures
+    """ This logic connect to the instruments necessary for the autofocus method based on the FPGA + QPD. This logic
+    is directly connected to the focus_logic controlling the piezo position.
     
-    Config pour copy-paste
-    
-        autofocus_logic:
+    autofocus_logic:
         module.Class: 'autofocus_logic.AutofocusLogic'
-        connect: 
-            piezo: 'piezo_dummy'
-                
-            
-    
+        Autofocus_ref_axis : 'X' # 'Y'
+        connect:
+            camera : 'thorlabs_camera'
+            fpga: 'nifpga'
     """
 
     # declare connectors
     fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
+    camera = Connector(interface='CameraInterface')
 
     # autofocus attributes
     _autofocus_signal = None
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
-
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -55,6 +53,7 @@ class AutofocusLogic(GenericLogic):
         """
         # initialize the fpga
         self._fpga = self.fpga()
+        self._camera = self.camera()
 
     def on_deactivate(self):
         """ Required deactivation.
