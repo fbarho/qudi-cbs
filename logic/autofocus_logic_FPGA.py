@@ -53,6 +53,8 @@ class AutofocusLogic(GenericLogic):
         """
         # initialize the fpga
         self._fpga = self.fpga()
+
+        # initialize the camera
         self._camera = self.camera()
 
     def on_deactivate(self):
