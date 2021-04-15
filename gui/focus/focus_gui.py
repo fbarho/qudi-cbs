@@ -70,6 +70,17 @@ class FocusGUI(GUIBase):
         # Windows
         self._mw = FocusWindow()
 
+        # initialize the display of the camera
+        self.raw_imageitem = pg.ImageItem(axisOrder='row-major')
+        self._mw.raw_image_PlotWidget.addItem(self.raw_imageitem)
+        self._mw.raw_image_PlotWidget.setAspectLocked(True)
+
+        self.threshold_imageitem = pg.ImageItem(axisOrder='row-major')
+        self._mw.threshold_image_PlotWidget.addItem(self.threshold_imageitem)
+        self._mw.threshold_image_PlotWidget.setAspectLocked(True)
+
+        self._centroid = self._mw.threshold_image_PlotWidget.plot([0], [0], symbol='+')
+
         # actualize the position
         position = self._focus_logic.get_position()
         self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
@@ -225,7 +236,7 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.plot(piezo_position, qpd_signal, symbol='o')
         self._mw.calibration_PlotWidget.plot(piezo_position, fit)
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
-        self._mw.calibration_PlotWidget.setLabel('left', 'QPD signal')
+        self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
 
     def start_live(self):
@@ -236,13 +247,10 @@ class FocusGUI(GUIBase):
             self._mw.live_Action.setText('Stop Live')
             self.sigLiveOn.emit()
 
-    def live_display(self, im, im_thresh):
-        self._image = pg.ImageItem(image=im, axisOrder='row-major')
-        self._mw.raw_image_PlotWidget.addItem(self._image)
-        self._mw.raw_image_PlotWidget.setAspectLocked(True)
+    def live_display(self, im, im_thresh, x, y):
 
-        self._binary = pg.ImageItem(image=im_thresh, axisOrder='row-major')
-        self._mw.threshold_image_PlotWidget.addItem(self._binary)
-        self._mw.threshold_image_PlotWidget.setAspectLocked(True)
-        #self._mw.raw_image_PlotWidget.plot([500], [500], symbol='o')
+        self.raw_imageitem.setImage(im)
+        self.threshold_imageitem.setImage(im_thresh)
+        self._mw.threshold_image_PlotWidget.removeItem(self._centroid)
+        self._centroid = self._mw.threshold_image_PlotWidget.plot([x], [y], symbol='+', color='red')
 
