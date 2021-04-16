@@ -18,8 +18,9 @@ from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
-# import pyqtgraph as pg
 import numpy as np
+from simple_pid import PID
+import pyqtgraph as pg
 from time import sleep
 
 
@@ -47,6 +48,13 @@ class AutofocusLogic(GenericLogic):
     _exposure = ConfigOption('Exposure', 0.001, missing='warn')
     _camera_acquiring = False
 
+    # pid attributes
+    _pid_frequency = 0.2  # in s, frequency for the autofocus PID update
+    _P_gain = ConfigOption('Proportional_gain', 0, missing='warn')
+    _I_gain = ConfigOption('Integration_gain', 0, missing='warn')
+    _setpoint = None
+    _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -68,7 +76,7 @@ class AutofocusLogic(GenericLogic):
         if self._camera_acquiring:
             self.stop_camera()
 
-    def read_autofocus_signal(self):
+    def read_detector_signal(self):
         """ General function returning the reference signal for the autofocus correction. In the case of the
         method using a FPGA, it returns the QPD signal measured along the reference axis.
         """
@@ -93,10 +101,25 @@ class AutofocusLogic(GenericLogic):
         else:
             return False
 
+    def pid_setpoint(self):
+        """ Initialize the pid setpoint
+        """
+        self._setpoint = self.read_detector_signal()
+
+    def init_pid(self):
+        """ Initialize the pid for the autofocus
+        """
+        self._pid = PID(self._P_gain, self._I_gain, 0, setpoint=self._setpoint)
+        self._pid.sample_time = self._pid_frequency
+
+    def read_pid_output(self):
+        """ Read the pid output signal in order to adjust the position of the objective
+        """
+        return self._pid(self.read_detector_signal())
+
     def start_camera_live(self):
         """ Launch live acquisition of the camera
         """
-
         self._camera.start_live_acquisition()
         self._camera_acquiring = True
 

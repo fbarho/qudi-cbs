@@ -12,7 +12,6 @@ from qtpy import QtCore
 from time import sleep
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
-from simple_pid import PID
 
 # import matplotlib.pyplot as plt
 
@@ -71,7 +70,6 @@ class FocusLogic(GenericLogic):
     sigPositionChanged = QtCore.Signal(float)
     sigPiezoInitFinished = QtCore.Signal()
     sigUpdateDisplay = QtCore.Signal()
-    sigPIDChanged = QtCore.Signal(float, float)
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
     sigDisplayImage = QtCore.Signal(object, object, float, float)
 
@@ -90,13 +88,12 @@ class FocusLogic(GenericLogic):
     _calibrated = False
     _slope = None
     _setpoint_defined = False
-    _setpoint = None
-    _P_gain = ConfigOption('Proportional_gain', 0, missing='warn')
-    _I_gain = ConfigOption('Integration_gain', 0, missing='warn')
     _run_autofocus = False
     _autofocus_lost = False
-    _dt = None  # in s, frequency for the autofocus update
     _z0 = None
+    _z_new = None
+    _z_last = None
+    _dt = None
 
     refresh_time = 100  # time in ms for timer interval
 
@@ -121,7 +118,7 @@ class FocusLogic(GenericLogic):
         self.go_to_position(self._init_position)
 
         # initialize the autofocus class
-        self._autofocus = self.autofocus()
+        self._autofocus_logic = self.autofocus()
 
         # # initialize the fpga
         # self._fpga = self.fpga()
@@ -241,41 +238,29 @@ class FocusLogic(GenericLogic):
     # methods for autofocus
     # ----------------------
 
-    def set_pid(self, p_gain, i_gain):
-        self._P_gain = p_gain
-        self._I_gain = i_gain
-        self.sigPIDChanged.emit(p_gain, i_gain)
-
-    def read_pid(self):
-        self.sigPIDChanged.emit(self._P_gain, self._I_gain)
-
-    def update_pid(self, p_gain, i_gain):
-        self._P_gain = p_gain
-        self._I_gain = i_gain
-
     def define_autofocus_setpoint(self):
         """ Define the setpoint for the autofocus
         """
-        self._setpoint = self._autofocus.read_autofocus_signal()
+        self._setpoint = self._autofocus_logic.read_detector_signal()
         self._setpoint_defined = True
 
     def check_autofocus(self):
         """ Check there is signal detected for the autofocus. Depending on the method it can be a non-zero signal
         detected by the QPD or the camera.
         """
-        self._autofocus_lost = self._autofocus.autofocus_check_signal()
+        self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
 
-    def read_autofocus_signal(self):
+    def read_detector_signal(self):
         """ According to the method used for the autofocus, returns either the QPD signal or the centroid position
         of the IR reflection measured on the camera.
         """
-        return self._autofocus.read_autofocus_signal()
+        return self._autofocus_logic.read_detector_signal()
 
     def calibrate_autofocus(self):
         """ Calibrate the autofocus.
         """
         if self._setup == 'PALM' and not self._live_display:
-            self._autofocus.start_camera_live()
+            self._autofocus_logic.start_camera_live()
 
         z0 = self.get_position()
         dz = self._calibration_range // 2
@@ -296,7 +281,7 @@ class FocusLogic(GenericLogic):
             sleep(0.05)
             piezo_position[n] = self.get_position()
             # Read the latest QPD signal
-            autofocus_signal[n] = self.read_autofocus_signal()
+            autofocus_signal[n] = self.read_detector_signal()
 
         # Calculate the slope of the calibration curve
         p = Poly.fit(piezo_position, autofocus_signal, deg=1)
@@ -307,29 +292,33 @@ class FocusLogic(GenericLogic):
         self.sigPlotCalibration.emit(piezo_position, autofocus_signal, p(piezo_position), self._slope)
 
         if self._setup == 'PALM' and not self._live_display:
-            self._autofocus.stop_camera()
+            self._autofocus_logic.stop_camera()
+
+    def define_autofocus_setpoint(self):
+        """ From the present piezo position, read the detector signal and keep the value as reference for the pid
+        """
+        self._autofocus_logic.pid_setpoint()
+        self._setpoint_defined = True
 
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
-            A check is also performed in order to make sure there is enough signal detected by the QPD.
+            A check is also performed in order to make sure there is enough signal detected by the detector.
         """
-
         self.check_autofocus()
         if self._calibrated and self._setpoint_defined and not self._autofocus_lost:
 
             if self._setup == 'PALM' and not self._live_display:
-                self._autofocus.start_camera_live()
+                self._autofocus_logic.start_camera_live()
 
-            self.pid = PID(self._P_gain, self._I_gain, 0, setpoint=self._setpoint)
-            self._dt = 0.2
-            self.pid.sample_time = self._dt
+            self._autofocus_logic.init_pid()
 
             # self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
             self._run_autofocus = True
             # self._dt = self.worker_frequency()
             self._z0 = self.get_position()
+            self._z_new = self._z0
 
-            worker = QPDAutofocusWorker(self._dt)
+            worker = QPDAutofocusWorker(self._autofocus_logic._pid_frequency)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
@@ -344,25 +333,30 @@ class FocusLogic(GenericLogic):
         self.check_autofocus()
         if self._run_autofocus and not self._autofocus_lost:
 
-            worker = QPDAutofocusWorker(self._dt)
+            worker = QPDAutofocusWorker(self._autofocus_logic._pid_frequency)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
-            pid = self.pid(self.read_autofocus_signal())
+            # pid = self.pid(self.read_detector_signal())
+            pid = self._autofocus_logic.read_pid_output()
             z = self._z0 + pid / self._slope
             z = np.around(z, 3)
-            print(z)
+
+            self._z_last = self._z_new
+            self._z_new = z
+            dz = np.absolute(self.get_position() - z)
+            print(z, dz)
 
             # pid = self._fpga.read_pid()
             # z = self._z0 + pid / self._slope
-            #
+
             if self._min_z < z < self._max_z:
-                self.go_to_position(z)
+                if dz>0.1:
+                    self.go_to_position(z)
+                    print("move!")
             else:
                 print('piezo position out of constraints')
                 self.stop_autofocus()
-
-
 
     def stop_autofocus(self):
         # self._fpga.stop_pid()
@@ -389,12 +383,12 @@ class FocusLogic(GenericLogic):
     # -------------------------------------------
 
     def update_threshold(self, threshold):
-        self._autofocus._threshold = threshold
+        self._autofocus_logic._threshold = threshold
 
     def start_live_display(self):
 
         self._live_display = True
-        self._autofocus.start_camera_live()
+        self._autofocus_logic.start_camera_live()
 
         worker = CameraAutofocusWorker()
         worker.signals.sigFinished.connect(self.live_display)
@@ -402,9 +396,9 @@ class FocusLogic(GenericLogic):
 
     def live_display(self):
 
-        im = self._autofocus.get_latest_image()
-        mask = self._autofocus.calculate_threshold_image(im)
-        x, y = self._autofocus.calculate_centroid(im, mask)
+        im = self._autofocus_logic.get_latest_image()
+        mask = self._autofocus_logic.calculate_threshold_image(im)
+        x, y = self._autofocus_logic.calculate_centroid(im, mask)
 
         self.sigDisplayImage.emit(im, mask, x, y)
 
@@ -415,5 +409,5 @@ class FocusLogic(GenericLogic):
 
     def stop_live_display(self):
         self._live_display = False
-        self._autofocus.stop_camera()
+        self._autofocus_logic.stop_camera()
 
