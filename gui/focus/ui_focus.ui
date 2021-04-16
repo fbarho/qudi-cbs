@@ -170,7 +170,7 @@
    <addaction name="separator"/>
    <addaction name="live_Action"/>
    <addaction name="separator"/>
-   <addaction name="Autofocus_Action"/>
+   <addaction name="autofocus_Action"/>
   </widget>
   <widget class="QDockWidget" name="timetrace_DockWidget">
    <property name="layoutDirection">
@@ -422,7 +422,7 @@
     <string>Camera live thresholding</string>
    </property>
   </action>
-  <action name="Autofocus_Action">
+  <action name="autofocus_Action">
    <property name="text">
     <string>Start Autofocus</string>
    </property>
