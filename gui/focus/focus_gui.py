@@ -17,11 +17,22 @@ from gui.guibase import GUIBase
 from core.connector import Connector
 
 
+class PIDSettingDialog(QtWidgets.QDialog):
+    """ Create the SettingsDialog window, based on the corresponding *.ui file.
+    """
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_PID_parameters.ui')
+
+        # Load it
+        super(PIDSettingDialog, self).__init__()
+        uic.loadUi(ui_file, self)
+
+
 class FocusWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
-
     """
-
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
@@ -48,11 +59,14 @@ class FocusGUI(GUIBase):
     sigTimetraceOn = QtCore.Signal()
     sigTimetraceOff = QtCore.Signal()
     sigReadPID = QtCore.Signal()
-    sigUpdatePIDgain = QtCore.Signal(float, float)
     sigLaunchCalibration = QtCore.Signal()
+    sigSetSetpoint = QtCore.Signal()
     sigLiveOn = QtCore.Signal()
     sigLiveOff = QtCore.Signal()
     sigUpdateThreshold = QtCore.Signal(int)
+    sigLaunchAutofocus = QtCore.Signal()
+    sigAutofocusStart = QtCore.Signal()
+    sigAutofocusStop = QtCore.Signal()
 
     _mw = None
 
@@ -69,6 +83,13 @@ class FocusGUI(GUIBase):
 
         # Windows
         self._mw = FocusWindow()
+        self._mw.centralwidget.hide()
+        self.init_pid_settings_ui()
+
+        # Menu bar actions
+        # File menu
+        self._mw.close_MenuAction.triggered.connect(self._mw.close)
+        self._mw.pid_settings_Action.triggered.connect(self.open_pid_settings)
 
         # initialize the display of the camera
         self.raw_imageitem = pg.ImageItem(axisOrder='row-major')
@@ -106,11 +127,11 @@ class FocusGUI(GUIBase):
         self._mw.move_down_PushButton.clicked.connect(self.move_down_button_clicked)
         self._mw.piezo_init_Action.triggered.connect(self.piezo_init_clicked)
         self._mw.tracking_Action.triggered.connect(self.start_tracking_clicked)
-        self._mw.Pgain_doubleSpinBox.valueChanged.connect(self.pid_changed)
-        self._mw.Igain_doubleSpinBox.valueChanged.connect(self.pid_changed)
         self._mw.calibration_pushButton.clicked.connect(self.calibrate_autofocus)
+        self._mw.setpoint_pushButton.clicked.connect(self.define_autofocus_setpoint)
         self._mw.threshold_spinBox.valueChanged.connect(self.threshold_changed)
         self._mw.live_Action.triggered.connect(self.start_live)
+        self._mw.autofocus_Action.triggered.connect(self.start_autofocus)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
@@ -119,12 +140,13 @@ class FocusGUI(GUIBase):
         self.sigInitPiezo.connect(self._focus_logic.init_piezo)
         self.sigTimetraceOn.connect(self._focus_logic.start_tracking)
         self.sigTimetraceOff.connect(self._focus_logic.stop_tracking)
-        self.sigReadPID.connect(self._focus_logic.read_pid)
-        self.sigUpdatePIDgain.connect(self._focus_logic.update_pid)
         self.sigLaunchCalibration.connect(self._focus_logic.calibrate_autofocus)
+        self.sigSetSetpoint.connect(self._focus_logic.define_autofocus_setpoint)
         self.sigLiveOn.connect(self._focus_logic.start_live_display)
         self.sigLiveOff.connect(self._focus_logic.stop_live_display)
         self.sigUpdateThreshold.connect(self._focus_logic.update_threshold)
+        self.sigAutofocusStart.connect(self._focus_logic.start_autofocus)
+        self.sigAutofocusStop.connect(self._focus_logic.stop_autofocus)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -135,12 +157,8 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigPositionChanged.connect(self.update_position)
         self._focus_logic.sigPiezoInitFinished.connect(self.piezo_init_finished)
         self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
-        self._focus_logic.sigPIDChanged.connect(self.update_pid)
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
-
-        # update pid values
-        self.sigReadPID.emit()
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -151,11 +169,28 @@ class FocusGUI(GUIBase):
         self._mw.close()
 
     def show(self):
-        """Make window visible and put it above all other windows.
+        """ Make window visible and put it above all other windows.
         """
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
+
+    def init_pid_settings_ui(self):
+        """ Initialize the window for the pid parameters
+        """
+        # Create the PID settings window
+        self._w_pid = PIDSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._w_pid.accepted.connect(self.update_pid_parameters)  # ok button
+        self._w_pid.rejected.connect(self.keep_pid_parameters)  # cancel buttons
+
+        self.keep_pid_parameters()
+
+    # slot to open the PID settings window
+    def open_pid_settings(self):
+        """ Opens the PID settings menu.
+        """
+        self._w_pid.exec_()
 
     def step_changed(self, step):
         step = self._mw.step_doubleSpinBox.value()
@@ -214,22 +249,25 @@ class FocusGUI(GUIBase):
 
     # Functions for the autofocus
 
-    def pid_changed(self):
-        p_gain = self._mw.Pgain_doubleSpinBox.value()
-        i_gain = self._mw.Igain_doubleSpinBox.value()
-        self.sigUpdatePIDgain.emit(p_gain, i_gain)
+    def update_pid_parameters(self):
+        self._focus_logic._autofocus_logic._P_gain = self._w_pid.Pgain_doubleSpinBox.value()
+        self._focus_logic._autofocus_logic._I_gain = self._w_pid.Igain_doubleSpinBox.value()
+
+    def keep_pid_parameters(self):
+        self._w_pid.Pgain_doubleSpinBox.setValue(self._focus_logic._autofocus_logic._P_gain)
+        self._w_pid.Igain_doubleSpinBox.setValue(self._focus_logic._autofocus_logic._I_gain)
 
     def threshold_changed(self):
         threshold = self._mw.threshold_spinBox.value()
         self.sigUpdateThreshold.emit(threshold)
 
-    def update_pid(self, p_gain, i_gain):
-        self._mw.Pgain_doubleSpinBox.setValue(p_gain)
-        self._mw.Igain_doubleSpinBox.setValue(i_gain)
-
     def calibrate_autofocus(self):
         if not self._mw.calibration_pushButton.isChecked():
             self.sigLaunchCalibration.emit()
+
+    def define_autofocus_setpoint(self):
+        if not self._mw.calibration_pushButton.isChecked():
+            self.sigSetSetpoint.emit()
 
     def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
         self._mw.calibration_PlotWidget.clear()
@@ -238,6 +276,14 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
+
+    def start_autofocus(self):
+        if self._focus_logic._run_autofocus:
+            self._mw.autofocus_Action.setText('Start Autofocus')
+            self.sigAutofocusStop.emit()
+        else:
+            self._mw.autofocus_Action.setText('Stop Autofocus')
+            self.sigAutofocusStart.emit()
 
     def start_live(self):
         if self._focus_logic._live_display:
