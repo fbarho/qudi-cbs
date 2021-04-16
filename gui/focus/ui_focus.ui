@@ -40,8 +40,16 @@
     <addaction name="Autofocus-dockwidget_view_Action"/>
     <addaction name="Camera_live_dockwidget_view_Action"/>
    </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>Settings</string>
+    </property>
+    <addaction name="pid_settings_Action"/>
+    <addaction name="camera_settings_Action"/>
+   </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
+   <addaction name="menuSettings"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="manual_focus_Dockwidget">
@@ -239,15 +247,8 @@
        </item>
       </layout>
      </item>
-     <item row="4" column="0">
-      <layout class="QVBoxLayout" name="verticalLayout_3"/>
-     </item>
      <item row="3" column="0">
-      <widget class="QPushButton" name="autofocus_pushButton">
-       <property name="text">
-        <string>Launch autofocus</string>
-       </property>
-      </widget>
+      <layout class="QVBoxLayout" name="verticalLayout_3"/>
      </item>
     </layout>
    </widget>
@@ -424,6 +425,16 @@
   <action name="Autofocus_Action">
    <property name="text">
     <string>Start Autofocus</string>
+   </property>
+  </action>
+  <action name="pid_settings_Action">
+   <property name="text">
+    <string>pid settings</string>
+   </property>
+  </action>
+  <action name="camera_settings_Action">
+   <property name="text">
+    <string>camera settings</string>
    </property>
   </action>
  </widget>
