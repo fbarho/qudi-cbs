@@ -86,6 +86,14 @@ class FocusGUI(GUIBase):
         self._mw.centralwidget.hide()
         self.init_pid_settings_ui()
 
+        # DockWidget for the camera - for the RAMM setup, the camera is only used to check for the quality of the
+        # reflexion. By default the dock widget is hidden.
+        if self._focus_logic._setup == 'RAMM':
+            self._mw.threshold_image_PlotWidget.hide()
+            self._mw.threshold_label.hide()
+            self._mw.threshold_spinBox.hide()
+            self._mw.im_display_dockWidget.hide()
+
         # Menu bar actions
         # File menu
         self._mw.close_MenuAction.triggered.connect(self._mw.close)
@@ -159,6 +167,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
+        self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -291,12 +300,17 @@ class FocusGUI(GUIBase):
             self.sigLiveOff.emit()
         else:
             self._mw.live_Action.setText('Stop Live')
+            self._mw.im_display_dockWidget.show()
             self.sigLiveOn.emit()
 
-    def live_display(self, im, im_thresh, x, y):
+    def live_display(self, im, *threshold):
 
         self.raw_imageitem.setImage(im)
-        self.threshold_imageitem.setImage(im_thresh)
-        self._mw.threshold_image_PlotWidget.removeItem(self._centroid)
-        self._centroid = self._mw.threshold_image_PlotWidget.plot([x], [y], symbol='+', color='red')
+        if threshold:
+            im_thresh = threshold(0)
+            x = threshold(1)
+            y = threshold(2)
+            self.threshold_imageitem.setImage(im_thresh)
+            self._mw.threshold_image_PlotWidget.removeItem(self._centroid)
+            self._centroid = self._mw.threshold_image_PlotWidget.plot([x], [y], symbol='+', color='red')
 

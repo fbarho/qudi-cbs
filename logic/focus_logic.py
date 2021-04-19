@@ -13,6 +13,7 @@ from time import sleep
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
 
+
 # import matplotlib.pyplot as plt
 
 
@@ -71,7 +72,9 @@ class FocusLogic(GenericLogic):
     sigPiezoInitFinished = QtCore.Signal()
     sigUpdateDisplay = QtCore.Signal()
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
-    sigDisplayImage = QtCore.Signal(object, object, float, float)
+    sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
+    sigDisplayImage = QtCore.Signal(object)
+    sigStopAutofocus = QtCore.Signal()
 
     # piezo attributes
     _step = 0.01
@@ -85,15 +88,17 @@ class FocusLogic(GenericLogic):
 
     # autofocus attributes
     _calibration_range = 2  # Autofocus calibration range in µm
-    _calibrated = False
     _slope = None
-    _setpoint_defined = False
-    _run_autofocus = False
-    _autofocus_lost = False
     _z0 = None
     _z_new = None
     _z_last = None
     _dt = None
+
+    _calibrated = False
+    _setpoint_defined = False
+    _run_autofocus = False
+    _autofocus_lost = False
+    _enable_autofocus_rescue = False
 
     refresh_time = 100  # time in ms for timer interval
 
@@ -120,15 +125,12 @@ class FocusLogic(GenericLogic):
         # initialize the autofocus class
         self._autofocus_logic = self.autofocus()
 
-        # # initialize the fpga
-        # self._fpga = self.fpga()
-        #
-        # # initialize the camera
-        # self._camera = self.camera()
-        # self._im_size = self._camera.get_size()
-
         # initialize the ms2000 stage
         self._stage = self.stage()
+
+        # allow the rescue option when working with then RAMM setup
+        if self._setup == "RAMM":
+            self._enable_autofocus_rescue = True
 
         # initialize the timer, it is then started when start_tracking is called
         self.timer = QtCore.QTimer()
@@ -249,6 +251,9 @@ class FocusLogic(GenericLogic):
         detected by the QPD or the camera.
         """
         self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
+        if self._enable_autofocus_rescue and self._autofocus_lost:
+            self. stop_autofocus()
+            self.rescue_autofocus()
 
     def read_detector_signal(self):
         """ According to the method used for the autofocus, returns either the QPD signal or the centroid position
@@ -311,14 +316,12 @@ class FocusLogic(GenericLogic):
                 self._autofocus_logic.start_camera_live()
 
             self._autofocus_logic.init_pid()
-
-            # self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
             self._run_autofocus = True
-            # self._dt = self.worker_frequency()
             self._z0 = self.get_position()
             self._z_new = self._z0
+            self._dt = self._autofocus_logic._pid_frequency
 
-            worker = QPDAutofocusWorker(self._autofocus_logic._pid_frequency)
+            worker = QPDAutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
@@ -331,12 +334,12 @@ class FocusLogic(GenericLogic):
     def run_autofocus(self):
         """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
         unnecessary movement of the piezo, the corrections are only applied when an absolute displacement >100nm is
-        required."""
-
+        required.
+        """
         self.check_autofocus()
         if self._run_autofocus and not self._autofocus_lost:
 
-            worker = QPDAutofocusWorker(self._autofocus_logic._pid_frequency)
+            worker = QPDAutofocusWorker(self._dt)
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
@@ -348,39 +351,69 @@ class FocusLogic(GenericLogic):
             self._z_last = self._z_new
             self._z_new = z
             dz = np.absolute(self.get_position() - z)
-            print(z, dz)
 
-            # pid = self._fpga.read_pid()
-            # z = self._z0 + pid / self._slope
-
-            if self._min_z+1 < z < self._max_z-1:
-                if dz>0.1:
+            if self._min_z + 1 < z < self._max_z - 1:
+                if dz > 0.1:
                     self.go_to_position(z)
-                    print("move!")
             else:
-                print('piezo position out of constraints')
+                self.log.warning('piezo position out of constraints')
                 self.stop_autofocus()
 
+        elif self._autofocus_lost:
+            self.log.warning('autofocus got lost ...')
+            self.stop_autofocus()
+
     def stop_autofocus(self):
-        # self._fpga.stop_pid()
+        """ Stop the autofocus loop
+        """
         self._run_autofocus = False
 
-    def rescue_autofocus(self, z_range):
+    def correct_piezo_position(self, direction):
+        """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
+        to a standard position at 25µm.
+        """
 
-        axis_label = ('x', 'y', 'z')
-        positions = (0, 0, z_range // 2)
-        pos_dict = dict([*zip(axis_label, positions)])
-        self._stage.move_rel(pos_dict)
+        if self._run_autofocus:
+            axis_label = ('x', 'y', 'z')
+            if direction == "up":
+                positions = (0, 0, -1)
+            else:
+                positions = (0, 0, 1)
 
-        for z in range(z_range):
-            positions = (0, 0, -1)
+            pos_dict = dict([*zip(axis_label, positions)])
+            z = self.get_position()
+            while z < 25 or z > 60:
+                self._stage.move_rel(pos_dict)
+                z = self.get_position()
+                print(z)
+
+    def rescue_autofocus(self):
+        """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The
+        z position of the stage is moved until the piezo signal is found again.
+        """
+        z_range = 20
+        while self._autofocus_lost and z_range <= 40:
+
+            axis_label = ('x', 'y', 'z')
+            positions = (0, 0, -z_range // 2)
             pos_dict = dict([*zip(axis_label, positions)])
             self._stage.move_rel(pos_dict)
 
-            qpd_sum = self.qpd('sum')
-            print(qpd_sum)
-            if qpd_sum > 300:
-                break
+            for z in range(z_range):
+                positions = (0, 0, 1)
+                pos_dict = dict([*zip(axis_label, positions)])
+                self._stage.move_rel(pos_dict)
+
+                self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
+                if not self._autofocus_lost:
+                    print("autofocus found!")
+                    break
+
+            if self._autofocus_lost:
+                positions = (0, 0, -z_range // 2)
+                pos_dict = dict([*zip(axis_label, positions)])
+                self._stage.move_rel(pos_dict)
+                z_range = z_range + 10
 
     # autofocus methods based on camera detection
     # -------------------------------------------
@@ -400,10 +433,12 @@ class FocusLogic(GenericLogic):
     def live_display(self):
 
         im = self._autofocus_logic.get_latest_image()
-        mask = self._autofocus_logic.calculate_threshold_image(im)
-        x, y = self._autofocus_logic.calculate_centroid(im, mask)
-
-        self.sigDisplayImage.emit(im, mask, x, y)
+        if self._setup == "PALM":
+            mask = self._autofocus_logic.calculate_threshold_image(im)
+            x, y = self._autofocus_logic.calculate_centroid(im, mask)
+            self.sigDisplayImageAndMask.emit(im, mask, x, y)
+        elif self._setup == "RAMM":
+            self.sigDisplayImage.emit(im)
 
         if self._live_display:
             worker = CameraAutofocusWorker()
@@ -413,4 +448,3 @@ class FocusLogic(GenericLogic):
     def stop_live_display(self):
         self._live_display = False
         self._autofocus_logic.stop_camera()
-
