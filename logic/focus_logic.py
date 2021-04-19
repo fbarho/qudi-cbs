@@ -329,6 +329,9 @@ class FocusLogic(GenericLogic):
             self.log.warning('setpoint not yet defined')
 
     def run_autofocus(self):
+        """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
+        unnecessary movement of the piezo, the corrections are only applied when an absolute displacement >100nm is
+        required."""
 
         self.check_autofocus()
         if self._run_autofocus and not self._autofocus_lost:
@@ -340,7 +343,7 @@ class FocusLogic(GenericLogic):
             # pid = self.pid(self.read_detector_signal())
             pid = self._autofocus_logic.read_pid_output()
             z = self._z0 + pid / self._slope
-            z = np.around(z, 3)
+            # z = np.around(z, 3)
 
             self._z_last = self._z_new
             self._z_new = z
@@ -350,7 +353,7 @@ class FocusLogic(GenericLogic):
             # pid = self._fpga.read_pid()
             # z = self._z0 + pid / self._slope
 
-            if self._min_z < z < self._max_z:
+            if self._min_z+1 < z < self._max_z-1:
                 if dz>0.1:
                     self.go_to_position(z)
                     print("move!")
