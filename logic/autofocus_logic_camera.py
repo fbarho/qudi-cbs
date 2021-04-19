@@ -115,7 +115,7 @@ class AutofocusLogic(GenericLogic):
     def read_pid_output(self):
         """ Read the pid output signal in order to adjust the position of the objective
         """
-        return self._pid(self.read_detector_signal())
+        return self._fpga.read_pid()
 
     def start_camera_live(self):
         """ Launch live acquisition of the camera
