@@ -94,6 +94,7 @@ class AutofocusLogic(GenericLogic):
         """
         self.qpd_reset()
         self._setpoint = self.read_detector_signal()
+        return(self._setpoint)
 
     def init_pid(self):
         """ Initialize the pid for the autofocus

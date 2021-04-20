@@ -90,6 +90,7 @@ class FocusLogic(GenericLogic):
     sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
     sigDisplayImage = QtCore.Signal(object)
     sigAutofocusLost = QtCore.Signal()
+    sigSetpoint = QtCore.Signal(float)
 
     # piezo attributes
     _step = 0.01
@@ -258,21 +259,6 @@ class FocusLogic(GenericLogic):
     # methods for autofocus
     # ----------------------
 
-    def define_autofocus_setpoint(self):
-        """ Define the setpoint for the autofocus
-        """
-        self._setpoint = self._autofocus_logic.read_detector_signal()
-        self._setpoint_defined = True
-
-    def check_autofocus(self):
-        """ Check there is signal detected for the autofocus. Depending on the method it can be a non-zero signal
-        detected by the QPD or the camera.
-        """
-        self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
-        if self._autofocus_lost:
-            self.log.warning('autofocus lost!')
-            self.sigAutofocusLost.emit()
-
     def read_detector_signal(self):
         """ According to the method used for the autofocus, returns either the QPD signal or the centroid position
         of the IR reflection measured on the camera.
@@ -320,8 +306,18 @@ class FocusLogic(GenericLogic):
     def define_autofocus_setpoint(self):
         """ From the present piezo position, read the detector signal and keep the value as reference for the pid
         """
-        self._autofocus_logic.pid_setpoint()
+        setpoint = self._autofocus_logic.pid_setpoint()
         self._setpoint_defined = True
+        self.sigSetpoint.emit(setpoint)
+
+    def check_autofocus(self):
+        """ Check there is signal detected for the autofocus. Depending on the method it can be a non-zero signal
+        detected by the QPD or the camera.
+        """
+        self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
+        if self._autofocus_lost:
+            self.log.warning('autofocus lost!')
+            self.sigAutofocusLost.emit()
 
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
@@ -361,10 +357,8 @@ class FocusLogic(GenericLogic):
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
-            # pid = self.pid(self.read_detector_signal())
             pid = self._autofocus_logic.read_pid_output()
             z = self._z0 + pid / self._slope
-            # z = np.around(z, 3)
 
             self._z_last = self._z_new
             self._z_new = z

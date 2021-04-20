@@ -169,6 +169,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigDisplayImage.connect(self.live_display)
         self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
         self._focus_logic.sigAutofocusLost.connect(self.start_stop_autofocus)
+        self._focus_logic.sigSetpoint.connect(self.update_autofocus_setpoint)
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -274,10 +275,13 @@ class FocusGUI(GUIBase):
     def calibrate_autofocus(self):
         if not self._mw.calibration_pushButton.isChecked():
             self.sigLaunchCalibration.emit()
+            self._mw.calibration_pushButton.setText('Calibrating ...')
 
     def define_autofocus_setpoint(self):
-        if not self._mw.calibration_pushButton.isChecked():
-            self.sigSetSetpoint.emit()
+        self.sigSetSetpoint.emit()
+
+    def update_autofocus_setpoint(self, setpoint):
+        self._mw.setpoint_lineEdit.setText("{:.2f}".format(setpoint))
 
     def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
         self._mw.calibration_PlotWidget.clear()
@@ -286,6 +290,7 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
+        self._mw.calibration_pushButton.setText('Launch calibration')
 
     def start_stop_autofocus(self):
         """ When the pushbutton start/stop autofocus is pushed, a signal is sent to this function. If the autofocus is
