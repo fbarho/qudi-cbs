@@ -138,8 +138,8 @@ class FocusGUI(GUIBase):
         self._mw.calibration_pushButton.clicked.connect(self.calibrate_autofocus)
         self._mw.setpoint_pushButton.clicked.connect(self.define_autofocus_setpoint)
         self._mw.threshold_spinBox.valueChanged.connect(self.threshold_changed)
-        self._mw.live_Action.triggered.connect(self.start_live)
-        self._mw.autofocus_Action.triggered.connect(self.start_autofocus)
+        self._mw.live_Action.triggered.connect(self.start_stop_live)
+        self._mw.autofocus_Action.triggered.connect(self.start_stop_autofocus)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
@@ -168,6 +168,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
         self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
+        self._focus_logic.sigAutofocusLost.connect(self.start_stop_autofocus)
 
     def on_deactivate(self):
         self.sigUpdateStep.disconnect()
@@ -286,7 +287,12 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
 
-    def start_autofocus(self):
+    def start_stop_autofocus(self):
+        """ When the pushbutton start/stop autofocus is pushed, a signal is sent to this function. If the autofocus is
+        not running yet, a signal is sent to the logic to launch it and the button text is changed to "stop autofocus".
+        If the autofocus is already running, a signal is sent to the logic to stop the autofocus loop. The text of the
+        button is changed back to "Start autofocus".
+        """
         if self._focus_logic._run_autofocus:
             self._mw.autofocus_Action.setText('Start Autofocus')
             self.sigAutofocusStop.emit()
@@ -294,7 +300,12 @@ class FocusGUI(GUIBase):
             self._mw.autofocus_Action.setText('Stop Autofocus')
             self.sigAutofocusStart.emit()
 
-    def start_live(self):
+    def start_stop_live(self):
+        """ When the pushbutton start/stop Live is pushed, a signal is sent to this function. If the camera is
+        not running yet, a signal is sent to the logic to launch it and the button text is changed to "Stop Live".
+        If the camera is already running, a signal is sent to the logic to stop the acquisition loop. The text of the
+        button is changed back to "Start Live".
+        """
         if self._focus_logic._live_display:
             self._mw.live_Action.setText('Start Live')
             self.sigLiveOff.emit()
@@ -304,7 +315,12 @@ class FocusGUI(GUIBase):
             self.sigLiveOn.emit()
 
     def live_display(self, im, *threshold):
-
+        """ Display the live image captured by the Thorlabs camera. This function accepts two inputs :
+            - the raw image im
+            - an optional input called threshold that is used only when the autofocus is working directly with the
+            image. In that case, this input should contain a binary image (mask) as well as the X/Y positions of the
+            detected IR reflection.
+        """
         self.raw_imageitem.setImage(im)
         if threshold:
             im_thresh = threshold(0)
