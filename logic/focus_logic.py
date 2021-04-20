@@ -54,6 +54,21 @@ class CameraAutofocusWorker(QtCore.QRunnable):
         self.signals.sigFinished.emit()
 
 
+class StageAutofocusWorker(QtCore.QRunnable):
+    """ Worker thread to control the stage position and adjust the piezo position when autofocus in ON
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
+
+    def __init__(self, *args, **kwargs):
+        super(StageAutofocusWorker, self).__init__()
+        self.signals = WorkerSignals()
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(0.5)  # 1 second as time constant
+        self.signals.sigFinished.emit()
+
+
 class FocusLogic(GenericLogic):
     """
     """
@@ -74,7 +89,7 @@ class FocusLogic(GenericLogic):
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
     sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
     sigDisplayImage = QtCore.Signal(object)
-    sigStopAutofocus = QtCore.Signal()
+    sigAutofocusLost = QtCore.Signal()
 
     # piezo attributes
     _step = 0.01
@@ -85,6 +100,9 @@ class FocusLogic(GenericLogic):
 
     # camera attributes
     _live_display = False
+
+    # stage attributes
+    _pos_dict = dict()
 
     # autofocus attributes
     _calibration_range = 2  # Autofocus calibration range in µm
@@ -251,9 +269,9 @@ class FocusLogic(GenericLogic):
         detected by the QPD or the camera.
         """
         self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
-        if self._enable_autofocus_rescue and self._autofocus_lost:
-            self. stop_autofocus()
-            self.rescue_autofocus()
+        if self._autofocus_lost:
+            self.log.warning('autofocus lost!')
+            self.sigAutofocusLost.emit()
 
     def read_detector_signal(self):
         """ According to the method used for the autofocus, returns either the QPD signal or the centroid position
@@ -359,33 +377,10 @@ class FocusLogic(GenericLogic):
                 self.log.warning('piezo position out of constraints')
                 self.stop_autofocus()
 
-        elif self._autofocus_lost:
-            self.log.warning('autofocus got lost ...')
-            self.stop_autofocus()
-
     def stop_autofocus(self):
         """ Stop the autofocus loop
         """
         self._run_autofocus = False
-
-    def correct_piezo_position(self, direction):
-        """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
-        to a standard position at 25µm.
-        """
-
-        if self._run_autofocus:
-            axis_label = ('x', 'y', 'z')
-            if direction == "up":
-                positions = (0, 0, -1)
-            else:
-                positions = (0, 0, 1)
-
-            pos_dict = dict([*zip(axis_label, positions)])
-            z = self.get_position()
-            while z < 25 or z > 60:
-                self._stage.move_rel(pos_dict)
-                z = self.get_position()
-                print(z)
 
     def rescue_autofocus(self):
         """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The
@@ -406,7 +401,7 @@ class FocusLogic(GenericLogic):
 
                 self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
                 if not self._autofocus_lost:
-                    print("autofocus found!")
+                    print("autofocus signal found!")
                     break
 
             if self._autofocus_lost:
@@ -414,6 +409,38 @@ class FocusLogic(GenericLogic):
                 pos_dict = dict([*zip(axis_label, positions)])
                 self._stage.move_rel(pos_dict)
                 z_range = z_range + 10
+
+    def start_piezo_position_correction(self, direction):
+        """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
+        to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
+        close to the upper limit (>70µm), it is moved back to 50µm.
+        """
+        axis_label = ('x', 'y', 'z')
+
+        if direction == "up":
+            positions = (0, 0, 1)
+        elif direction == "down":
+            positions = (0, 0, -1)
+
+        self._pos_dict = dict([*zip(axis_label, positions)])
+        if not self._run_autofocus:
+            self.start_autofocus()
+
+        stage_worker = StageAutofocusWorker()
+        stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
+        self.threadpool.start(stage_worker)
+
+    def run_piezo_position_correction(self):
+        """ Correct the piezo position by moving the MS2000 stage while the autofocus ON
+        """
+        z = self.get_position()
+        if not self._autofocus_lost and (z < 25 or z > 50):
+            self._stage.move_rel(self._pos_dict)
+
+            stage_worker = StageAutofocusWorker()
+            stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
+            self.threadpool.start(stage_worker)
+
 
     # autofocus methods based on camera detection
     # -------------------------------------------
