@@ -25,6 +25,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 """
 from logic.generic_task import InterruptableTask
 from time import sleep
+import yaml
 
 
 class Task(InterruptableTask):
@@ -37,6 +38,8 @@ class Task(InterruptableTask):
             valves: 'valve_logic'
             pos: 'positioning_logic'
             flow: 'flowcontrol_logic'
+        config:
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/fluidics_task_RAMM.yaml'
     """
 
     def __init__(self, **kwargs):
@@ -45,7 +48,7 @@ class Task(InterruptableTask):
 
     def startTask(self):
         """ """
-        self._load_injection_parameters()
+        self.load_user_parameters()
         self.log.info('Injection parameters loaded')
         self.step_counter = 0
 
@@ -122,34 +125,49 @@ class Task(InterruptableTask):
 
         self.log.info('Cleanup task called')
 
-    def _load_injection_parameters(self):
+    def load_user_parameters(self):
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.full_load(stream)
+
+                self.injections_path = self.user_param_dict['injections_path']
+
+            self.load_injection_parameters()
+
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+
+    def load_injection_parameters(self):
         """ """
-        buffer_dict = {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}  # later version: read this from file
+        with open(self.injections_path, 'r') as stream:
+            documents = yaml.full_load(stream)
+            buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+            self.probe_dict = documents['probes']
+            self.hybridization_list = documents['hybridization list']
+            self.photobleaching_list = documents['photobleaching list']
+
         # invert the buffer dict to address the valve by the product name as key
         self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
-        print(self.buffer_dict)
+        # print(self.buffer_dict)
 
-        self.probe_dict = {1: 'Probe1', 2: 'Probe2', 3: 'Probe3'}
-        # inversion might be needed as for the buffer_dict.. to check
-
-        self.hybridization_list = [
-            {'step_number': 1,
-             'procedure': 'Hybridization',
-             'product': 'Buffer3',
-             'volume': 500,
-             'flowrate': 150,
-             'time': None},
-            {'step_number': 2,
-             'procedure': 'Hybridization',
-             'product': None,
-             'volume': None,
-             'flowrate': None,
-             'time': 10},
-            {'step_number': 3,
-             'procedure': 'Hybridization',
-             'product': 'Buffer8',
-             'volume': 500,
-             'flowrate': 250,
-             'time': None}
-        ]
+        # self.hybridization_list = [
+        #     {'step_number': 1,
+        #      'procedure': 'Hybridization',
+        #      'product': 'Buffer3',
+        #      'volume': 500,
+        #      'flowrate': 150,
+        #      'time': None},
+        #     {'step_number': 2,
+        #      'procedure': 'Hybridization',
+        #      'product': None,
+        #      'volume': None,
+        #      'flowrate': None,
+        #      'time': 10},
+        #     {'step_number': 3,
+        #      'procedure': 'Hybridization',
+        #      'product': 'Buffer8',
+        #      'volume': 500,
+        #      'flowrate': 250,
+        #      'time': None}
+        # ]
 

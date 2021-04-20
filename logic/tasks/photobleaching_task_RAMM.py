@@ -18,12 +18,8 @@ Config example pour copy-paste:
         config:
             path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/photobleaching_task_RAMM.yaml'
 """
-
-
-import numpy as np
-import os
 import yaml
-from time import sleep, time
+from time import sleep
 from logic.generic_task import InterruptableTask
 
 
@@ -57,7 +53,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         # go to roi
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
-        self.ref['roi'].go_to_roi()
+        self.ref['roi'].go_to_roi_xy()
         self.log.info('Moved to {}'.format(self.roi_names[self.roi_counter]))
         # waiting time needed ???
         sleep(1)  # replace maybe by wait for idle
@@ -93,7 +89,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('cleanupTask finished')
 
     def load_user_parameters(self):
-        # define user parameters  # to be read from config later
+        # define user parameters
         # self.illumination_time = 1  # in s
         # imaging_sequence = [('488 nm', 20), ('561 nm', 10), ('640 nm', 10)]
         # self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist1.json'

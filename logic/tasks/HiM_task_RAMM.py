@@ -21,6 +21,8 @@ Config example pour copy-paste:
             valves: 'valve_logic'
             pos: 'positioning_logic'
             flow: 'flowcontrol_logic'
+        config:
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/hi_m_task_RAMM.yaml'
 """
 
 import numpy as np
@@ -62,7 +64,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines)
 
         # prepare the camera
-        self.num_frames = self.num_z_planes * 2  # len(self.wavelengths)
+        self.num_frames = self.num_z_planes * self.num_laserlines
         self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
 
         # initialize a counter to iterate over the number of probes to inject

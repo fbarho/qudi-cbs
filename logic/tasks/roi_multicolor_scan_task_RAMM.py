@@ -27,6 +27,7 @@ import numpy as np
 import os
 import yaml
 from time import sleep, time
+from datetime import datetime
 from logic.generic_task import InterruptableTask
 
 
@@ -78,11 +79,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # waiting time needed ???
         sleep(1)  # replace maybe by wait for idle
 
-        # create a folder for each roi
-        cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
-        # create the complete path
-        complete_path = self.ref['cam']._create_generic_filename(cur_save_path, '_Scan', 'Scan', '.'+self.file_format, addfile=False)
-        self.log.info(f'complete path: {complete_path}')
+        # create the path for each roi
+        # cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
+        cur_save_path = self.get_complete_path(self.save_path, self.roi_names[self.roi_counter])
+        self.log.info(f'complete path: {cur_save_path}')
 
         # imaging sequence:
         # prepare the daq: set the digital output to 0 before starting the task
@@ -118,20 +118,23 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
                 t1 = time() - t0
                 if t1 > 5:  # for safety: timeout if no signal received within 5 s
+                    self.log.info('Timeout occured')
                     break
 
         # get acquired data from the camera and save it to file
         image_data = self.ref['cam'].get_acquired_data()
-        print(image_data.shape)
+        # print(image_data.shape)
 
         # save path needs to be adapted depending on the file hierarchy
 
         if self.file_format == 'fits':
-            metadata = {}  # to be added
-            self.ref['cam']._save_to_fits(complete_path, image_data, metadata)
+            metadata = self.get_fits_metadata()
+            self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
         else:  # use tiff as default format
-            self.ref['cam']._save_to_tiff(self.num_frames, complete_path, image_data)
-            # add metadata saving
+            self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
+            metadata = self.get_metadata()
+            file_path = self.complete_path.replace('tiff', 'txt', 1)
+            self.save_metadata_file(metadata, file_path)
 
         self.roi_counter += 1
 
@@ -217,3 +220,112 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return start_pos
         else:
             return current_pos  # the scan starts at the current position and moves up
+
+# --------------------------------------------------------
+    def get_metadata(self):
+        """ Get a dictionary containing the metadata in a plain text compatible format. """
+        metadata = {}
+        metadata['exposure time (s)'] = self.exposure
+        metadata['scan step length (um)'] = self.z_step
+        metadata['scan total length (um)'] = self.z_step * self.num_z_planes
+        metadata['filter'] = 'filtername'  # or without this entry ???
+        metadata['number laserlines'] = self.num_laserlines
+        for i in range(self.num_laserlines):
+            metadata[f'laser line {i+1}'] = self.imaging_sequence[i][0]
+            metadata[f'laser intensity {i+1}'] = self.imaging_sequence[i][1]
+        metadata['x position'] = self.ref['roi'].stage_position[0]
+        metadata['y position'] = self.ref['roi'].stage_position[1]
+        metadata['ROI001'] = self.ref['roi'].get_roi_position('ROI001')  # np.ndarray return type
+        # pixel size ???
+        return metadata
+
+    def get_fits_metadata(self):
+        """ Get a dictionary containing the metadata in a fits header compatible format. """
+        metadata = {}
+        metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
+        metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
+        metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
+        metadata['CHANNELS'] = (self.num_laserlines, 'number laserlines')
+        for i in range(self.num_laserlines):
+            metadata[f'LINE{i+1}'] = (self.imaging_sequence[i][0], f'laser line {i+1}')
+            metadata[f'INTENS{i+1}'] = (self.imaging_sequence[i][1], f'laser intensity {i+1}')
+        metadata['X_POS'] = (self.ref['roi'].stage_position[0], 'x position')
+        metadata['Y_POS'] = (self.ref['roi'].stage_position[1], 'y position')
+        # metadata['ROI001'] = (self.ref['roi'].get_roi_position('ROI001'), 'ROI 001 position')
+        # pixel size
+        return metadata
+
+    def save_metadata_file(self, metadata, path):
+        """" Save a txt file containing the metadata dictionary
+
+        :param dict metadata: dictionary containing the metadata
+        :param str path: pathname
+        """
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(metadata, outfile, default_flow_style=False)
+        self.log.info('Saved metadata to {}'.format(path))
+
+    def get_complete_path(self, path_stem, roi_number):
+        """ Create the complete path based on path_stem given as user parameter,
+        such as path_stem/YYYY_MM_DD/001_Scan_samplename/ROI007/scan_001_ROI007.tiff
+        or path_stem/YYYY_MM_DD/027_Scan_samplename/ROI002/scan_027_ROI002.fits
+
+        :param: str path_stem such as E:/DATA
+        :return: str complete path (see examples above)
+        """
+        # check if folder path_stem exists, if not: create it
+        if not os.path.exists(path_stem):
+            try:
+                os.makedirs(path_stem)  # recursive creation of all directories on the path
+            except Exception as e:
+                self.log.error('Error {0}'.format(e))
+
+        cur_date = datetime.today().strftime('%Y_%m_%d')
+
+        path_stem_date = os.path.join(path_stem, cur_date)
+
+        # count the subdirectories in the directory path (non recursive !) to generate an incremental prefix
+        dir_list = [folder for folder in os.listdir(path_stem_date) if os.path.isdir(os.path.join(path_stem_date, folder))]
+        number_dirs = len(dir_list)
+
+        prefix=str(number_dirs).zfill(3)
+        foldername = f'{prefix}_Scan_{self.sample_name}'
+
+        path = os.path.join(path_stem_date, foldername, roi_number)
+
+        file_name = f'scan_{prefix}_{roi_number}.{self.file_format}'
+        complete_path = os.path.join(path, file_name)
+        return complete_path
+
+
+    # def get_complete_path(self, path_stem, roi_number, probe_number):
+    #     """ Create the complete path based on path_stem given as user parameter,
+    #     such as path_stem/YYYY_MM_DD/001_Scan_samplename/ROI007/RT17/scan_001_RT17_ROI007.tiff
+    #     or path_stem/YYYY_MM_DD/027_Scan_samplename/ROI002/DAPI/scan_027_DAPI_ROI002.fits
+    #
+    #     :param: str path_stem such as E:/DATA
+    #     :return: str complete path (see examples above)
+    #     """
+    #     # check if folder path_stem exists, if not: create it
+    #     if not os.path.exists(path_stem):
+    #         try:
+    #             os.makedirs(path_stem)  # recursive creation of all directories on the path
+    #         except Exception as e:
+    #             self.log.error('Error {0}'.format(e))
+    #
+    #     cur_date = datetime.today().strftime('%Y_%m_%d')
+    #
+    #     path_stem_date = os.path.join(path_stem, cur_date)
+    #
+    #     # count the subdirectories in the directory path (non recursive !) to generate an incremental prefix
+    #     dir_list = [folder for folder in os.listdir(path_stem_date) if os.path.isdir(os.path.join(path_stem_date, folder))]
+    #     number_dirs = len(dir_list)
+    #
+    #     prefix=str(number_dirs).zfill(3)
+    #     foldername = f'{prefix}_Scan_{self.sample_name}'
+    #
+    #     path = os.path.join(path_stem_date, foldername, roi_number, probe_number)
+    #
+    #     file_name = f'scan_{prefix}_{probe_number}_{roi_number}.{self.file_format}'
+    #     complete_path = os.path.join(path, file_name)
+    #     return complete_path
