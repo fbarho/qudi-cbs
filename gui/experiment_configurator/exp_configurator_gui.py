@@ -72,16 +72,17 @@ class ExpConfiguratorGUI(GUIBase):
         # initialize list view
         self._mw.imaging_sequence_ListView.setModel(self._exp_logic.img_sequence_model)
 
-
         # signals
         # internal signals
         # toolbar
         self._mw.save_config_Action.triggered.connect(self.save_config_clicked)
         self._mw.load_config_Action.triggered.connect(self.load_config_clicked)
+        self._mw.clear_all_Action.triggered.connect(self._exp_logic.init_default_config_dict)
 
         # widgets on the configuration form
         self._mw.select_experiment_ComboBox.activated[str].connect(self.update_form)
 
+        self._mw.sample_name_LineEdit.textChanged.connect(self._exp_logic.update_sample_name)
         self._mw.exposure_DSpinBox.valueChanged.connect(self._exp_logic.update_exposure)
         self._mw.gain_SpinBox.valueChanged.connect(self._exp_logic.update_gain)
         self._mw.num_frames_SpinBox.valueChanged.connect(self._exp_logic.update_frames)
@@ -99,10 +100,12 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.add_entry_PushButton.clicked.connect(self.add_entry_clicked)
         self._mw.delete_entry_PushButton.clicked.connect(self.delete_entry_clicked)
         self._mw.delete_all_PushButton.clicked.connect(self._exp_logic.delete_imaging_list)
+
         # get-current-value pushbutton signals
         self._mw.get_exposure_PushButton.clicked.connect(self._exp_logic.get_exposure)
         self._mw.get_gain_PushButton.clicked.connect(self._exp_logic.get_gain)
         self._mw.get_filterpos_PushButton.clicked.connect(self._exp_logic.get_filterpos)
+
         # load file pushbutton signals
         self._mw.load_roi_PushButton.clicked.connect(self.load_roi_list_clicked)
         self._mw.load_injections_PushButton.clicked.connect(self.load_injections_clicked)
@@ -116,6 +119,7 @@ class ExpConfiguratorGUI(GUIBase):
         # signals from logic
         self._exp_logic.sigConfigDictUpdated.connect(self.update_entries)
         self._exp_logic.sigImagingListChanged.connect(self.update_listview)
+        self._exp_logic.sigConfigLoaded.connect(self.display_loaded_config)
 
         # update the entries on the form
         self._exp_logic.init_default_config_dict()
@@ -325,7 +329,6 @@ class ExpConfiguratorGUI(GUIBase):
     def save_config_clicked(self):
         path = '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
         experiment = self._mw.select_experiment_ComboBox.currentText()
-        # filename = 'testconfigfile.txt'  # adapt filename as a function of experiment type chosen in combobox
         self.sigSaveConfig.emit(path, experiment)
 
     def load_config_clicked(self):
@@ -335,10 +338,10 @@ class ExpConfiguratorGUI(GUIBase):
                                                           data_directory,
                                                           'yaml files (*.yaml)')[0]
         if this_file:
-            self._mw.formWidget.setVisible(True)
             self.sigLoadConfig.emit(this_file)
 
     def update_entries(self):
+        self._mw.sample_name_LineEdit.setText(self._exp_logic.config_dict.get('sample_name', ''))
         self._mw.exposure_DSpinBox.setValue(self._exp_logic.config_dict.get('exposure', 0.0))
         self._mw.gain_SpinBox.setValue(self._exp_logic.config_dict.get('gain', 0))
         self._mw.num_frames_SpinBox.setValue(self._exp_logic.config_dict.get('num_frames', 1))
@@ -348,8 +351,9 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.fileformat_ComboBox.setCurrentText(self._exp_logic.config_dict.get('file_format', ''))
         self._mw.num_z_planes_SpinBox.setValue(self._exp_logic.config_dict.get('num_z_planes', 1))
         self._mw.z_step_DSpinBox.setValue(self._exp_logic.config_dict.get('z_step', 0.0))
+        self._mw.centered_focal_plane_CheckBox.setChecked(self._exp_logic.config_dict.get('centered_focal_plane', False))
         self._mw.roi_list_path_LineEdit.setText(self._exp_logic.config_dict.get('roi_list_path', ''))
-        self._mw.injections_list_LineEdit.setText(self._exp_logic.config_dict.get('injections_list', ''))
+        self._mw.injections_list_LineEdit.setText(self._exp_logic.config_dict.get('injections_path', ''))
         self._mw.illumination_time_DSpinBox.setValue(self._exp_logic.config_dict.get('illumination_time', 0.0))
 
     def add_entry_clicked(self):
@@ -392,16 +396,12 @@ class ExpConfiguratorGUI(GUIBase):
         if this_file:
             self._mw.injections_list_LineEdit.setText(this_file)
 
+    def display_loaded_config(self):
+        self._mw.select_experiment_ComboBox.setCurrentText(self._exp_logic.config_dict['experiment'])
+        self.update_form()
+        self.update_entries()
 
-# bug load injections list
-# load config files
-
-
-
-
-
-
-
+# clear all toolbutton: reset also selectors for imaging sequence to default values ? (first laser, 0)
 
 
 
