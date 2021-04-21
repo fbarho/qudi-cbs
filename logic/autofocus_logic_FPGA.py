@@ -72,6 +72,9 @@ class AutofocusLogic(GenericLogic):
         """ Required deactivation.
         """
         pass
+
+    # Public method for the autofocus, used by all the methods (camera or FPGA/QPD based)
+    # -----------------------------------------------------------------------------------
         
     def read_detector_signal(self):
         """ General function returning the reference signal for the autofocus correction. In the case of the
@@ -107,6 +110,9 @@ class AutofocusLogic(GenericLogic):
         """ Read the pid output signal in order to adjust the position of the objective
         """
         return self._fpga.read_pid()
+
+    # Methods specific to the QPD-based method (private).
+    # --------------------------------------------------
 
     def qpd_read_position(self):
         """ Read the QPD signal from the FPGA. The signal is read from X/Y positions. In order to make sure we are

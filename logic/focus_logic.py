@@ -324,6 +324,9 @@ class FocusLogic(GenericLogic):
         elif not self._setpoint_defined:
             self.log.warning('setpoint not yet defined')
 
+        elif self._autofocus_lost:
+            self.log.warning('autofocus signal not found - autofocus cannot be launched')
+
     def run_autofocus(self):
         """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
         unnecessary movement of the piezo, the corrections are only applied when an absolute displacement >100nm is
@@ -414,13 +417,6 @@ class FocusLogic(GenericLogic):
             stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
             self.threadpool.start(stage_worker)
 
-
-    # autofocus methods based on camera detection
-    # -------------------------------------------
-
-    def update_threshold(self, threshold):
-        self._autofocus_logic._threshold = threshold
-
     def start_live_display(self):
 
         self._live_display = True
@@ -448,3 +444,9 @@ class FocusLogic(GenericLogic):
     def stop_live_display(self):
         self._live_display = False
         self._autofocus_logic.stop_camera()
+
+    # autofocus methods based on camera detection
+    # -------------------------------------------
+
+    def update_threshold(self, threshold):
+        self._autofocus_logic._threshold = threshold
