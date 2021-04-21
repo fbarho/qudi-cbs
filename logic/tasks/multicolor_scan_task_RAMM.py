@@ -50,6 +50,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # download the bitfile for the task on the FPGA
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
         self.ref['fpga'].start_task_session(bitfile)
+        self.log.info('Task session started')
 
         # prepare the daq: set the digital output to 0 before starting the task
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
@@ -94,8 +95,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
 
             t1 = time() - t0
-            if t1 > 5:  # for safety: timeout if no signal received within 5 s
-                self.log.warning('Timeout occured')
+            if t1 > 1:  # for safety: timeout if no signal received within 1 s
+                # self.log.warning('Timeout occured')
                 break
 
         return self.step_counter < self.num_z_planes
@@ -120,7 +121,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             image_data = self.ref['cam'].get_acquired_data()
 
             if self.file_format == 'fits':
-                metadata = self.get_fits_metadata()
+                metadata = {} # self.get_fits_metadata()
                 self.ref['cam']._save_to_fits(self.complete_path, image_data, metadata)
             else:   # use tiff as default format
                 self.ref['cam']._save_to_tiff(self.num_frames, self.complete_path, image_data)
@@ -154,7 +155,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones
-        self.complete_path = self.get_complete_path(self.save_path)
+        self.complete_path =  self.get_complete_path(self.save_path)
 
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
 
@@ -192,20 +193,22 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
         metadata = {}
-        metadata['exposure time (s)'] = self.exposure
-        metadata['scan step length (um)'] = self.z_step
-        metadata['scan total length (um)'] = self.z_step * self.num_z_planes
-        metadata['filter'] = 'filtername'  # or without this entry ???
-        metadata['number laserlines'] = self.num_laserlines
+        metadata['Sample name'] = self.sample_name
+        metadata['Exposure time (s)'] = self.exposure
+        metadata['Scan step length (um)'] = self.z_step
+        metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
+        # metadata['filter'] = 'filtername'  # or without this entry ???
+        metadata['Number laserlines'] = self.num_laserlines
         for i in range(self.num_laserlines):
-            metadata[f'laser line {i+1}'] = self.imaging_sequence[i][0]
-            metadata[f'laser intensity {i+1}'] = self.imaging_sequence[i][1]
+            metadata[f'Laser line {i+1}'] = self.imaging_sequence[i][0]
+            metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
         # pixel size ???
         return metadata
 
     def get_fits_metadata(self):
         """ Get a dictionary containing the metadata in a fits header compatible format. """
         metadata = {}
+        metadata['SAMPLE'] = (self.sample_name, 'sample name')
         metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
         metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
         metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
@@ -233,27 +236,34 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         :param: str path_stem such as E:/DATA
         :return: str complete path (see examples above)
         """
-        # check if folder path_stem exists, if not: create it
-        if not os.path.exists(path_stem):
+        cur_date = datetime.today().strftime('%Y_%m_%d')
+
+        path_stem_with_date = os.path.join(path_stem, cur_date)
+
+        # check if folder path_stem/cur_date exists, if not: create it
+        if not os.path.exists(path_stem_with_date):
             try:
-                os.makedirs(path_stem)  # recursive creation of all directories on the path
+                os.makedirs(path_stem_with_date)  # recursive creation of all directories on the path
             except Exception as e:
                 self.log.error('Error {0}'.format(e))
 
-        cur_date = datetime.today().strftime('%Y_%m_%d')
-
-        path_stem_date = os.path.join(path_stem, cur_date)
-
         # count the subdirectories in the directory path (non recursive !) to generate an incremental prefix
-        dir_list = [folder for folder in os.listdir(path_stem_date) if os.path.isdir(os.path.join(path_stem_date, folder))]
+        dir_list = [folder for folder in os.listdir(path_stem_with_date) if os.path.isdir(os.path.join(path_stem_with_date, folder))]
         number_dirs = len(dir_list)
 
-        prefix=str(number_dirs).zfill(3)
+        prefix=str(number_dirs + 1).zfill(3)
         foldername = f'{prefix}_Scan_{self.sample_name}'
 
-        path = os.path.join(path_stem_date, foldername)
+        path = os.path.join(path_stem_with_date, foldername)
+
+        # create the path  # no need to check if it already exists due to incremental prefix
+        try:
+            os.makedirs(path)  # recursive creation of all directories on the path
+        except Exception as e:
+            self.log.error('Error {0}'.format(e))
 
         file_name = f'scan_{prefix}.{self.file_format}'
         complete_path = os.path.join(path, file_name)
         return complete_path
 
+# to do: save also a list with the z positions

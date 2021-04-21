@@ -50,6 +50,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # read all user parameters from config
         self.load_user_parameters()
 
+        # create a directory in which all the data will be saved
+        self.directory = self.create_directory(self.save_path)
+
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
@@ -81,8 +84,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # create the path for each roi
         # cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
-        cur_save_path = self.get_complete_path(self.save_path, self.roi_names[self.roi_counter])
-        self.log.info(f'complete path: {cur_save_path}')
+        cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
 
         # imaging sequence:
         # prepare the daq: set the digital output to 0 before starting the task
@@ -117,15 +119,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
 
                 t1 = time() - t0
-                if t1 > 5:  # for safety: timeout if no signal received within 5 s
-                    self.log.info('Timeout occured')
+                if t1 > 1:  # for safety: timeout if no signal received within 5 s
+                    # self.log.info('Timeout occured')
                     break
 
         # get acquired data from the camera and save it to file
         image_data = self.ref['cam'].get_acquired_data()
-        # print(image_data.shape)
-
-        # save path needs to be adapted depending on the file hierarchy
 
         if self.file_format == 'fits':
             metadata = self.get_fits_metadata()
@@ -133,7 +132,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:  # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
             metadata = self.get_metadata()
-            file_path = self.complete_path.replace('tiff', 'txt', 1)
+            file_path = cur_save_path.replace('tiff', 'txt', 1)
             self.save_metadata_file(metadata, file_path)
 
         self.roi_counter += 1
@@ -170,6 +169,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             with open(self.user_config_path, 'r') as stream:
                 self.user_param_dict = yaml.safe_load(stream)
 
+                self.sample_name = self.user_param_dict['sample_name']
                 self.exposure = self.user_param_dict['exposure']
                 self.num_z_planes = self.user_param_dict['num_z_planes']
                 self.z_step = self.user_param_dict['z_step']  # in um
@@ -182,7 +182,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
-        # establish further user parameters derived from the given ones:
+        # establish further user parameters derived from the given ones
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
         # create a list of roi names
         self.ref['roi'].load_roi_list(self.roi_list_path)
@@ -225,23 +225,26 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
         metadata = {}
-        metadata['exposure time (s)'] = self.exposure
-        metadata['scan step length (um)'] = self.z_step
-        metadata['scan total length (um)'] = self.z_step * self.num_z_planes
-        metadata['filter'] = 'filtername'  # or without this entry ???
-        metadata['number laserlines'] = self.num_laserlines
+        metadata['Sample name'] = self.sample_name
+        metadata['Exposure time (s)'] = self.exposure
+        metadata['Scan step length (um)'] = self.z_step
+        metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
+        # metadata['Filter'] = 'filtername'  # or without this entry ???
+        metadata['Number laserlines'] = self.num_laserlines
         for i in range(self.num_laserlines):
-            metadata[f'laser line {i+1}'] = self.imaging_sequence[i][0]
-            metadata[f'laser intensity {i+1}'] = self.imaging_sequence[i][1]
+            metadata[f'Laser line {i+1}'] = self.imaging_sequence[i][0]
+            metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
         metadata['x position'] = self.ref['roi'].stage_position[0]
         metadata['y position'] = self.ref['roi'].stage_position[1]
-        metadata['ROI001'] = self.ref['roi'].get_roi_position('ROI001')  # np.ndarray return type
+        roi_001_pos = self.ref['roi'].get_roi_position('ROI_001')  # np.ndarray return type
+        metadata['ROI_001'] = (float(roi_001_pos[0]), float(roi_001_pos[1]), float(roi_001_pos[2]))
         # pixel size ???
         return metadata
 
     def get_fits_metadata(self):
         """ Get a dictionary containing the metadata in a fits header compatible format. """
         metadata = {}
+        metadata['SAMPLE'] = (self.sample_name, 'sample name')
         metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
         metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
         metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
@@ -265,39 +268,56 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
 
-    def get_complete_path(self, path_stem, roi_number):
-        """ Create the complete path based on path_stem given as user parameter,
-        such as path_stem/YYYY_MM_DD/001_Scan_samplename/ROI007/scan_001_ROI007.tiff
-        or path_stem/YYYY_MM_DD/027_Scan_samplename/ROI002/scan_027_ROI002.fits
-
-        :param: str path_stem such as E:/DATA
-        :return: str complete path (see examples above)
+    def create_directory(self, path_stem):
+        """ Create the directory (based on path_stem given as user parameter),
+        in which the folders for the ROI will be created
+        Example: path_stem/YYYY_MM_DD/001_Scan_samplename
         """
-        # check if folder path_stem exists, if not: create it
-        if not os.path.exists(path_stem):
+        cur_date = datetime.today().strftime('%Y_%m_%d')
+
+        path_stem_with_date = os.path.join(path_stem, cur_date)
+
+        # check if folder path_stem_with_date exists, if not: create it
+        if not os.path.exists(path_stem_with_date):
             try:
-                os.makedirs(path_stem)  # recursive creation of all directories on the path
+                os.makedirs(path_stem_with_date)  # recursive creation of all directories on the path
             except Exception as e:
                 self.log.error('Error {0}'.format(e))
 
-        cur_date = datetime.today().strftime('%Y_%m_%d')
-
-        path_stem_date = os.path.join(path_stem, cur_date)
-
         # count the subdirectories in the directory path (non recursive !) to generate an incremental prefix
-        dir_list = [folder for folder in os.listdir(path_stem_date) if os.path.isdir(os.path.join(path_stem_date, folder))]
+        dir_list = [folder for folder in os.listdir(path_stem_with_date) if os.path.isdir(os.path.join(path_stem_with_date, folder))]
         number_dirs = len(dir_list)
 
-        prefix=str(number_dirs).zfill(3)
+        prefix=str(number_dirs+1).zfill(3)
+        # make prefix accessible to include it in the filename generated in the method get_complete_path
+        self.prefix = prefix
+
         foldername = f'{prefix}_Scan_{self.sample_name}'
 
-        path = os.path.join(path_stem_date, foldername, roi_number)
+        path = os.path.join(path_stem_with_date, foldername)
 
-        file_name = f'scan_{prefix}_{roi_number}.{self.file_format}'
+        # create the path  # no need to check if it already exists due to incremental prefix
+        try:
+            os.makedirs(path)  # recursive creation of all directories on the path
+        except Exception as e:
+            self.log.error('Error {0}'.format(e))
+
+        return path
+
+    def get_complete_path(self, directory, roi_number):
+        path = os.path.join(directory, roi_number)
+
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path)  # recursive creation of all directories on the path
+            except Exception as e:
+                self.log.error('Error {0}'.format(e))
+
+        file_name = f'scan_{self.prefix}_{roi_number}.{self.file_format}'
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-
+#for Hi-M experiment
     # def get_complete_path(self, path_stem, roi_number, probe_number):
     #     """ Create the complete path based on path_stem given as user parameter,
     #     such as path_stem/YYYY_MM_DD/001_Scan_samplename/ROI007/RT17/scan_001_RT17_ROI007.tiff
