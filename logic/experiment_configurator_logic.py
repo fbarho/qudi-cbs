@@ -146,6 +146,7 @@ class ExpConfigLogic(GenericLogic):
                 pass
         except KeyError as e:
             self.log.warning(f'Experiment configuration not saved. Missing information {e}.')
+            return
 
         config_dict['experiment'] = experiment
         complete_path = os.path.join(path, filename)

@@ -37,12 +37,16 @@ class ExpConfiguratorGUI(GUIBase):
 
     exp_configurator_gui:
         module.Class: 'experiment_configurator.exp_configurator_gui.ExpConfiguratorGUI'
+        default_location_config_files: '/home/barho'
         connect:
             exp_config_logic: 'exp_config_logic'
     """
 
     # connector to logic module
     exp_logic = Connector(interface='ExpConfigLogic')
+
+    # config options
+    default_location = ConfigOption('default_location_config_files')
 
     # Signals
     sigSaveConfig = QtCore.Signal(str, str)
@@ -327,12 +331,12 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.illumination_time_DSpinBox.setVisible(visible)
 
     def save_config_clicked(self):
-        path = '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        path = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self.sigSaveConfig.emit(path, experiment)
 
     def load_config_clicked(self):
-        data_directory = '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        data_directory = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
@@ -377,7 +381,7 @@ class ExpConfiguratorGUI(GUIBase):
             self.sigDeleteEntry.emit(index)
 
     def load_roi_list_clicked(self):
-        data_directory = '/home/barho/'  # replace by default loc
+        data_directory = os.path.join(self.default_location, 'qudi_roi_lists')
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open ROI list',
                                                           data_directory,
@@ -387,12 +391,12 @@ class ExpConfiguratorGUI(GUIBase):
 
 
     def load_injections_clicked(self):
-        data_directory = '/home/barho/'  # replace by default loc
+        data_directory = os.path.join(self.default_location, 'qudi_injection_parameters')
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open injections file',
                                                           data_directory,
                                                           'txt files (*.txt)')[0]
-        print(this_file)
+        # print(this_file)
         if this_file:
             self._mw.injections_list_LineEdit.setText(this_file)
 
