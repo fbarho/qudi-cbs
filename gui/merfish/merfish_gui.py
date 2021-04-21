@@ -270,7 +270,7 @@ class MerfishGUI(GUIBase):
     def save_injections_clicked(self):
         """ Callback of the toolbutton save merfishmerfish injections. Opens a dialog to select a file or a path where
         the data should be saved. The path is handed over to the logic module where data saving is managed. """
-        data_directory = self.default_path  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # default path for saving the file
+        data_directory = self.default_path
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw,
                                                           'Save injection sequence',
                                                           data_directory,

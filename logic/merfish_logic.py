@@ -304,7 +304,7 @@ class MerfishLogic(GenericLogic):
         # write a complete file containing buffer_dict, probe_dict, hybridization_list and photobleaching_list
         with open(path, 'w') as file:
             dict_file = {'buffer': self.buffer_dict, 'probes': self.probe_dict, 'hybridization list': hybridization_list, 'photobleaching list': photobleaching_list}
-            yaml.safe_dump(dict_file, file, default_flow_style=False, sort_keys=False)  #, sort_keys=False
+            yaml.safe_dump(dict_file, file, default_flow_style=False)  #, sort_keys=False
             self.log.info('Injections saved to {}'.format(path))
 
     @staticmethod
