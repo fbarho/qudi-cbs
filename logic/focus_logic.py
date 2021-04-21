@@ -132,6 +132,8 @@ class FocusLogic(GenericLogic):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
+        # initialize the ms2000 stage
+        self._stage = self.stage()
 
         # initialize the piezo
         self._piezo = self.piezo()
@@ -143,9 +145,6 @@ class FocusLogic(GenericLogic):
 
         # initialize the autofocus class
         self._autofocus_logic = self.autofocus()
-
-        # initialize the ms2000 stage
-        self._stage = self.stage()
 
         # allow the rescue option when working with then RAMM setup
         if self._setup == "RAMM":
@@ -191,30 +190,10 @@ class FocusLogic(GenericLogic):
     def init_piezo(self):
         init_pos = self._init_position
         self.piezo_ramp(init_pos)
-
-        # # use a ramp to go to the init_pos with max step
-        # constraints = self._piezo.get_constraints()
-        # step = constraints[self._axis]['max_step']
-        # position = self.get_position()  # check the return format, and reformat it in case it is needed
-        # while position < abs(init_pos - step) or position > abs(init_pos + step):  # approach in an interval of step around the target position
-        #     if position > init_pos:
-        #         self.move_down(step)
-        #     else:
-        #         self.move_up(step)
-        #     position = self.get_position()
-        #
-        # last_step = init_pos - position
-        # if last_step > 0:
-        #     self.move_up(last_step)
-        # else:
-        #     self.move_down(-last_step)
         self.sigPiezoInitFinished.emit()
 
     def go_to_position(self, position):
-        # self._piezo.move_abs({self._axis: position})
         self.piezo_ramp(position)
-        # to improve ! better implement a ramp to avoid making to rapid movements # move the ramp used in init piezo in a
-        # dedicated function and call it for init piezo and also for go to position
 
     def piezo_ramp(self, target_pos):
         # use a ramp to go to target_pos with max step as far as possible and then do a last_step <= max_step
