@@ -234,25 +234,6 @@
        <item row="2" column="0" colspan="2">
         <layout class="QVBoxLayout" name="verticalLayout_7">
          <item>
-          <widget class="QComboBox" name="Autofocus_method_comboBox">
-           <item>
-            <property name="text">
-             <string>Live focus stabilization with QPD</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Live focus stabilization with camera</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Find focus </string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item>
           <widget class="PlotWidget" name="calibration_PlotWidget"/>
          </item>
         </layout>
