@@ -51,8 +51,8 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
     # config
     resource = ConfigOption('resource', missing='error')
     default_bitfile = ConfigOption('default_bitfile', missing='error')
-    _wavelengths = ConfigOption('wavelengths', missing='error')
-    _registers_laser = ConfigOption('registers_laser', missing='error')
+    # _wavelengths = ConfigOption('wavelengths', missing='error')
+    # _registers_laser = ConfigOption('registers_laser', missing='error')
     _registers_qpd = ConfigOption('registers_qpd', missing='error')
     _registers = ConfigOption('registers', missing='error')
     _registers_autofocus = ConfigOption('registers_autofocus', missing='error')
@@ -65,15 +65,15 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
 
-        self.laser1_control = self.session.registers[self._registers_laser[0]]
-        self.laser2_control = self.session.registers[self._registers_laser[1]]
-        self.laser3_control = self.session.registers[self._registers_laser[2]]
-        self.laser4_control = self.session.registers[self._registers_laser[3]]
-        self.update = self.session.registers[self._registers_laser[4]]
-        # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
-        self.session.reset()
-        for i in range(len(self._registers)):
-            self.apply_voltage(0, self._registers[i])  # set initial value to each channel
+        # self.laser1_control = self.session.registers[self._registers_laser[0]]
+        # self.laser2_control = self.session.registers[self._registers_laser[1]]
+        # self.laser3_control = self.session.registers[self._registers_laser[2]]
+        # self.laser4_control = self.session.registers[self._registers_laser[3]]
+        # self.update = self.session.registers[self._registers_laser[4]]
+        # # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
+        # self.session.reset()
+        # for i in range(len(self._registers)):
+        #     self.apply_voltage(0, self._registers[i])  # set initial value to each channel
 
         self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
         self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
