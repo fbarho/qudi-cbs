@@ -49,18 +49,13 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
             # The link between registers and the physical channel is made in the labview file from which the bitfile is generated.
     """
     # config
-    resource = ConfigOption('resource', missing='error')
-    default_bitfile = ConfigOption('default_bitfile', missing='error')
-    fpga_laser_control = ConfigOption('laser_control', missing='error')
-    if fpga_laser_control:
-        _wavelengths = ConfigOption('wavelengths', missing='error')
-        _registers_laser = ConfigOption('registers_laser', missing='error')
-    fpga_QPD = ConfigOption('QPD', missing='error')
-    if fpga_QPD:
-        _registers_qpd = ConfigOption('registers_qpd', missing='error')
-        _registers = ConfigOption('registers', missing='error')
-        _registers_autofocus = ConfigOption('registers_autofocus', missing='error')
-
+    resource = ConfigOption('resource', None, missing='error')
+    default_bitfile = ConfigOption('default_bitfile', None, missing='error')
+    _wavelengths = ConfigOption('wavelengths', None, missing='warn')
+    _registers_laser = ConfigOption('registers_laser', None, missing='warn')
+    _registers_qpd = ConfigOption('registers_qpd', None, missing='warn')
+    _registers = ConfigOption('registers', None, missing='warn')
+    _registers_autofocus = ConfigOption('registers_autofocus', None, missing='warn')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -69,9 +64,10 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
 
-        print(self.fpga_laser_control, self.fpga_QPD)
+        # Initialize registers dictionnary according to the type of experiment selected
 
-        if self.fpga_laser_control:
+        if self._wavelengths is not None:
+
             self.laser1_control = self.session.registers[self._registers_laser[0]]
             self.laser2_control = self.session.registers[self._registers_laser[1]]
             self.laser3_control = self.session.registers[self._registers_laser[2]]
@@ -79,10 +75,11 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
             self.update = self.session.registers[self._registers_laser[4]]
             # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
             self.session.reset()
-            for i in range(len(self._registers)):
-                self.apply_voltage(0, self._registers[i])  # set initial value to each channel
+            for i in range(len(self._registers_laser)):
+                self.apply_voltage(0, self._registers_laser[i])  # set initial value to each channel
 
-        if self.fpga_QPD:
+        if self._registers_qpd is not None:
+
             self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
             self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
             self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
