@@ -59,7 +59,8 @@ class FocusGUI(GUIBase):
     sigTimetraceOn = QtCore.Signal()
     sigTimetraceOff = QtCore.Signal()
     sigReadPID = QtCore.Signal()
-    sigLaunchCalibration = QtCore.Signal()
+    sigCalibrateFocusStabilization = QtCore.Signal()
+    sigCalibrateOffset = QtCore.Signal()
     sigSetSetpoint = QtCore.Signal()
     sigLiveOn = QtCore.Signal()
     sigLiveOff = QtCore.Signal()
@@ -135,11 +136,12 @@ class FocusGUI(GUIBase):
         self._mw.move_down_PushButton.clicked.connect(self.move_down_button_clicked)
         self._mw.piezo_init_Action.triggered.connect(self.piezo_init_clicked)
         self._mw.tracking_Action.triggered.connect(self.start_tracking_clicked)
-        self._mw.calibration_pushButton.clicked.connect(self.calibrate_autofocus)
+        self._mw.calibration_pushButton.clicked.connect(self.calibrate_focus_stabilization)
+        self._mw.Find_offset_pushButton.clicked.connect(self.calibrate_offset)
         self._mw.setpoint_pushButton.clicked.connect(self.define_autofocus_setpoint)
         self._mw.threshold_spinBox.valueChanged.connect(self.threshold_changed)
         self._mw.live_Action.triggered.connect(self.start_stop_live)
-        self._mw.autofocus_Action.triggered.connect(self.start_stop_autofocus)
+        self._mw.autofocus_Action.triggered.connect(self.start_stop_focus_stabilization)
 
         # signals to logic
         self.sigUpdateStep.connect(self._focus_logic.set_step)
@@ -148,7 +150,8 @@ class FocusGUI(GUIBase):
         self.sigInitPiezo.connect(self._focus_logic.init_piezo)
         self.sigTimetraceOn.connect(self._focus_logic.start_tracking)
         self.sigTimetraceOff.connect(self._focus_logic.stop_tracking)
-        self.sigLaunchCalibration.connect(self._focus_logic.calibrate_autofocus)
+        self.sigCalibrateFocusStabilization.connect(self._focus_logic.calibrate_focus_stabilization)
+        self.sigCalibrateOffset.connect(self._focus_logic.calibrate_offset)
         self.sigSetSetpoint.connect(self._focus_logic.define_autofocus_setpoint)
         self.sigLiveOn.connect(self._focus_logic.start_live_display)
         self.sigLiveOff.connect(self._focus_logic.stop_live_display)
@@ -168,7 +171,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
         self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
-        self._focus_logic.sigAutofocusLost.connect(self.start_stop_autofocus)
+        self._focus_logic.sigAutofocusError.connect(self.error_live_stabilization)
         self._focus_logic.sigSetpoint.connect(self.update_autofocus_setpoint)
 
     def on_deactivate(self):
@@ -272,10 +275,15 @@ class FocusGUI(GUIBase):
         threshold = self._mw.threshold_spinBox.value()
         self.sigUpdateThreshold.emit(threshold)
 
-    def calibrate_autofocus(self):
+    def calibrate_focus_stabilization(self):
         if not self._mw.calibration_pushButton.isChecked():
-            self.sigLaunchCalibration.emit()
+            self.sigCalibrateFocusStabilization.emit()
             self._mw.calibration_pushButton.setText('Calibrating ...')
+
+    def calibrate_offset(self):
+        if not self._mw.Find_offset_pushButton.isChecked():
+            self.sigCalibrateOffset.emit()
+            self._mw.Find_offset_pushButton.setText('Calibrating ...')
 
     def define_autofocus_setpoint(self):
         self.sigSetSetpoint.emit()
@@ -292,18 +300,22 @@ class FocusGUI(GUIBase):
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
         self._mw.calibration_pushButton.setText('Launch calibration')
 
-    def start_stop_autofocus(self):
+    def start_stop_focus_stabilization(self):
         """ When the pushbutton start/stop autofocus is pushed, a signal is sent to this function. If the autofocus is
         not running yet, a signal is sent to the logic to launch it and the button text is changed to "stop autofocus".
         If the autofocus is already running, a signal is sent to the logic to stop the autofocus loop. The text of the
         button is changed back to "Start autofocus".
         """
         if self._focus_logic._run_autofocus:
-            self._mw.autofocus_Action.setText('Start Autofocus')
+            self._mw.autofocus_Action.setText('Start focus stabilization')
             self.sigAutofocusStop.emit()
         else:
-            self._mw.autofocus_Action.setText('Stop Autofocus')
+            self._mw.autofocus_Action.setText('Stop focus stabilization')
             self.sigAutofocusStart.emit()
+
+    def error_live_stabilization(self):
+        self._mw.autofocus_Action.setText('Start focus stabilization')
+        self._mw.calibration_pushButton.setChecked(False)
 
     def start_stop_live(self):
         """ When the pushbutton start/stop Live is pushed, a signal is sent to this function. If the camera is
@@ -312,10 +324,10 @@ class FocusGUI(GUIBase):
         button is changed back to "Start Live".
         """
         if self._focus_logic._live_display:
-            self._mw.live_Action.setText('Start Live')
+            self._mw.live_Action.setText('Start live display')
             self.sigLiveOff.emit()
         else:
-            self._mw.live_Action.setText('Stop Live')
+            self._mw.live_Action.setText('Stop live display')
             self._mw.im_display_dockWidget.show()
             self.sigLiveOn.emit()
 
