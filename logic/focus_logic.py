@@ -87,6 +87,7 @@ class FocusLogic(GenericLogic):
     sigPiezoInitFinished = QtCore.Signal()
     sigUpdateDisplay = QtCore.Signal()
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
+    sigOffsetCalibration = QtCore.Signal(float)
     sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
     sigDisplayImage = QtCore.Signal(object)
     sigAutofocusError = QtCore.Signal()
@@ -119,6 +120,7 @@ class FocusLogic(GenericLogic):
     _run_autofocus = False
     _autofocus_lost = False
     _enable_autofocus_rescue = False
+    _stop_when_stabilized = False
 
     refresh_time = 100  # time in ms for timer interval
 
@@ -252,10 +254,52 @@ class FocusLogic(GenericLogic):
         is inspired from the LSM-Zeiss microscope and is used when the sample (such as embryos) is interfering too much
         with the IR signal and makes the regular focus stabilization unstable.
         """
+        # Read the stage position
+        Z_up = self._stage.get_pos()['z']
 
         # Move the stage by the default offset value along the z-axis
-        axis_label = ('z')
-        positions = (-self._focus_offset)
+        axis_label = ('x', 'y', 'z')
+        positions = (0, 0, self._focus_offset)
+        pos_dict = dict([*zip(axis_label, positions)])
+        self._stage.move_rel(pos_dict)
+
+        # Check the IR signal is detected
+        self.check_autofocus()
+        if self._autofocus_lost:
+            self.rescue_autofocus()
+
+        # Look for the position with the maximum intensity - for the QPD the SUM signal is used.
+        max_sum = 0
+        z_range = 5 # in µm
+        z_step = 0.1 # in µm
+
+        axis_label = ('x', 'y', 'z')
+        positions = (0, 0, -z_range//2)
+        pos_dict = dict([*zip(axis_label, positions)])
+        self._stage.move_rel(pos_dict)
+
+        positions = (0, 0, z_step)
+
+        for n in range(int(z_range/z_step)):
+
+            pos_dict = dict([*zip(axis_label, positions)])
+            self._stage.move_rel(pos_dict)
+
+            sum = self._autofocus_logic.read_detector_intensity()
+            print(sum)
+            if sum > max_sum:
+                max_sum = sum
+            elif sum < max_sum and max_sum >500:
+                break
+
+        # Read the qpd signal and define the new setpoint
+        self.define_autofocus_setpoint()
+
+        # Calculate the offset for the stage and move back to the initial position
+        self._focus_offset = self._stage.get_pos()['z'] - Z_up
+        self.sigOffsetCalibration.emit(self._focus_offset)
+
+        positions = (0, 0, -self._focus_offset)
         pos_dict = dict([*zip(axis_label, positions)])
         self._stage.move_rel(pos_dict)
 
@@ -310,7 +354,7 @@ class FocusLogic(GenericLogic):
         detected by the QPD or the camera.
         """
         self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
-        if self._autofocus_lost:
+        if self._autofocus_lost and self._run_autofocus:
             self.log.warning('autofocus lost!')
             self.sigAutofocusError.emit()
 
@@ -318,7 +362,6 @@ class FocusLogic(GenericLogic):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
             A check is also performed in order to make sure there is enough signal detected by the detector.
         """
-
         if self._calibrated and self._setpoint_defined:
 
             self.check_autofocus()
@@ -360,11 +403,13 @@ class FocusLogic(GenericLogic):
             worker.signals.sigFinished.connect(self.run_autofocus)
             self.threadpool.start(worker)
 
-            pid = self._autofocus_logic.read_pid_output()
+            if not self._stop_when_stabilized:
+                pid = self._autofocus_logic.read_pid_output(False)
+            else:
+                pid, stable = self._autofocus_logic.read_pid_output(True)
+
             z = self._z0 + pid / self._slope
 
-            self._z_last = self._z_new
-            self._z_new = z
             dz = np.absolute(self.get_position() - z)
 
             if self._min_z + 1 < z < self._max_z - 1:
@@ -374,10 +419,16 @@ class FocusLogic(GenericLogic):
                 self.log.warning('piezo position out of constraints')
                 self.stop_autofocus()
 
+            if self._stop_when_stabilized:
+                if stable:
+                    self.log.warning('focus is stable')
+                    self.stop_autofocus()
+
     def stop_autofocus(self):
         """ Stop the autofocus loop
         """
         self._run_autofocus = False
+        self.sigAutofocusError.emit()
 
     def rescue_autofocus(self):
         """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The

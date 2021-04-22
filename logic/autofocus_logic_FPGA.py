@@ -20,6 +20,7 @@ from qtpy import QtCore
 
 import pyqtgraph as pg
 import numpy as np
+from numpy.polynomial import Polynomial as Poly
 from time import sleep
 
 
@@ -44,14 +45,18 @@ class AutofocusLogic(GenericLogic):
     _camera_acquiring = False
 
     # autofocus attributes
-    _autofocus_signal = None
+    # _autofocus_signal = None
     _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
+    _autofocus_stable = False
+    _autofocus_iterations = 0
 
     # pid attributes
     _pid_frequency = 0.2  # in s, frequency for the autofocus PID update
     _P_gain = ConfigOption('Proportional_gain', 0, missing='warn')
     _I_gain = ConfigOption('Integration_gain', 0, missing='warn')
     _setpoint = None
+
+    _last_pid_output_values = np.zeros((10,))
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -82,6 +87,12 @@ class AutofocusLogic(GenericLogic):
         """
         return self.qpd_read_position()
 
+    def read_detector_intensity(self):
+        """ Function used for the focus search. Measured the intensity of the reflection instead of reading its
+        position
+        """
+        return self.qpd_read_sum()
+
     def autofocus_check_signal(self):
         """ Check that the intensity detected by the QPD is above a specific threshold (50). If the signal is too low,
         the function returns a TRUE signal indicating that the autofocus has been lost.
@@ -106,10 +117,33 @@ class AutofocusLogic(GenericLogic):
         self._fpga.init_pid(self._P_gain, self._I_gain, self._setpoint, self._ref_axis)
         self.worker_frequency()
 
-    def read_pid_output(self):
+        self._autofocus_stable = False
+        self._autofocus_iterations = 0
+
+    def read_pid_output(self, check_stabilization):
         """ Read the pid output signal in order to adjust the position of the objective
         """
-        return self._fpga.read_pid()
+        pid_output = self._fpga.read_pid()
+
+        if check_stabilization:
+            self._autofocus_iterations += 1
+            self._last_pid_output_values = np.concatenate((self._last_pid_output_values[1:10], [pid_output]))
+            return pid_output, self.check_stabilization()
+        else:
+            return pid_output
+
+    def check_stabilization(self):
+        """ Check for the stabilization of the focus
+        """
+        if self._autofocus_iterations > 10:
+            p = Poly.fit(np.linspace(0, 9, num=10), self._last_pid_output_values, deg=1)
+            slope = p(9) - p(0)
+            if np.absolute(slope) < 10:
+                self._autofocus_stable = True
+            else :
+                self._autofocus_stable = False
+
+        return self._autofocus_stable
 
     # Methods specific to the QPD-based method (private).
     # --------------------------------------------------

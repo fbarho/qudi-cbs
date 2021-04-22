@@ -169,6 +169,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigPiezoInitFinished.connect(self.piezo_init_finished)
         self._focus_logic.sigUpdateDisplay.connect(self.update_timetrace)
         self._focus_logic.sigPlotCalibration.connect(self.plot_calibration)
+        self._focus_logic.sigOffsetCalibration.connect(self.display_offset)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
         self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
         self._focus_logic.sigAutofocusError.connect(self.error_live_stabilization)
@@ -264,8 +265,8 @@ class FocusGUI(GUIBase):
     # Functions for the autofocus
 
     def update_pid_parameters(self):
-        self._focus_logic._autofocus_logic._P_gain = self._w_pid.Pgain_doubleSpinBox.value()
-        self._focus_logic._autofocus_logic._I_gain = self._w_pid.Igain_doubleSpinBox.value()
+        self._focus_logic._autofocus_logic._P_gain = int(self._w_pid.Pgain_doubleSpinBox.value())
+        self._focus_logic._autofocus_logic._I_gain = int(self._w_pid.Igain_doubleSpinBox.value())
 
     def keep_pid_parameters(self):
         self._w_pid.Pgain_doubleSpinBox.setValue(self._focus_logic._autofocus_logic._P_gain)
@@ -284,6 +285,10 @@ class FocusGUI(GUIBase):
         if not self._mw.Find_offset_pushButton.isChecked():
             self.sigCalibrateOffset.emit()
             self._mw.Find_offset_pushButton.setText('Calibrating ...')
+
+    def display_offset(self, offset):
+        self._mw.offset_lineEdit.setText("{:.2f}".format(offset))
+        self._mw.Find_offset_pushButton.setText('Find offset')
 
     def define_autofocus_setpoint(self):
         self.sigSetSetpoint.emit()
