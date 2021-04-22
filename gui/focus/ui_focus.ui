@@ -209,9 +209,9 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_3">
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="1" column="0">
+     <item row="0" column="0">
       <layout class="QGridLayout" name="gridLayout_8">
-       <item row="5" column="1">
+       <item row="7" column="1">
         <widget class="QLabel" name="slope_Label">
          <property name="text">
           <string>Slope</string>
@@ -221,10 +221,10 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0">
+       <item row="7" column="0">
         <widget class="QLineEdit" name="slope_lineEdit"/>
        </item>
-       <item row="3" column="0" colspan="2">
+       <item row="5" column="0" colspan="2">
         <widget class="QPushButton" name="calibration_pushButton">
          <property name="text">
           <string>Launch calibration</string>
@@ -234,24 +234,50 @@
        <item row="2" column="0" colspan="2">
         <layout class="QVBoxLayout" name="verticalLayout_7">
          <item>
+          <widget class="QComboBox" name="Autofocus_method_comboBox">
+           <item>
+            <property name="text">
+             <string>Live focus stabilization with QPD</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Live focus stabilization with camera</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Find focus </string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item>
           <widget class="PlotWidget" name="calibration_PlotWidget"/>
          </item>
         </layout>
        </item>
-       <item row="6" column="1">
+       <item row="8" column="1">
         <widget class="QPushButton" name="setpoint_pushButton">
          <property name="text">
           <string>Define setpoint</string>
          </property>
         </widget>
        </item>
-       <item row="6" column="0">
+       <item row="8" column="0">
         <widget class="QLineEdit" name="setpoint_lineEdit"/>
        </item>
+       <item row="9" column="1">
+        <widget class="QPushButton" name="Find_offset_pushButton">
+         <property name="text">
+          <string>Find offset</string>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="0">
+        <widget class="QLineEdit" name="offset_lineEdit"/>
+       </item>
       </layout>
-     </item>
-     <item row="3" column="0">
-      <layout class="QVBoxLayout" name="verticalLayout_3"/>
      </item>
     </layout>
    </widget>
@@ -408,7 +434,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Start Live</string>
+    <string>Start live display </string>
    </property>
    <property name="toolTip">
     <string>start thorlabs camera live</string>
@@ -430,7 +456,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Start Autofocus</string>
+    <string>Start focus stabilization</string>
    </property>
   </action>
   <action name="pid_settings_Action">
