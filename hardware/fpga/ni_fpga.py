@@ -51,11 +51,15 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
     # config
     resource = ConfigOption('resource', missing='error')
     default_bitfile = ConfigOption('default_bitfile', missing='error')
-    # _wavelengths = ConfigOption('wavelengths', missing='error')
-    # _registers_laser = ConfigOption('registers_laser', missing='error')
-    _registers_qpd = ConfigOption('registers_qpd', missing='error')
-    _registers = ConfigOption('registers', missing='error')
-    _registers_autofocus = ConfigOption('registers_autofocus', missing='error')
+    fpga_laser_control = ConfigOption('laser_control', missing='error')
+    if fpga_laser_control:
+        _wavelengths = ConfigOption('wavelengths', missing='error')
+        _registers_laser = ConfigOption('registers_laser', missing='error')
+    fpga_QPD = ConfigOption('QPD', missing='error')
+    if fpga_QPD:
+        _registers_qpd = ConfigOption('registers_qpd', missing='error')
+        _registers = ConfigOption('registers', missing='error')
+        _registers_autofocus = ConfigOption('registers_autofocus', missing='error')
 
 
     def __init__(self, config, **kwargs):
@@ -65,37 +69,41 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
 
-        # self.laser1_control = self.session.registers[self._registers_laser[0]]
-        # self.laser2_control = self.session.registers[self._registers_laser[1]]
-        # self.laser3_control = self.session.registers[self._registers_laser[2]]
-        # self.laser4_control = self.session.registers[self._registers_laser[3]]
-        # self.update = self.session.registers[self._registers_laser[4]]
-        # # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
-        # self.session.reset()
-        # for i in range(len(self._registers)):
-        #     self.apply_voltage(0, self._registers[i])  # set initial value to each channel
+        print(self.fpga_laser_control, self.fpga_QPD)
 
-        self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
-        self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
-        self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
-        self.Counter = self.session.registers[self._registers_qpd[3]]
-        self.Duration_ms = self.session.registers[self._registers_qpd[4]]
+        if self.fpga_laser_control:
+            self.laser1_control = self.session.registers[self._registers_laser[0]]
+            self.laser2_control = self.session.registers[self._registers_laser[1]]
+            self.laser3_control = self.session.registers[self._registers_laser[2]]
+            self.laser4_control = self.session.registers[self._registers_laser[3]]
+            self.update = self.session.registers[self._registers_laser[4]]
+            # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
+            self.session.reset()
+            for i in range(len(self._registers)):
+                self.apply_voltage(0, self._registers[i])  # set initial value to each channel
 
-        self.Stop = self.session.registers[self._registers[0]]
-        self.Integration_time_us = self.session.registers[self._registers[1]]
-        self.Reset_counter = self.session.registers[self._registers[2]]
+        if self.fpga_QPD:
+            self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
+            self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
+            self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
+            self.Counter = self.session.registers[self._registers_qpd[3]]
+            self.Duration_ms = self.session.registers[self._registers_qpd[4]]
 
-        self.setpoint = self.session.registers[self._registers_autofocus[0]]
-        self.P = self.session.registers[self._registers_autofocus[1]]
-        self.I = self.session.registers[self._registers_autofocus[2]]
-        self.reset = self.session.registers[self._registers_autofocus[3]]
-        self.autofocus = self.session.registers[self._registers_autofocus[4]]
-        self.ref_axis = self.session.registers[self._registers_autofocus[5]]
-        self.output = self.session.registers[self._registers_autofocus[6]]
+            self.Stop = self.session.registers[self._registers[0]]
+            self.Integration_time_us = self.session.registers[self._registers[1]]
+            self.Reset_counter = self.session.registers[self._registers[2]]
 
-        self.Stop.write(False)
-        self.Integration_time_us.write(100)
-        self.session.run()
+            self.setpoint = self.session.registers[self._registers_autofocus[0]]
+            self.P = self.session.registers[self._registers_autofocus[1]]
+            self.I = self.session.registers[self._registers_autofocus[2]]
+            self.reset = self.session.registers[self._registers_autofocus[3]]
+            self.autofocus = self.session.registers[self._registers_autofocus[4]]
+            self.ref_axis = self.session.registers[self._registers_autofocus[5]]
+            self.output = self.session.registers[self._registers_autofocus[6]]
+
+            self.Stop.write(False)
+            self.Integration_time_us.write(100)
+            self.session.run()
 
     def on_deactivate(self):
         """ Required deactivation steps. """
