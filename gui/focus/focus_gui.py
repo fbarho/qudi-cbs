@@ -345,9 +345,9 @@ class FocusGUI(GUIBase):
         """
         self.raw_imageitem.setImage(im)
         if threshold:
-            im_thresh = threshold(0)
-            x = threshold(1)
-            y = threshold(2)
+            im_thresh = threshold[0]
+            x = threshold[1]
+            y = threshold[2]
             self.threshold_imageitem.setImage(im_thresh)
             self._mw.threshold_image_PlotWidget.removeItem(self._centroid)
             self._centroid = self._mw.threshold_image_PlotWidget.plot([x], [y], symbol='+', color='red')

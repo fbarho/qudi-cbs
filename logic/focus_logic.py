@@ -35,7 +35,7 @@ class QPDAutofocusWorker(QtCore.QRunnable):
     @QtCore.Slot()
     def run(self):
         """ """
-        sleep(self.frequency)  # 1 second as time constant
+        sleep(self.frequency)
         self.signals.sigFinished.emit()
 
 
@@ -50,7 +50,7 @@ class CameraAutofocusWorker(QtCore.QRunnable):
     @QtCore.Slot()
     def run(self):
         """ """
-        sleep(0.2)  # 1 second as time constant
+        sleep(0.2)
         self.signals.sigFinished.emit()
 
 
@@ -65,7 +65,7 @@ class StageAutofocusWorker(QtCore.QRunnable):
     @QtCore.Slot()
     def run(self):
         """ """
-        sleep(0.5)  # 1 second as time constant
+        sleep(0.5)
         self.signals.sigFinished.emit()
 
 
@@ -74,12 +74,12 @@ class FocusLogic(GenericLogic):
     """
     # declare connectors
     piezo = Connector(
-        interface='MotorInterface')  # to check if the motor interface can be reused here or if we should better define a PiezoInterface
-    stage = Connector(interface='MotorInterface')
+        interface='MotorInterface')
+    # stage = Connector(interface='MotorInterface')
     autofocus = Connector(interface='AutofocusLogic')
 
     # define the setup we are working on
-    _setup = ConfigOption('Setup', missing='error')
+    _setup = ConfigOption('setup', missing='error')
 
     # signals
     sigStepChanged = QtCore.Signal(float)
@@ -136,7 +136,7 @@ class FocusLogic(GenericLogic):
         """ Initialisation performed during activation of the module.
         """
         # initialize the ms2000 stage
-        self._stage = self.stage()
+        # self._stage = self.stage()
 
         # initialize the piezo
         self._piezo = self.piezo()
@@ -144,12 +144,12 @@ class FocusLogic(GenericLogic):
         self._max_step = self._piezo.get_constraints()[self._axis]['max_step']
         self._min_z = self._piezo.get_constraints()[self._axis]['pos_min']
         self._max_z = self._piezo.get_constraints()[self._axis]['pos_max']
-        self.go_to_position(self._init_position)
+        self.init_piezo()
 
         # initialize the autofocus class
         self._autofocus_logic = self.autofocus()
 
-        # allow the rescue option when working with then RAMM setup
+        # allow the rescue option when working with the RAMM setup
         if self._setup == "RAMM":
             self._enable_autofocus_rescue = True
 
@@ -164,6 +164,10 @@ class FocusLogic(GenericLogic):
         Return the piezo to the zero position
          """
         self.go_to_position(0.5)
+
+# ==========================================================
+# methods for manual focus setting (manual focus dockwidget)
+# ==========================================================
 
     def move_up(self, step):
         self._piezo.move_rel({self._axis: step})
@@ -219,7 +223,10 @@ class FocusLogic(GenericLogic):
         else:
             self.move_down(-last_step)
 
-    # methods for timetrace
+# ==============================================================
+# methods for timetrace of piezo position (timetrace dockwidget)
+# ==============================================================
+
     def start_tracking(self):
         """ slot called from gui signal sigTimetraceOn.
         """
@@ -240,8 +247,9 @@ class FocusLogic(GenericLogic):
         if self.timetrace_enabled:
             self.timer.start(self.refresh_time)
 
-    # methods for autofocus
-    # ----------------------
+# ==============================================================
+# methods for autofocus
+# ==============================================================
 
     def read_detector_signal(self):
         """ According to the method used for the autofocus, returns either the QPD signal or the centroid position
@@ -255,7 +263,7 @@ class FocusLogic(GenericLogic):
         with the IR signal and makes the regular focus stabilization unstable.
         """
         # Read the stage position
-        Z_up = self._stage.get_pos()['z']
+        z_up = self._stage.get_pos()['z']
 
         # Move the stage by the default offset value along the z-axis
         axis_label = ('x', 'y', 'z')
@@ -296,7 +304,7 @@ class FocusLogic(GenericLogic):
         self.define_autofocus_setpoint()
 
         # Calculate the offset for the stage and move back to the initial position
-        self._focus_offset = self._stage.get_pos()['z'] - Z_up
+        self._focus_offset = self._stage.get_pos()['z'] - z_up
         self.sigOffsetCalibration.emit(self._focus_offset)
 
         positions = (0, 0, -self._focus_offset)

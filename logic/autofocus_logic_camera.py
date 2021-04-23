@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Nov  3 10:27:15 2020
-
-@author: fbarho
-
-
-A module to control the piezo.
-
-The piezo carries the microscope objective and is used to manually set the focus and for autofocus procedure
 
 """
 
@@ -30,10 +22,12 @@ class AutofocusLogic(GenericLogic):
     
     autofocus_logic:
         module.Class: 'autofocus_logic.AutofocusLogic'
-        Autofocus_ref_axis : 'X' # 'Y'
+        autofocus_ref_axis : 'X' # 'Y'
+        proportional_gain : 0.1 # in %%
+        integration_gain : 1 # in %%
+        exposure = 0.001
         connect:
             camera : 'thorlabs_camera'
-            fpga: 'nifpga'
     """
 
     # declare connectors
@@ -41,24 +35,22 @@ class AutofocusLogic(GenericLogic):
 
     # autofocus attributes
     _autofocus_signal = None
-    _ref_axis = ConfigOption('Autofocus_ref_axis', 'X', missing='warn')
+    _ref_axis = ConfigOption('autofocus_ref_axis', 'X', missing='warn')
 
     # camera attributes
     _threshold = 150
-    _exposure = ConfigOption('Exposure', 0.001, missing='warn')
+    _exposure = ConfigOption('exposure', 0.001, missing='warn')
     _camera_acquiring = False
 
     # pid attributes
     _pid_frequency = 0.2  # in s, frequency for the autofocus PID update
-    _P_gain = ConfigOption('Proportional_gain', 0, missing='warn')
-    _I_gain = ConfigOption('Integration_gain', 0, missing='warn')
+    _P_gain = ConfigOption('proportional_gain', 0, missing='warn')
+    _I_gain = ConfigOption('integration_gain', 0, missing='warn')
     _setpoint = None
     _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-
-        # self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
