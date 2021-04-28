@@ -24,6 +24,7 @@ from pyqtgraph import PlotWidget, ImageItem, ViewBox, InfiniteLine, ROI
 from qtpy import QtCore
 # from core.util.filters import scan_blink_correction  # in comments 14/4/21 FB because of conflict with scipy package
 
+
 __all__ = ['ScanImageItem', 'ScanPlotWidget', 'ScanViewBox']
 
 
