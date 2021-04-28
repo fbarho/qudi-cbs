@@ -20,7 +20,7 @@
      <x>0</x>
      <y>0</y>
      <width>631</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuMenu">
@@ -168,7 +168,7 @@
    <addaction name="separator"/>
    <addaction name="tracking_Action"/>
    <addaction name="separator"/>
-   <addaction name="live_Action"/>
+   <addaction name="start_live_Action"/>
    <addaction name="separator"/>
    <addaction name="autofocus_Action"/>
   </widget>
@@ -225,9 +225,12 @@
         <widget class="QLineEdit" name="slope_lineEdit"/>
        </item>
        <item row="5" column="0" colspan="2">
-        <widget class="QPushButton" name="calibration_pushButton">
+        <widget class="QPushButton" name="calibration_PushButton">
          <property name="text">
           <string>Launch calibration</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -239,7 +242,7 @@
         </layout>
        </item>
        <item row="8" column="1">
-        <widget class="QPushButton" name="setpoint_pushButton">
+        <widget class="QPushButton" name="setpoint_PushButton">
          <property name="text">
           <string>Define setpoint</string>
          </property>
@@ -249,7 +252,7 @@
         <widget class="QLineEdit" name="setpoint_lineEdit"/>
        </item>
        <item row="9" column="1">
-        <widget class="QPushButton" name="Find_offset_pushButton">
+        <widget class="QPushButton" name="find_offset_PushButton">
          <property name="text">
           <string>Find offset</string>
          </property>
@@ -336,7 +339,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QSpinBox" name="threshold_spinBox">
+        <widget class="QSpinBox" name="threshold_SpinBox">
          <property name="minimum">
           <number>0</number>
          </property>
@@ -410,7 +413,7 @@
     <string>Autofocus</string>
    </property>
   </action>
-  <action name="live_Action">
+  <action name="start_live_Action">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -442,12 +445,12 @@
   </action>
   <action name="pid_settings_Action">
    <property name="text">
-    <string>pid settings</string>
+    <string>PID settings</string>
    </property>
   </action>
   <action name="camera_settings_Action">
    <property name="text">
-    <string>camera settings</string>
+    <string>Camera settings</string>
    </property>
   </action>
  </widget>

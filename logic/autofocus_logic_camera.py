@@ -34,7 +34,7 @@ class AutofocusLogic(GenericLogic):
     camera = Connector(interface='CameraInterface')
 
     # autofocus attributes
-    _autofocus_signal = None
+    # _autofocus_signal = None
     _ref_axis = ConfigOption('autofocus_ref_axis', 'X', missing='warn')
 
     # camera attributes
@@ -47,7 +47,8 @@ class AutofocusLogic(GenericLogic):
     _P_gain = ConfigOption('proportional_gain', 0, missing='warn')
     _I_gain = ConfigOption('integration_gain', 0, missing='warn')
     _setpoint = None
-    _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
+    _pid = None
+    # _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -61,12 +62,17 @@ class AutofocusLogic(GenericLogic):
         self._im_size = self._camera.get_size()
         self._idx_X = np.linspace(0, self._im_size[0] - 1, self._im_size[0])
         self._idx_Y = np.linspace(0, self._im_size[1] - 1, self._im_size[1])
+        self.init_pid()
 
     def on_deactivate(self):
         """ Required deactivation.
         """
         if self._camera_acquiring:
-            self.stop_camera()
+            self.stop_camera_live()
+
+# =======================================================================================
+# Public method for the autofocus, used by all the methods (camera or FPGA/QPD based)
+# =======================================================================================
 
     def read_detector_signal(self):
         """ General function returning the reference signal for the autofocus correction. In the case of the
@@ -93,7 +99,7 @@ class AutofocusLogic(GenericLogic):
         else:
             return False
 
-    def pid_setpoint(self):
+    def define_pid_setpoint(self):
         """ Initialize the pid setpoint
         """
         self._setpoint = self.read_detector_signal()
@@ -107,7 +113,8 @@ class AutofocusLogic(GenericLogic):
     def read_pid_output(self):
         """ Read the pid output signal in order to adjust the position of the objective
         """
-        return self._fpga.read_pid()
+        pass
+        # return self._fpga.read_pid()
 
     def start_camera_live(self):
         """ Launch live acquisition of the camera
@@ -115,7 +122,7 @@ class AutofocusLogic(GenericLogic):
         self._camera.start_live_acquisition()
         self._camera_acquiring = True
 
-    def stop_camera(self):
+    def stop_camera_live(self):
         """ Stop live acquisition of the camera
         """
         self._camera.stop_acquisition()
@@ -128,6 +135,7 @@ class AutofocusLogic(GenericLogic):
         im = self._camera.get_acquired_data()
         return im
 
+    # autofocus_logic_camera only
     def calculate_threshold_image(self, im):
         """ Calculate the threshold image according to the threshold value
         """
@@ -136,6 +144,7 @@ class AutofocusLogic(GenericLogic):
         mask[mask <= self._threshold] = 0
         return mask
 
+    # autofocus_logic_camera only
     def calculate_centroid(self, im, mask):
         """ Calculate the centroid of the raw image using the threshold image as mask
         """
@@ -146,3 +155,26 @@ class AutofocusLogic(GenericLogic):
 
         return x0, y0
 
+# ======================================================
+# empty methods
+# ======================================================
+    def calibrate_offset(self):
+        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """
+        self.log.warning('calibrate_offset is not available on this setup.')
+        return 0  # to test if this is ok to use 0 value for not available offset
+
+    def rescue_autofocus(self):
+        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """
+        self.log.warning('rescue_autofocus is not available on this setup.')
+
+    def start_piezo_position_correction(self, direction):
+        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """
+        self.log.warning('start_piezo_position_correction is not available on this setup.')
+
+    # def run_piezo_position_correction(self):
+    #     """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+    #     """
+    #     self.log.info('run_piezo_position_correction is not available on this setup.')
