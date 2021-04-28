@@ -136,9 +136,14 @@ class HCam(Base, CameraInterface):
          dim] = self.camera.getFrames()  # frames is a list of HCamData objects, dim is a list [image_width, image_height]
 
         if acq_mode == 'run_till_abort':
-            data = frames[-1].getData()  # for run_till_abort acquisition: get the last (= most recent) frame
-            image_array = np.reshape(data, (dim[1], dim[
-                0]))  # reshape in row major shape (height, width) # to check if image is reconstituted correctly
+            # bug fix trial
+            if not frames:  # check if list is empty
+                print('no frames available')
+                image_array = np.zeros((dim[1], dim[0]))
+            else:
+                data = frames[-1].getData()  # for run_till_abort acquisition: get the last (= most recent) frame
+                image_array = np.reshape(data, (dim[1], dim[
+                    0]))  # reshape in row major shape (height, width) # to check if image is reconstituted correctly
         elif acq_mode == 'fixed_length' and self.n_frames == 1:  # equivalent to single_scan
             data = frames[-1].getData()
             image_array = np.reshape(data, (dim[1], dim[0]))
