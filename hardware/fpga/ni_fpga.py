@@ -54,8 +54,8 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
     _wavelengths = ConfigOption('wavelengths', None, missing='warn')
     _registers_laser = ConfigOption('registers_laser', None, missing='warn')
     _registers_qpd = ConfigOption('registers_qpd', None, missing='warn')
-    _registers = ConfigOption('registers', None, missing='warn')
     _registers_autofocus = ConfigOption('registers_autofocus', None, missing='warn')
+    _registers_general = ConfigOption('registers_general', None, missing='warn')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -63,24 +63,24 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
     def on_activate(self):
         """ Required initialization steps when module is called."""
         self.session = Session(bitfile=self.default_bitfile, resource=self.resource)
-        self.laser1_control = self.session.registers[self._registers[0]]
-        self.laser2_control = self.session.registers[self._registers[1]]
-        self.laser3_control = self.session.registers[self._registers[2]]
-        self.laser4_control = self.session.registers[self._registers[3]]
-        # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
-        self.session.reset()
-        for i in range(len(self._registers)):
-            self.apply_voltage(0, self._registers[i])  # set initial value to each channel
-
-        self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
-        self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
-        self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
-        self.Integration_time_us = self.session.registers[self._registers_qpd[3]]
-        self.Duration_ms = self.session.registers[self._registers_qpd[4]]
-        self.Task = self.session.registers[self._registers_qpd[5]]
-
-        self.Task.write(False)
-        self.session.run()
+        # self.laser1_control = self.session.registers[self._registers[0]]
+        # self.laser2_control = self.session.registers[self._registers[1]]
+        # self.laser3_control = self.session.registers[self._registers[2]]
+        # self.laser4_control = self.session.registers[self._registers[3]]
+        # # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
+        # self.session.reset()
+        # for i in range(len(self._registers)):
+        #     self.apply_voltage(0, self._registers[i])  # set initial value to each channel
+        #
+        # self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
+        # self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
+        # self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
+        # self.Integration_time_us = self.session.registers[self._registers_qpd[3]]
+        # self.Duration_ms = self.session.registers[self._registers_qpd[4]]
+        # self.Task = self.session.registers[self._registers_qpd[5]]
+        #
+        # self.Task.write(False)
+        # self.session.run()
 
         # Initialize registers dictionnary according to the type of experiment selected
 
@@ -91,9 +91,8 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
             self.laser3_control = self.session.registers[self._registers_laser[2]]
             self.laser4_control = self.session.registers[self._registers_laser[3]]
             self.update = self.session.registers[self._registers_laser[4]]
-            # maybe think of replacing the hardcoded version of assigning the registers to an identifier by something more dynamic
             self.session.reset()
-            for i in range(len(self._registers_laser)):
+            for i in range(len(self._registers_laser)-1):
                 self.apply_voltage(0, self._registers_laser[i])  # set initial value to each channel
 
         if self._registers_qpd is not None:
@@ -104,9 +103,9 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
             self.Counter = self.session.registers[self._registers_qpd[3]]
             self.Duration_ms = self.session.registers[self._registers_qpd[4]]
 
-            self.Stop = self.session.registers[self._registers[0]]
-            self.Integration_time_us = self.session.registers[self._registers[1]]
-            self.Reset_counter = self.session.registers[self._registers[2]]
+            self.Stop = self.session.registers[self._registers_general[0]]
+            self.Integration_time_us = self.session.registers[self._registers_general[1]]
+            self.Reset_counter = self.session.registers[self._registers_general[2]]
 
             self.setpoint = self.session.registers[self._registers_autofocus[0]]
             self.P = self.session.registers[self._registers_autofocus[1]]
@@ -117,13 +116,13 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
             self.output = self.session.registers[self._registers_autofocus[6]]
 
             self.Stop.write(False)
-            self.Integration_time_us.write(100)
-            self.session.run()
+            self.Integration_time_us.write(10)
+        self.session.run()
 
     def on_deactivate(self):
         """ Required deactivation steps. """
-        for i in range(len(self._registers)):
-            self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
+        for i in range(len(self._registers_laser)-1):
+            self.apply_voltage(0, self._registers_laser[i])   # make sure to switch the lasers off before closing the session
 
         self.Stop.write(True)
         self.session.close()
@@ -218,7 +217,7 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
 
             dic_entry = {'label': label,
                          'wavelength': self._wavelengths[i],
-                         'channel': self._registers[i]
+                         'channel': self._registers_laser[i]
                          }
                          # 'ao_voltage_range': self._ao_voltage_ranges[i]
 
@@ -233,8 +232,8 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
 
         (in this version it actually does the same as on_deactivate (we could also just call this method ..  but this might evolve)
         """
-        for i in range(len(self._registers)):
-            self.apply_voltage(0, self._registers[i])   # make sure to switch the lasers off before closing the session
+        for i in range(len(self._registers_laser)):
+            self.apply_voltage(0, self._registers_laser[i])   # make sure to switch the lasers off before closing the session
         self.session.close()
 
     def restart_default_session(self):
@@ -281,14 +280,21 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         num_images_acquired = self.session.registers['Images acquired']  # indicator register how many images have been acquired
         laser_lines = self.session.registers['Laser lines']  # list containing numbers of the laser lines which should be addressed
         laser_power = self.session.registers['Laser power']  # list containing the intensity in % to apply (to the element at the same index in laser_lines list
+        stop = self.session.registers['stop']
+
 
         self.session.reset()
 
         conv_values = [self.convert_value(item) for item in values]
         num_lines.write(num_laserlines)
+        print(num_laserlines)
         num_z_pos.write(z_planes)
+        print(z_planes)
         laser_lines.write(wavelength)
+        print(wavelength)
         laser_power.write(conv_values)
+        print(conv_values)
+        stop.write(False)
 
         self.session.run()  #  wait_until_done=True
         num_imgs = num_images_acquired.read()
