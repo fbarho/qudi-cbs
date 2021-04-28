@@ -132,6 +132,9 @@ class FocusLogic(GenericLogic):
         # if self._setup == "RAMM":
         #     self._enable_autofocus_rescue = True
 
+        # signals
+        self._autofocus_logic.sigOffsetDefined.connect(self.define_autofocus_setpoint)
+
         # initialize the timer for the timetrace of the piezo position, it is then started when start_position_tracking is called
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)  # instead of using intervall. Repetition is then handled via the slot loop (and start_position_tracking at first)

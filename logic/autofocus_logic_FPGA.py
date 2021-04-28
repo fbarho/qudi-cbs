@@ -77,6 +77,9 @@ class AutofocusLogic(GenericLogic):
 
     _last_pid_output_values = np.zeros((10,))
 
+    # signals
+    sigOffsetDefined = QtCore.Signal()
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -129,6 +132,7 @@ class AutofocusLogic(GenericLogic):
         """
         self.qpd_reset()
         self._setpoint = self.read_detector_signal()
+        return self._setpoint
 
     def init_pid(self):
         """ Initialize the pid for the autofocus
@@ -221,11 +225,14 @@ class AutofocusLogic(GenericLogic):
             elif sum < max_sum and max_sum > 500:
                 break
 
-        # Read the qpd signal and define the new setpoint
-        self.define_autofocus_setpoint()
-
         # Calculate the offset for the stage and move back to the initial position
         self._focus_offset = self._stage.get_pos()['z'] - z_up
+
+        # send signal to focus logic that will be linked to define_autofocus_setpoint
+        self.sigOffsetDefined.emit()
+
+        # avoid moving stage while QPD signal is read
+        sleep(0.1)
 
         pos_dict = {'z': -self._focus_offset}
         self._stage.move_rel(pos_dict)
