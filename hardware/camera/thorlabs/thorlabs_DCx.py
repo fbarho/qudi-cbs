@@ -84,7 +84,7 @@ class CameraThorlabs(Base, CameraInterface):
 
         """
         if code != IS_SUCCESS:
-            self.log.error(message)
+            #self.log.error(message)
             return False
         else:
             return True
@@ -236,7 +236,16 @@ class CameraThorlabs(Base, CameraInterface):
         if self.get_ready_state():
             self._acquiring = True  # possibly a mistake ?
             self._live = True
-            code = self._dll.is_CaptureVideo(self._camera_handle, c_int(IS_DONT_WAIT))
+            # code = self._dll.is_CaptureVideo(self._camera_handle, c_int(IS_DONT_WAIT))
+            code = self._dll.is_CaptureVideo(self._camera_handle, c_int(IS_WAIT))
+            # Parameter was changed to IS_WAIT to make sure that at least one image was acquired before making a request
+            # for an image
+
+            # # Allocate memory for image:
+            # img_size = self._width * self._height
+            # c_array = ctypes.c_char * img_size
+            # self.c_img = c_array()
+
             no_error = self._check_error(code, "Could not start live acquisition")
             if not no_error:
                 self._acquiring = False
@@ -278,12 +287,14 @@ class CameraThorlabs(Base, CameraInterface):
         img_size = self._width * self._height
         c_array = ctypes.c_char * img_size
         c_img = c_array()
+
         # copy camera memory to accessible memory
+
         code = self._dll.is_CopyImageMem(self._camera_handle, self._image_memory, self._image_pid, c_img)
         self._check_error(code, "Could copy image to memory")
         # Convert to numpy 2d array of float from 0 to 1
         img_array = np.frombuffer(c_img, dtype=ctypes.c_ubyte)
-        img_array = img_array.astype(float)
+        img_array = img_array.astype(c_uint8) # Replaced "float" by "c_uint8" since tne image depth is 8bit by default
         img_array.shape = np.array((self._height, self._width))
 
         return img_array

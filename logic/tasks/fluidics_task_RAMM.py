@@ -170,4 +170,7 @@ class Task(InterruptableTask):
         #      'flowrate': 250,
         #      'time': None}
         # ]
+        self.probe_dict = {1: 'Probe1', 2: 'Probe2', 3: 'Probe3'}
+        # inversion might be needed as for the buffer_dict.. to check
+
 

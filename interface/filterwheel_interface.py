@@ -10,12 +10,9 @@ from core.interface import abstract_interface_method
 from core.meta import InterfaceMetaclass
 
 
-
-
 class FilterwheelInterface(metaclass=InterfaceMetaclass):
     """ This interface contains the necessary functions to be implemented for a filterwheel
     """
-
 
     @abstract_interface_method
     def get_position(self):
@@ -43,3 +40,4 @@ class FilterwheelInterface(metaclass=InterfaceMetaclass):
         @returns: laser_dict
         """
         pass
+
