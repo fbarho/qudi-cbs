@@ -77,7 +77,7 @@ class HamiltonValve(Base, ValveInterface):
     _valve_names = ConfigOption('name', missing='warn')
     _daisychain_IDs = ConfigOption('daisychain_ID', missing='warn')
     _number_outputs = ConfigOption('number_outputs', missing='warn')
-    _valve_positions = ConfigOption('valve_positions', [])
+    _valve_positions = ConfigOption('valve_positions', [])  # optional; if labels instead of only valve numbers on the GUI are needed
 
     _valve_state = {}  # dictionary holding the valve names as keys and their status as values # {'a': status_valve1, ..}
     
@@ -165,7 +165,7 @@ class HamiltonValve(Base, ValveInterface):
         @param int end_pos: new position
         """
         if valve_address in self._daisychain_IDs:
-            start_pos = int(self.get_valve_position(valve_address))
+            start_pos = self.get_valve_position(valve_address)
             max_pos = self.get_valve_dict()[valve_address]['number_outputs']
             if end_pos > max_pos:
                 self.log.warn(f'Target position out of range for valve {valve_address}. Position not set.')
@@ -177,8 +177,6 @@ class HamiltonValve(Base, ValveInterface):
                 self.write(cmd)
         else:
             self.log.warn(f'Valve {valve_address} not available.')
-
-        # sens modification position
 
     def wait_for_idle(self):
         """ Wait for the valves to be idle. This is important when one wants to 
@@ -211,5 +209,5 @@ class HamiltonValve(Base, ValveInterface):
         output = self._serial_connection.read()
         output = output.decode('utf-8')
         # output = self._serial_connection.read().decode('utf-8')
-        print(output)
+        # print(output)
         return output
