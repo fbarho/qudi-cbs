@@ -268,7 +268,7 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         self.session.run()
 
 
-    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values, num_laserlines):
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values, num_laserlines, exposure_time_ms):
         """
         associated bitfile 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAtriggercamer_u12WjFsC0U8.lvbitx'
         @param: int z_planes: number of z planes
@@ -281,7 +281,7 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         laser_lines = self.session.registers['Laser lines']  # list containing numbers of the laser lines which should be addressed
         laser_power = self.session.registers['Laser power']  # list containing the intensity in % to apply (to the element at the same index in laser_lines list
         stop = self.session.registers['stop']
-
+        exposure = self.session.registers['exposure_time_ms'] # integer indicating the exposure time of the camera in ms
 
         self.session.reset()
 
@@ -295,6 +295,9 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         laser_power.write(conv_values)
         print(conv_values)
         stop.write(False)
+        print("exposure time = " + str(exposure_time_ms))
+        exposure_time_ms = int(exposure_time_ms * 1000 * 2)
+        exposure.write(exposure_time_ms)
 
         self.session.run()  #  wait_until_done=True
         num_imgs = num_images_acquired.read()
