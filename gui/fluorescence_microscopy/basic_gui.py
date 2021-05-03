@@ -522,7 +522,7 @@ class BasicGUI(GUIBase):
         """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         path = os.path.join(default_path, today, folder_name)
         fileformat = '.'+str(self._save_sd.file_format_ComboBox.currentText())
 
@@ -562,7 +562,7 @@ class BasicGUI(GUIBase):
         displayed below the folder name specified by the user """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         path = os.path.join(default_path, today, folder_name)  #
         self._save_sd.complete_path_Label.setText('Save to: {}'.format(path))
 
@@ -688,7 +688,7 @@ class BasicGUI(GUIBase):
         """
         # save data
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         folder_name = self._mw.samplename_LineEdit.text()
         filenamestem = os.path.join(default_path, today, folder_name)
         metadata = self._create_metadata_dict()
