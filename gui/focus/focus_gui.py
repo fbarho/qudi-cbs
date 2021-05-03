@@ -358,12 +358,15 @@ class FocusGUI(GUIBase):
             self._mw.autofocus_Action.setText('Stop focus stabilization')
             self.sigAutofocusStart.emit()
 
-    def error_live_stabilization(self):
+    def error_live_stabilization(self, message):
         """ Callback of sigAutofocusError sent from focus_logic. Reset autofocus action button to callable state
         after a focus stabilization ended in an error (focus lost) or was not started because of missing calibrations.
         """
         self._mw.autofocus_Action.setText('Start focus stabilization')
         self._mw.autofocus_Action.setChecked(False)
+        # open a message box to inform that autofocus signal has been lost
+        # alternative: log entry in focus_logic at level error instead of warning
+        QtWidgets.QMessageBox.warning(self._mw, 'Autofocus warning', message, QtWidgets.QMessageBox.Ok)
 
     def start_live_clicked(self):
         """ When the action button start/stop Live is triggered, this method is called. If the camera is

@@ -78,7 +78,7 @@ class FocusLogic(GenericLogic):
     sigOffsetCalibration = QtCore.Signal(float)
     sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
     sigDisplayImage = QtCore.Signal(object)  # np.ndarray
-    sigAutofocusError = QtCore.Signal()
+    sigAutofocusError = QtCore.Signal(str)
     sigSetpointDefined = QtCore.Signal(float)
 
     # piezo attributes
@@ -346,7 +346,7 @@ class FocusLogic(GenericLogic):
         self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
         if self._autofocus_lost and self.autofocus_enabled:
             self.log.warning('autofocus lost!')
-            self.sigAutofocusError.emit()
+            self.sigAutofocusError.emit('Autofocus lost!')
 
     def start_autofocus(self):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
@@ -372,11 +372,11 @@ class FocusLogic(GenericLogic):
 
         elif not self._calibrated:
             self.log.warning('autofocus not yet calibrated')
-            self.sigAutofocusError.emit()
+            self.sigAutofocusError.emit('Autofocus not calibrated')
 
         elif not self._setpoint_defined:
             self.log.warning('setpoint not yet defined')
-            self.sigAutofocusError.emit()
+            self.sigAutofocusError.emit('Setpoint not defined')
 
     def run_autofocus(self):
         """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
@@ -415,7 +415,6 @@ class FocusLogic(GenericLogic):
         """ Stop the autofocus loop
         """
         self.autofocus_enabled = False
-        self.sigAutofocusError.emit()  # why error signal ????
 
     # autofocus methods based on camera detection
     # -------------------------------------------
