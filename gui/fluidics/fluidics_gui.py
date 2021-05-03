@@ -150,7 +150,7 @@ class FluidicsGUI(GUIBase):
 
         # internal signals
         for i in range(len(self.valve_ComboBoxes)):
-            self.valve_ComboBoxes[i].currentIndexChanged.connect(partial(self.change_valve_position, i))
+            self.valve_ComboBoxes[i].activated.connect(partial(self.change_valve_position, i))
 
         # signals to logic
         self.sigSetValvePosition.connect(self._valve_logic.set_valve_position)
