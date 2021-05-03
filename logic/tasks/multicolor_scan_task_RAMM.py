@@ -48,7 +48,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.load_user_parameters()
 
         # download the bitfile for the task on the FPGA
-        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
+        # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #version including qpd but qpd part not yet corrected
+        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx' # associated to Qudi_HiM_QPD_PID.vi
         self.ref['fpga'].start_task_session(bitfile)
         self.log.info('Task session started')
 
@@ -64,7 +65,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.step_counter = 0
 
         # start the session on the fpga using the user parameters
-        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines)
+        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities,
+                                                             self.num_laserlines, self.exposure)
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -96,7 +98,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             t1 = time() - t0
             if t1 > 1:  # for safety: timeout if no signal received within 1 s
-                # self.log.warning('Timeout occured')
+                self.log.warning('Timeout occured')
                 break
 
         return self.step_counter < self.num_z_planes
