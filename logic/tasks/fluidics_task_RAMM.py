@@ -39,25 +39,25 @@ class Task(InterruptableTask):
             pos: 'positioning_logic'
             flow: 'flowcontrol_logic'
         config:
-            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/fluidics_task_RAMM.yaml'
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_files/qudi_task_config_files/fluidics_task_RAMM.yaml'
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
+        self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
         self.load_user_parameters()
+        # self.load_injection_parameters()
         self.log.info('Injection parameters loaded')
         self.step_counter = 0
 
         self.ref['valves'].set_valve_position('b', 2)
-        # self.ref['valves'].wait_for_idle()
-        sleep(2)
+        self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('c', 2)
-        # self.ref['valves'].wait_for_idle()
-        sleep(2)
+        self.ref['valves'].wait_for_idle()
 
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
@@ -68,8 +68,7 @@ class Task(InterruptableTask):
             product = self.hybridization_list[self.step_counter]['product']
             valve_pos = self.buffer_dict[product]
             self.ref['valves'].set_valve_position('a', valve_pos)
-            sleep(2)
-            # self.ref['valves'].wait_for_idle()
+            self.ref['valves'].wait_for_idle()
 
             # as an initial value, set the pressure to 0 mbar
             self.ref['flow'].set_pressure(0.0)
@@ -114,21 +113,18 @@ class Task(InterruptableTask):
         """ Cleanup """
         self.ref['flow'].set_pressure(0.0)
         self.ref['valves'].set_valve_position('b', 1)
-        # self.ref['valves'].wait_for_idle()
-        sleep(2)
+        self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('a', 1)
-        # self.ref['valves'].wait_for_idle()
-        sleep(2)
+        self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('c', 1)
-        sleep(2)
-        # self.ref['valves'].wait_for_idle()
+        self.ref['valves'].wait_for_idle()
 
-        self.log.info('Cleanup task called')
+        self.log.info('Cleanup task finished')
 
     def load_user_parameters(self):
         try:
             with open(self.user_config_path, 'r') as stream:
-                self.user_param_dict = yaml.full_load(stream)
+                self.user_param_dict = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
 
                 self.injections_path = self.user_param_dict['injections_path']
 
@@ -140,21 +136,17 @@ class Task(InterruptableTask):
     def load_injection_parameters(self):
         """ """
         with open(self.injections_path, 'r') as stream:
-            documents = yaml.full_load(stream)
+            documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
             buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
-            self.probe_dict = documents['probes']
+            # self.probe_dict = documents['probes']
             self.hybridization_list = documents['hybridization list']
-            self.photobleaching_list = documents['photobleaching list']
-
-        # invert the buffer dict to address the valve by the product name as key
-        self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
-        # print(self.buffer_dict)
+            # self.photobleaching_list = documents['photobleaching list']
 
         # self.hybridization_list = [
         #     {'step_number': 1,
         #      'procedure': 'Hybridization',
         #      'product': 'Buffer3',
-        #      'volume': 500,
+        #      'volume': 100,
         #      'flowrate': 150,
         #      'time': None},
         #     {'step_number': 2,
@@ -162,15 +154,22 @@ class Task(InterruptableTask):
         #      'product': None,
         #      'volume': None,
         #      'flowrate': None,
-        #      'time': 10},
+        #      'time': 3},
         #     {'step_number': 3,
         #      'procedure': 'Hybridization',
         #      'product': 'Buffer8',
-        #      'volume': 500,
+        #      'volume': 200,
         #      'flowrate': 250,
         #      'time': None}
         # ]
-        self.probe_dict = {1: 'Probe1', 2: 'Probe2', 3: 'Probe3'}
+        #
+        # buffer_dict = {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+
+        # invert the buffer dict to address the valve by the product name as key
+        self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+        print(self.buffer_dict)
+
+        # self.probe_dict = {1: 'Probe1', 2: 'Probe2', 3: 'Probe3'}
         # inversion might be needed as for the buffer_dict.. to check
 
 
