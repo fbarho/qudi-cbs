@@ -175,6 +175,7 @@ class HamiltonValve(Base, ValveInterface):
                 else:
                     cmd = valve_address + "LP0" + str(end_pos) + "R\r"
                 self.write(cmd)
+                self.log.info(f'Set {self.get_valve_dict()[valve_address]["name"]} to position {end_pos}')
         else:
             self.log.warn(f'Valve {valve_address} not available.')
 
