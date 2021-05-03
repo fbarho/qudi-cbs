@@ -170,6 +170,16 @@ class PositioningLogic(GenericLogic):
         else:
             self.move_stage = True  # flag indicating later on that the translation stage movement was initiated by start_move_stage method
             self.moving = True
+
+            # do not allow descending z below safety position when operating by move stage (x y z coordinates given instead of target position)
+            if position[2] > self.z_safety_pos:
+                self.log.warning('z movement will not be made. z out of allowed range.')
+                # redefine position using the z safety position instead of the user defined z position
+                x = position[0]
+                y = position[1]
+                z = self.z_safety_pos
+                position = (x, y, z)
+
             axis_label = ('x', 'y', 'z')
             pos_dict = dict([*zip(axis_label, position)])
             # separate movement into xy and z movements for safety
