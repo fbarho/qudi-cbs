@@ -55,17 +55,6 @@
    <addaction name="load_Action"/>
    <addaction name="save_Action"/>
   </widget>
-  <widget class="QToolBar" name="toolBar_2">
-   <property name="windowTitle">
-    <string>toolBar_2</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-  </widget>
   <widget class="QDockWidget" name="buffer_DockWidget">
    <attribute name="dockWidgetArea">
     <number>4</number>
