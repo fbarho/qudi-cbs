@@ -46,10 +46,11 @@ class ExpConfiguratorGUI(GUIBase):
     exp_logic = Connector(interface='ExpConfigLogic')
 
     # config options
-    default_location = ConfigOption('default_location_config_files')
+    default_location = ConfigOption('default_location_config_files', missing='warn')
 
     # Signals
-    sigSaveConfig = QtCore.Signal(str, str)
+    sigSaveConfig = QtCore.Signal(str, str, str)
+    sigSaveConfigCopy = QtCore.Signal(str)
     sigLoadConfig = QtCore.Signal(str)
     sigAddEntry = QtCore.Signal(str, int)
     sigDeleteEntry = QtCore.Signal(QtCore.QModelIndex)
@@ -70,6 +71,10 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.select_experiment_ComboBox.addItems(self._exp_logic.experiments)
         self._mw.fileformat_ComboBox.addItems(self._exp_logic.supported_fileformats)
 
+        # hide save configuration toolbuttons while no experiment selected yet
+        self._mw.save_config_Action.setDisabled(True)
+        self._mw.save_config_copy_Action.setDisabled(True)
+
         # initialize the entry form
         self.init_configuration_form()
 
@@ -80,6 +85,7 @@ class ExpConfiguratorGUI(GUIBase):
         # internal signals
         # toolbar
         self._mw.save_config_Action.triggered.connect(self.save_config_clicked)
+        self._mw.save_config_copy_Action.triggered.connect(self.save_config_copy_clicked)
         self._mw.load_config_Action.triggered.connect(self.load_config_clicked)
         self._mw.clear_all_Action.triggered.connect(self._exp_logic.init_default_config_dict)
 
@@ -146,8 +152,12 @@ class ExpConfiguratorGUI(GUIBase):
 
     def update_form(self):
         experiment = self._mw.select_experiment_ComboBox.currentText()
+        self._mw.save_config_Action.setDisabled(False)
+        self._mw.save_config_copy_Action.setDisabled(False)
         if experiment == 'Select your experiment..':
             self._mw.formWidget.hide()
+            self._mw.save_config_Action.setDisabled(True)
+            self._mw.save_config_copy_Action.setDisabled(True)
         elif experiment == 'Multicolor imaging':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_camera_settings(True)
@@ -333,7 +343,16 @@ class ExpConfiguratorGUI(GUIBase):
     def save_config_clicked(self):
         path = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
         experiment = self._mw.select_experiment_ComboBox.currentText()
-        self.sigSaveConfig.emit(path, experiment)
+        self.sigSaveConfig.emit(path, experiment, None)
+
+    def save_config_copy_clicked(self):
+        path = self.default_location
+        experiment = self._mw.select_experiment_ComboBox.currentText()
+        this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw, 'Save copy of experiental configuration',
+                                                          path, 'yaml files (*.yaml)')[0]
+        filename = os.path.split(this_file)[1]
+        if this_file:
+            self.sigSaveConfig.emit(path, experiment, filename)
 
     def load_config_clicked(self):
         data_directory = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files

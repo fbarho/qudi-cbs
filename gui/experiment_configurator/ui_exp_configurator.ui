@@ -527,6 +527,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="save_config_Action"/>
+   <addaction name="save_config_copy_Action"/>
    <addaction name="load_config_Action"/>
    <addaction name="clear_all_Action"/>
   </widget>
@@ -548,6 +549,11 @@
   <action name="clear_all_Action">
    <property name="text">
     <string>Clear all</string>
+   </property>
+  </action>
+  <action name="save_config_copy_Action">
+   <property name="text">
+    <string>Save copy</string>
    </property>
   </action>
  </widget>

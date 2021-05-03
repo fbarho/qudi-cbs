@@ -96,7 +96,7 @@ class ExpConfigLogic(GenericLogic):
         """ Perform required deactivation. """
         pass
 
-    def save_to_exp_config_file(self, path, experiment):
+    def save_to_exp_config_file(self, path, experiment, filename):
         """ Saves the current config_dict to a txt file using yaml style
 
         @param: str path: path to directory where the config file is saved
@@ -113,33 +113,39 @@ class ExpConfigLogic(GenericLogic):
         config_dict = {}
 
         try:
-
             if experiment == 'Multicolor imaging':
-                filename = 'multicolor_imaging_task_PALM.yaml'
+                if not filename:
+                    filename = 'multicolor_imaging_task_PALM.yaml'
                 keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'imaging_sequence', 'file_format']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Multicolor scan PALM':
-                filename = 'multicolor_scan_task_PALM.yaml'
+                if not filename:
+                    filename = 'multicolor_scan_task_PALM.yaml'
                 keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Multicolor scan RAMM':
-                filename = 'multicolor_scan_task_RAMM.yaml'
+                if not filename:
+                    filename = 'multicolor_scan_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'ROI multicolor scan':
-                filename = 'ROI_multicolor_scan_task_RAMM.yaml'
+                if not filename:
+                    filename = 'ROI_multicolor_scan_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'roi_list_path', 'centered_focal_plane']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Fluidics':
-                filename = 'fluidics_task_RAMM.yaml'
+                if not filename:
+                    filename = 'fluidics_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'injections_path']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Hi-M':
-                filename = 'hi_m_task_RAMM.yaml'
+                if not filename:
+                    filename = 'hi_m_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane', 'roi_list_path', 'injections_path']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Photobleaching':
-                filename = 'photobleaching_task_RAMM.yaml'
+                if not filename:
+                    filename = 'photobleaching_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'imaging_sequence', 'roi_list_path', 'illumination_time']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             else:
