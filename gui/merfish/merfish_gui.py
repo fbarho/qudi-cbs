@@ -125,6 +125,7 @@ class MerfishGUI(GUIBase):
         self._merfish_logic.sigProbeListChanged.connect(self.update_probe_listview)
         self._merfish_logic.sigHybridizationListChanged.connect(self.update_hybridization_listview)
         self._merfish_logic.sigPhotobleachingListChanged.connect(self.update_photobleaching_listview)
+        self._merfish_logic.sigIncompleteLoad.connect(self.show_incomplete_load_warning)
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -147,10 +148,10 @@ class MerfishGUI(GUIBase):
             QtWidgets.QMessageBox.information(self._mw, 'No buffer name', text, QtWidgets.QMessageBox.Ok)
         else:
             self.sigAddBuffer.emit(buffername, valve_number)
-        # move to the next entry in the combobox
-        index = self._mw.valve_position_ComboBox.currentIndex()
-        self._mw.valve_position_ComboBox.setCurrentIndex(index + 1)
-        self._mw.buffername_LineEdit.setText('')
+            # move to the next entry in the combobox
+            index = self._mw.valve_position_ComboBox.currentIndex()
+            self._mw.valve_position_ComboBox.setCurrentIndex(index + 1)
+            self._mw.buffername_LineEdit.setText('')
 
     def delete_buffer_clicked(self):
         """ Callback of delete buffer pushbutton, deleting the currently selected item in the listview.
@@ -169,10 +170,10 @@ class MerfishGUI(GUIBase):
             QtWidgets.QMessageBox.information(self._mw, 'No probe name', text, QtWidgets.QMessageBox.Ok)
         else:
             self.sigAddProbe.emit(probename, probe_position)
-        # move to the next entry in the combobox
-        index = self._mw.probe_position_ComboBox.currentIndex()
-        self._mw.probe_position_ComboBox.setCurrentIndex(index + 1)
-        self._mw.probename_LineEdit.setText('')
+            # move to the next entry in the combobox
+            index = self._mw.probe_position_ComboBox.currentIndex()
+            self._mw.probe_position_ComboBox.setCurrentIndex(index + 1)
+            self._mw.probename_LineEdit.setText('')
 
     def delete_probe_clicked(self):
         """ Callback of delete probe pushbutton, deleting the currently selected item in the listview.
@@ -263,7 +264,7 @@ class MerfishGUI(GUIBase):
         """ Callback of the toolbutton load merfish injections. Opens a dialog to select a file and hands the path
         over to the logic where the data is loaded. """
         data_directory = self.default_path  # default location to look for the file
-        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw, 'Load injections', data_directory, 'txt files (*.txt)')[0]
+        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw, 'Load injections', data_directory, 'yaml files (*.yaml)')[0]
         if this_file:
             self.sigLoadInjections.emit(this_file)
 
@@ -274,6 +275,10 @@ class MerfishGUI(GUIBase):
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw,
                                                           'Save injection sequence',
                                                           data_directory,
-                                                          'txt files (*.txt)')[0]
+                                                          'yaml files (*.yaml)')[0]
         if this_file:
             self.sigSaveInjections.emit(this_file)
+
+    def show_incomplete_load_warning(self):
+        """ Show a warning dialog box if selected document could not be loaded. """
+        QtWidgets.QMessageBox.warning(self._mw, 'Load injections', 'Injections not loaded. Document is incomplete.', QtWidgets.QMessageBox.Ok)
