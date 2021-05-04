@@ -75,6 +75,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
+        # create the path for each roi
+        # cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
+        cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
+
         # go to roi
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
         self.ref['roi'].go_to_roi_xy()
@@ -82,9 +86,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # waiting time needed ???
         sleep(1)  # replace maybe by wait for idle
 
-        # create the path for each roi
-        # cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
-        cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
+        # autofocus
+        # ... add here ...
+        #
+
 
         # imaging sequence:
         # prepare the daq: set the digital output to 0 before starting the task
@@ -170,6 +175,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.user_param_dict = yaml.safe_load(stream)
 
                 self.sample_name = self.user_param_dict['sample_name']
+                self.is_dapi = self.user_param_dict['dapi']
+                self.is_rna = self.user_param_dict['rna']
                 self.exposure = self.user_param_dict['exposure']
                 self.num_z_planes = self.user_param_dict['num_z_planes']
                 self.z_step = self.user_param_dict['z_step']  # in um
@@ -271,7 +278,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
         in which the folders for the ROI will be created
-        Example: path_stem/YYYY_MM_DD/001_Scan_samplename
+        Example: path_stem/YYYY_MM_DD/001_Scan_samplename (default)
+        or path_stem/YYYY_MM_DD/001_Scan_samplename_dapi (option dapi)
+        or path_stem/YYYY_MM_DD/001_Scan_samplename_rna (option rna)
         """
         cur_date = datetime.today().strftime('%Y_%m_%d')
 
@@ -292,7 +301,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # make prefix accessible to include it in the filename generated in the method get_complete_path
         self.prefix = prefix
 
-        foldername = f'{prefix}_Scan_{self.sample_name}'
+        # special format if option dapi or rna checked in experiment configurator
+        if self.is_dapi:
+            foldername = f'{prefix}_Scan_{self.sample_name}_dapi'
+        elif self.is_rna:
+            foldername = f'{prefix}_Scan_{self.sample_name}_rna'
+        else:
+            foldername = f'{prefix}_Scan_{self.sample_name}'
 
         path = os.path.join(path_stem_with_date, foldername)
 
@@ -305,7 +320,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         return path
 
     def get_complete_path(self, directory, roi_number):
-        path = os.path.join(directory, roi_number)
+        if self.is_dapi:
+            path = os.path.join(directory, roi_number, 'DAPI')
+        elif self.is_rna:
+            path = os.path.join(directory, roi_number, 'RNA')
+        else:
+            path = os.path.join(directory, roi_number)
 
         if not os.path.exists(path):
             try:
@@ -313,7 +333,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             except Exception as e:
                 self.log.error('Error {0}'.format(e))
 
-        file_name = f'scan_{self.prefix}_{roi_number}.{self.file_format}'
+        if self.is_dapi:
+            file_name = f'scan_{self.prefix}_dapi_{roi_number}.{self.file_format}'
+        elif self.is_rna:
+            file_name = f'scan_{self.prefix}_rna_{roi_number}.{self.file_format}'
+        else:
+            file_name = f'scan_{self.prefix}_{roi_number}.{self.file_format}'
+
         complete_path = os.path.join(path, file_name)
         return complete_path
 

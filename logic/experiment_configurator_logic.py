@@ -67,7 +67,7 @@ class ExpConfigLogic(GenericLogic):
     # attributes
     experiments = ConfigOption('experiments')
     supported_fileformats = ConfigOption('supported fileformats')
-    default_path = ConfigOption('default path')
+    default_path_images = ConfigOption('default path imagedata')
 
     config_dict = {}
 
@@ -96,7 +96,7 @@ class ExpConfigLogic(GenericLogic):
         """ Perform required deactivation. """
         pass
 
-    def save_to_exp_config_file(self, path, experiment, filename):
+    def save_to_exp_config_file(self, path, experiment, filename=None):
         """ Saves the current config_dict to a txt file using yaml style
 
         @param: str path: path to directory where the config file is saved
@@ -131,12 +131,12 @@ class ExpConfigLogic(GenericLogic):
             elif experiment == 'ROI multicolor scan':
                 if not filename:
                     filename = 'ROI_multicolor_scan_task_RAMM.yaml'
-                keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'roi_list_path', 'centered_focal_plane']
+                keys_to_extract = ['sample_name', 'dapi', 'rna', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'roi_list_path', 'centered_focal_plane']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Fluidics':
                 if not filename:
                     filename = 'fluidics_task_RAMM.yaml'
-                keys_to_extract = ['sample_name', 'injections_path']
+                keys_to_extract = ['injections_path']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             elif experiment == 'Hi-M':
                 if not filename:
@@ -146,7 +146,7 @@ class ExpConfigLogic(GenericLogic):
             elif experiment == 'Photobleaching':
                 if not filename:
                     filename = 'photobleaching_task_RAMM.yaml'
-                keys_to_extract = ['sample_name', 'imaging_sequence', 'roi_list_path', 'illumination_time']
+                keys_to_extract = ['imaging_sequence', 'roi_list_path', 'illumination_time']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
             else:
                 pass
@@ -180,12 +180,14 @@ class ExpConfigLogic(GenericLogic):
         to set entries to the form displayed on the GUI on startup.
         """
         self.config_dict = {}
+        self.config_dict['dapi'] = False
+        self.config_dict['rna'] = False
         self.config_dict['exposure'] = 0.0
         self.config_dict['gain'] = 0
         self.config_dict['num_frames'] = 1
         self.config_dict['filter_pos'] = 1
         self.img_sequence_model.items = []
-        self.config_dict['save_path'] = self.default_path
+        self.config_dict['save_path'] = self.default_path_images
         self.config_dict['file_format'] = 'tiff'
         self.config_dict['centered_focal_plane'] = False
         self.sigConfigDictUpdated.emit()
@@ -195,6 +197,28 @@ class ExpConfigLogic(GenericLogic):
     def update_sample_name(self, name):
         """ Updates the dictionary entry 'sample_name' """
         self.config_dict['sample_name'] = name
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_is_dapi(self, state):
+        """ Updates the dictionary entry 'dapi' (needed for the roi multicolor scan task, is this the imaging experiment
+        after dapi injection, and should the generated filename contain the label DAPI.
+        """
+        if state == 2:  # Enum Qt::CheckState Checked = 2
+            self.config_dict['dapi'] = True
+        elif state == 0:  # Unchecked = 0
+            self.config_dict['dapi'] = False
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_is_rna(self, state):
+        """ Updates the dictionary entry 'dapi' (needed for the roi multicolor scan task, is this the imaging experiment
+        after dapi injection, and should the generated filename contain the label DAPI.
+        """
+        if state == 2:  # Enum Qt::CheckState Checked = 2
+            self.config_dict['rna'] = True
+        elif state == 0:  # Unchecked = 0
+            self.config_dict['rna'] = False
         self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(float)
