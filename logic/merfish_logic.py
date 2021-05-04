@@ -90,6 +90,7 @@ class MerfishLogic(GenericLogic):
     sigProbeListChanged = QtCore.Signal()
     sigHybridizationListChanged = QtCore.Signal()
     sigPhotobleachingListChanged = QtCore.Signal()
+    sigIncompleteLoad = QtCore.Signal()
 
     # attributes
     procedures = ['Hybridization', 'Photobleaching']
@@ -248,8 +249,14 @@ class MerfishLogic(GenericLogic):
         @:param: str path: full path to the file
         """
         try:
+            # delete the current
+            self.delete_all_buffer()
+            self.delete_all_probes()
+            self.delete_hybr_all()
+            self.delete_photobl_all()
+
             with open(path, 'r') as stream:
-                documents = yaml.full_load(stream)
+                documents = yaml.safe_load(stream)  # yaml.full_load(stream)  # use this when pyyaml updated everywhere
                 self.buffer_dict = documents['buffer']
                 self.probe_dict = documents['probes']
                 hybridization_list = documents['hybridization list']
@@ -274,6 +281,7 @@ class MerfishLogic(GenericLogic):
 
         except KeyError:
             self.log.warning('Injections not loaded. Document is incomplete.')
+            self.sigIncompleteLoad.emit()
 
     def save_injections(self, path):
         """ This method allows to write the data from the models and from the buffer dict and probe position dict
