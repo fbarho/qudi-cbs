@@ -37,7 +37,7 @@ class ExpConfiguratorGUI(GUIBase):
 
     exp_configurator_gui:
         module.Class: 'experiment_configurator.exp_configurator_gui.ExpConfiguratorGUI'
-        default_location_config_files: '/home/barho'
+        default_location_qudi_files: '/home/barho/qudi_files'
         connect:
             exp_config_logic: 'exp_config_logic'
     """
@@ -46,7 +46,8 @@ class ExpConfiguratorGUI(GUIBase):
     exp_logic = Connector(interface='ExpConfigLogic')
 
     # config options
-    default_location = ConfigOption('default_location_config_files', missing='warn')
+    default_location = str(ConfigOption('default_location_qudi_files', missing='warn'))
+    # serves as a path stem to default locations where experimental configurations are saved, and where roi lists and injections lists are loaded
 
     # Signals
     sigSaveConfig = QtCore.Signal(str, str, str)
@@ -93,6 +94,8 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.select_experiment_ComboBox.activated[str].connect(self.update_form)
 
         self._mw.sample_name_LineEdit.textChanged.connect(self._exp_logic.update_sample_name)
+        self._mw.dapi_CheckBox.stateChanged.connect(self._exp_logic.update_is_dapi)
+        self._mw.rna_CheckBox.stateChanged.connect(self._exp_logic.update_is_rna)
         self._mw.exposure_DSpinBox.valueChanged.connect(self._exp_logic.update_exposure)
         self._mw.gain_SpinBox.valueChanged.connect(self._exp_logic.update_gain)
         self._mw.num_frames_SpinBox.valueChanged.connect(self._exp_logic.update_frames)
@@ -160,6 +163,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.save_config_copy_Action.setDisabled(True)
         elif experiment == 'Multicolor imaging':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
             self.set_visibility_filter_settings(True)
             self.set_visibility_imaging_settings(True)
@@ -169,6 +173,7 @@ class ExpConfiguratorGUI(GUIBase):
             self.set_visibility_prebleaching_settings(False)
         elif experiment == 'Multicolor scan PALM':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
             self.set_visibility_filter_settings(True)
             self.set_visibility_imaging_settings(True)
@@ -178,6 +183,7 @@ class ExpConfiguratorGUI(GUIBase):
             self.set_visibility_prebleaching_settings(False)
         elif experiment == 'Multicolor scan RAMM':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
             self.set_visibility_filter_settings(False)
             self.set_visibility_imaging_settings(True)
@@ -195,6 +201,7 @@ class ExpConfiguratorGUI(GUIBase):
 
         elif experiment == 'ROI multicolor scan':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
             self.set_visibility_filter_settings(False)
             self.set_visibility_imaging_settings(True)
@@ -204,6 +211,8 @@ class ExpConfiguratorGUI(GUIBase):
             self.set_visibility_prebleaching_settings(False)
 
             # additional visibility modifications
+            self._mw.dapi_CheckBox.setVisible(True)
+            self._mw.rna_CheckBox.setVisible(True)
             self._mw.gain_Label.setVisible(False)
             self._mw.gain_SpinBox.setVisible(False)
             self._mw.get_gain_PushButton.setVisible(False)
@@ -215,6 +224,7 @@ class ExpConfiguratorGUI(GUIBase):
 
         elif experiment == 'Fluidics':  # do we need this ?
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(False)
             self.set_visibility_camera_settings(False)
             self.set_visibility_filter_settings(False)
             self.set_visibility_imaging_settings(False)
@@ -230,6 +240,7 @@ class ExpConfiguratorGUI(GUIBase):
 
         elif experiment == 'Hi-M':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
             self.set_visibility_filter_settings(False)
             self.set_visibility_imaging_settings(True)
@@ -247,6 +258,7 @@ class ExpConfiguratorGUI(GUIBase):
 
         elif experiment == 'Photobleaching':
             self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(False)
             self.set_visibility_camera_settings(False)
             self.set_visibility_filter_settings(False)
             self.set_visibility_imaging_settings(True)
@@ -262,6 +274,19 @@ class ExpConfiguratorGUI(GUIBase):
 
         else:
             pass
+
+    def set_visibility_general_settings(self, visible):
+        """ Show or hide the block with the general ettings widgets
+        :param bool visible: show widgets = True, hide widgets = False
+        """
+        self._mw.general_Label.setVisible(visible)
+        self._mw.sample_name_Label.setVisible(visible)
+        self._mw.sample_name_LineEdit.setVisible(visible)
+
+        # the dapi and rna checkboxes are needed only for the ROI Multicolor scan
+        self._mw.dapi_CheckBox.setVisible(False)
+        self._mw.rna_CheckBox.setVisible(False)
+
 
     def set_visibility_camera_settings(self, visible):
         """ Show or hide the block with the camera settings widgets
@@ -341,12 +366,13 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.illumination_time_DSpinBox.setVisible(visible)
 
     def save_config_clicked(self):
-        path = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        path = os.path.join(self.default_location, 'qudi_task_config_files') # '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        self.log.info(path)
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self.sigSaveConfig.emit(path, experiment, None)
 
     def save_config_copy_clicked(self):
-        path = self.default_location
+        path = os.path.join(self.default_location, 'qudi_task_config_files')
         experiment = self._mw.select_experiment_ComboBox.currentText()
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw, 'Save copy of experiental configuration',
                                                           path, 'yaml files (*.yaml)')[0]
@@ -355,7 +381,7 @@ class ExpConfiguratorGUI(GUIBase):
             self.sigSaveConfig.emit(path, experiment, filename)
 
     def load_config_clicked(self):
-        data_directory = self.default_location # '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        data_directory = os.path.join(self.default_location, 'qudi_task_config_files') # '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
@@ -407,7 +433,6 @@ class ExpConfiguratorGUI(GUIBase):
                                                           'json files (*.json)')[0]
         if this_file:
             self._mw.roi_list_path_LineEdit.setText(this_file)
-
 
     def load_injections_clicked(self):
         data_directory = os.path.join(self.default_location, 'qudi_injection_parameters')
