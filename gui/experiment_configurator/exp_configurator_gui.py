@@ -46,7 +46,7 @@ class ExpConfiguratorGUI(GUIBase):
     exp_logic = Connector(interface='ExpConfigLogic')
 
     # config options
-    default_location = str(ConfigOption('default_location_qudi_files', missing='warn'))
+    default_location = ConfigOption('default_location_qudi_files', missing='warn')
     # serves as a path stem to default locations where experimental configurations are saved, and where roi lists and injections lists are loaded
 
     # Signals
@@ -439,7 +439,7 @@ class ExpConfiguratorGUI(GUIBase):
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open injections file',
                                                           data_directory,
-                                                          'txt files (*.txt)')[0]
+                                                          'yaml files (*.yaml)')[0]
         # print(this_file)
         if this_file:
             self._mw.injections_list_LineEdit.setText(this_file)
