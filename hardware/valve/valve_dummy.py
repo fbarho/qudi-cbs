@@ -117,7 +117,8 @@ class ValveDummy(Base, ValveInterface):
                 self.log.warn(f'Target position out of range for valve {valve_address}. Position not set.')
             else:
                 self.position_dict[valve_address] = target_position
-                self.log.info(f'Set valve {valve_address} to position {target_position}')
+                self.log.info(f'Set {self.get_valve_dict()[valve_address]["name"]} to position {target_position}')
+                # self.log.info(f'Set valve {valve_address} to position {target_position}')
         else:
             self.log.warn(f'Valve {valve_address} not available.')
 
