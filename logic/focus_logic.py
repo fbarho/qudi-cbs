@@ -333,7 +333,7 @@ class FocusLogic(GenericLogic):
         self.sigPlotCalibration.emit(piezo_position, autofocus_signal, p(piezo_position), self._slope)
 
         if self._setup == 'PALM' and not self.live_display_enabled:
-            self._autofocus_logic.stop_camera()
+            self._autofocus_logic.stop_camera_live()
 
     def define_autofocus_setpoint(self):
         """ From the present piezo position, read the detector signal and keep the value as reference for the pid
