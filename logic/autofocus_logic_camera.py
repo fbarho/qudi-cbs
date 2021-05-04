@@ -50,6 +50,9 @@ class AutofocusLogic(GenericLogic):
     _pid = None
     # _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
 
+    # signals
+    sigOffsetDefined = QtCore.Signal()  # never emitted from this module, just for compatibility
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
