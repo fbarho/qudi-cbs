@@ -122,6 +122,7 @@ class AutofocusLogic(GenericLogic):
         the function returns a TRUE signal indicating that the autofocus has been lost.
         """
         qpd_sum = self.qpd_read_sum()
+        print(qpd_sum)
         if qpd_sum < 300:
             return True
         else:
@@ -196,10 +197,10 @@ class AutofocusLogic(GenericLogic):
         """
         # Read the stage position
         z_up = self._stage.get_pos()['z']
+        offset = self._focus_offset
 
         # Move the stage by the default offset value along the z-axis
-        pos_dict = {'z': self._focus_offset}
-        self._stage.move_rel(pos_dict)
+        self.stage_move_z(offset)
 
         # Check the IR signal is detected
         if self.autofocus_check_signal():  # returns true if focus lost
@@ -210,13 +211,11 @@ class AutofocusLogic(GenericLogic):
         z_range = 5  # in µm
         z_step = 0.1  # in µm
 
-        pos_dict = {'z': -z_range//2}
-        self._stage.move_rel(pos_dict)
+        self.stage_move_z(-z_range/2)
 
         for n in range(int(z_range/z_step)):
 
-            pos_dict = {'z': z_step}
-            self._stage.move_rel(pos_dict)
+            self.stage_move_z(z_step)
 
             sum = self.read_detector_intensity()
             print(sum)
@@ -226,18 +225,20 @@ class AutofocusLogic(GenericLogic):
                 break
 
         # Calculate the offset for the stage and move back to the initial position
-        self._focus_offset = self._stage.get_pos()['z'] - z_up
-
-        # send signal to focus logic that will be linked to define_autofocus_setpoint
-        self.sigOffsetDefined.emit()
+        offset = self._stage.get_pos()['z'] - z_up
+        offset = np.round(offset, decimals=1)
 
         # avoid moving stage while QPD signal is read
         sleep(0.1)
 
-        pos_dict = {'z': -self._focus_offset}
-        self._stage.move_rel(pos_dict)
+        self.stage_move_z(-(offset))
 
-        return self._focus_offset
+        # send signal to focus logic that will be linked to define_autofocus_setpoint
+        self.sigOffsetDefined.emit()
+
+        self._focus_offset = offset
+
+        return offset
 
     def rescue_autofocus(self):
         """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The
@@ -247,7 +248,7 @@ class AutofocusLogic(GenericLogic):
         # while self._autofocus_lost and z_range <= 40:
         while self.autofocus_check_signal() and z_range <= 40:
 
-            pos_dict = {'z': -z_range//2}
+            pos_dict = {'z': -z_range/2}
             self._stage.move_rel(pos_dict)
 
             for z in range(z_range):
@@ -267,6 +268,10 @@ class AutofocusLogic(GenericLogic):
                 self._stage.move_rel(pos_dict)
                 z_range += 10
 
+    def stage_move_z(self, step):
+        self._stage.move_rel({'z': step})
+
+# ----------------to be completed----------------------------------
     def start_piezo_position_correction(self, direction):
         """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
         to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
@@ -302,6 +307,7 @@ class AutofocusLogic(GenericLogic):
             stage_worker = StageAutofocusWorker()
             stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
             self.threadpool.start(stage_worker)
+# ---------------------------------------------------------------
 
 # =================================================================
 # private methods for QPD-based autofocus
