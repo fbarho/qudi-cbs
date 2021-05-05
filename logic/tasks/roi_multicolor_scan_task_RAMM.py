@@ -56,11 +56,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
-        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
+        # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #new version including qpd but qpd part not yet corrected
+        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx'
         self.ref['fpga'].start_task_session(bitfile)
 
         # start the session on the fpga using the user parameters
-        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines)
+        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines, self.exposure)
 
         # prepare the camera
         self.num_frames = self.num_z_planes * self.num_laserlines
@@ -76,7 +77,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @return bool: True if the task should continue running, False if it should finish.
         """
         # create the path for each roi
-        # cur_save_path = os.path.join(self.save_path, self.roi_names[self.roi_counter])
         cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
 
         # go to roi
@@ -87,9 +87,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         sleep(1)  # replace maybe by wait for idle
 
         # autofocus
-        # ... add here ...
-        #
-
+        self.ref['piezo'].search_focus()
+        start_position = self.calculate_start_position(self.centered_focal_plane)
 
         # imaging sequence:
         # prepare the daq: set the digital output to 0 before starting the task
@@ -103,7 +102,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             print(f'plane number {plane + 1}')
 
             # position the piezo
-            position = self.start_position + plane * self.z_step
+            position = start_position + plane * self.z_step
             self.ref['piezo'].go_to_position(position)
             print(f'target position: {position} um')
             sleep(0.03)
@@ -127,6 +126,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 if t1 > 1:  # for safety: timeout if no signal received within 5 s
                     # self.log.info('Timeout occured')
                     break
+
+        self.ref['piezo'].go_to_position(start_position)
 
         # get acquired data from the camera and save it to file
         image_data = self.ref['cam'].get_acquired_data()
@@ -190,7 +191,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)
+
         # create a list of roi names
         self.ref['roi'].load_roi_list(self.roi_list_path)
         # get the list of the roi names
