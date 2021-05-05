@@ -283,6 +283,27 @@ class Nifpga(Base, LaserControlInterface, FPGAInterface):
         stop = self.session.registers['stop']
         exposure = self.session.registers['exposure_time_ms'] # integer indicating the exposure time of the camera in ms
 
+        self.QPD_X_read = self.session.registers[self._registers_qpd[0]]
+        self.QPD_Y_read = self.session.registers[self._registers_qpd[1]]
+        self.QPD_I_read = self.session.registers[self._registers_qpd[2]]
+        self.Counter = self.session.registers[self._registers_qpd[3]]
+        self.Duration_ms = self.session.registers[self._registers_qpd[4]]
+
+        self.Stop = self.session.registers[self._registers_general[0]]
+        self.Integration_time_us = self.session.registers[self._registers_general[1]]
+        self.Reset_counter = self.session.registers[self._registers_general[2]]
+
+        self.setpoint = self.session.registers[self._registers_autofocus[0]]
+        self.P = self.session.registers[self._registers_autofocus[1]]
+        self.I = self.session.registers[self._registers_autofocus[2]]
+        self.reset = self.session.registers[self._registers_autofocus[3]]
+        self.autofocus = self.session.registers[self._registers_autofocus[4]]
+        self.ref_axis = self.session.registers[self._registers_autofocus[5]]
+        self.output = self.session.registers[self._registers_autofocus[6]]
+
+        self.Stop.write(False)
+        self.Integration_time_us.write(10)
+
         self.session.reset()
 
         conv_values = [self.convert_value(item) for item in values]
