@@ -366,7 +366,7 @@ class FocusGUI(GUIBase):
         self._mw.autofocus_Action.setChecked(False)
         # open a message box to inform that autofocus signal has been lost
         # alternative: log entry in focus_logic at level error instead of warning
-        QtWidgets.QMessageBox.warning(self._mw, 'Autofocus warning', message, QtWidgets.QMessageBox.Ok)
+        # QtWidgets.QMessageBox.warning(self._mw, 'Autofocus warning', message, QtWidgets.QMessageBox.Ok)
 
     def start_live_clicked(self):
         """ When the action button start/stop Live is triggered, this method is called. If the camera is
