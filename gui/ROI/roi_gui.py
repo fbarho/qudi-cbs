@@ -353,7 +353,8 @@ class RoiGUI(GUIBase):
         self.__disconnect_control_signals_to_logic()
         self.__disconnect_update_signals_from_logic()
         self.__disconnect_internal_signals()
-        self._mw.close()
+        # self._mw.close()
+        self.close_window()
 
     # is it needed to have the camera image superposed with the roi markers ? 
     # in a first version: just keep the overview with the roi markers without camera image, comment everything camera image related..    
@@ -375,6 +376,12 @@ class RoiGUI(GUIBase):
         self.roi_logic().sigWidthUpdated.connect(self._update_roi_width, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigStageMoved.connect(self.update_stage_position, QtCore.Qt.QueuedConnection)
         self.roi_logic().sigUpdateStagePosition.connect(self.update_stage_position, QtCore.Qt.QueuedConnection)
+        self.roi_logic().sigTrackingModeStopped.connect(self.reset_tracking_mode_button, QtCore.Qt.QueuedConnection)
+        self.roi_logic().sigDisableTracking.connect(self.disable_tracking_action, QtCore.Qt.QueuedConnection)
+        self.roi_logic().sigEnableTracking.connect(self.enable_tracking_action, QtCore.Qt.QueuedConnection)
+        self.roi_logic().sigDisableRoiActions.connect(self.disable_roi_actions, QtCore.Qt.QueuedConnection)
+        self.roi_logic().sigEnableRoiActions.connect(self.enable_roi_actions, QtCore.Qt.QueuedConnection)
+
 
     def __disconnect_update_signals_from_logic(self):
         """ disconnect signals emitted in logic module """
@@ -384,6 +391,7 @@ class RoiGUI(GUIBase):
         self.roi_logic().sigWidthUpdated.disconnect()
         self.roi_logic().sigStageMoved.disconnect()
         self.roi_logic().sigUpdateStagePosition.disconnect()
+        self.roi_logic().sigTrackingModeStopped.disconnect()
 
     def __connect_control_signals_to_logic(self):
         """ establish the connections of signals emitted with slots in logic module """
@@ -442,7 +450,8 @@ class RoiGUI(GUIBase):
         self._mw.tracking_mode_Action.triggered.connect(self.tracking_mode_clicked)
 
         # file menu
-        self._mw.close_MenuAction.triggered.connect(self._mw.close)
+        # self._mw.close_MenuAction.triggered.connect(self._mw.close)
+        self._mw.close_MenuAction.triggered.connect(self.close_window)
         # options menu
         self._mw.mosaic_scan_MenuAction.triggered.connect(self.open_mosaic_settings)
 
@@ -823,3 +832,61 @@ class RoiGUI(GUIBase):
             self._mw.tracking_mode_Action.setText('Tracking mode off')
             self._mw.tracking_mode_Action.setToolTip('Stop tracking mode')
             self.sigStartTracking.emit()
+
+    @QtCore.Slot()
+    def reset_tracking_mode_button(self):
+        """ Callback of sigTrackingModeStopped.
+        Resets tracking mode toolbutton state if tracking programmmatically stopped.
+        """
+        self._mw.tracking_mode_Action.setText('Tracking mode')
+        self._mw.tracking_mode_Action.setToolTip('Start tracking mode')
+        self._mw.tracking_mode_Action.setChecked(False)
+
+    @QtCore.Slot()
+    def disable_tracking_action(self):
+        """ This method provides a security to disable user interaction on tracking mode, for example during tasks. """
+        self._mw.tracking_mode_Action.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_tracking_action(self):
+        """ Enables user interaction on tracking mode, to reestablish the callable state for example after a task. """
+        self._mw.tracking_mode_Action.setDisabled(False)
+
+    @QtCore.Slot()
+    def disable_roi_actions(self):
+        """ This method provides a security to disable user interaction on roi and roi list actions,
+        for example during tasks. """
+        self._mw.new_roi_Action.setDisabled(True)
+        self._mw.go_to_roi_Action.setDisabled(True)
+        self._mw.delete_roi_Action.setDisabled(True)
+        self._mw.add_interpolation_Action.setDisabled(True)
+
+        self._mw.new_list_Action.setDisabled(True)
+        self._mw.save_list_Action.setDisabled(True)
+        self._mw.load_list_Action.setDisabled(True)
+        self._mw.discard_all_roi_Action.setDisabled(True)
+
+        self._mw.active_roi_ComboBox.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_roi_actions(self):
+        """ Enables user interaction on ROIs and ROI lists, to reestablish the callable state for example after a task. """
+        self._mw.new_roi_Action.setDisabled(False)
+        self._mw.go_to_roi_Action.setDisabled(False)
+        self._mw.delete_roi_Action.setDisabled(False)
+        self._mw.add_interpolation_Action.setDisabled(False)
+
+        self._mw.new_list_Action.setDisabled(False)
+        self._mw.save_list_Action.setDisabled(False)
+        self._mw.load_list_Action.setDisabled(False)
+        self._mw.discard_all_roi_Action.setDisabled(False)
+
+        self._mw.active_roi_ComboBox.setDisabled(False)
+
+    def close_window(self):
+        if self.roi_logic().tracking:
+            self.sigStopTracking.emit()
+        self._mw.close()
+             # this works only if the menu close action is used to close the window, not when user clicks the red x shortcut.
+
+

@@ -348,6 +348,11 @@ class RoiLogic(GenericLogic):
 
     sigStageMoved = QtCore.Signal(np.ndarray)  # current_position
     sigUpdateStagePosition = QtCore.Signal(tuple)
+    sigTrackingModeStopped = QtCore.Signal()  # important to emit this when tracking mode is programmatically stopped to reestablish correct GUI state
+    sigDisableTracking = QtCore.Signal()
+    sigEnableTracking = QtCore.Signal()
+    sigDisableRoiActions = QtCore.Signal()
+    sigEnableRoiActions = QtCore.Signal()
 
     # variables from mosaic settings dialog and default values
     _mosaic_x_start = 0
@@ -834,6 +839,7 @@ class RoiLogic(GenericLogic):
         # get once again the latest position
         position = self.stage_position
         self.sigUpdateStagePosition.emit(position)
+        self.sigTrackingModeStopped.emit()
 
     def tracking_loop(self):
         position = self.stage_position
@@ -846,4 +852,24 @@ class RoiLogic(GenericLogic):
 
     def set_stage_velocity(self, param_dict):
         self.stage().set_velocity(param_dict)
+
+    def disable_tracking_mode(self):
+        """ This method provides a security that tracking mode is not callable from GUI, for example during Tasks. """
+        if self.tracking:
+            self.stop_tracking()
+        self.sigDisableTracking.emit()
+
+    def enable_tracking_mode(self):
+        """ This method makes tracking mode again available from GUI, for example when a Task is finishing. """
+        self.sigEnableTracking.emit()
+
+    def disable_roi_actions(self):
+        self.sigDisableRoiActions.emit()
+
+    def enable_roi_actions(self):
+        self.sigEnableRoiActions.emit()
+
+
+
+
 
