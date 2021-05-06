@@ -165,7 +165,8 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigOffsetCalibration.connect(self.display_offset)
         self._focus_logic.sigDisplayImage.connect(self.live_display)
         self._focus_logic.sigDisplayImageAndMask.connect(self.live_display)
-        self._focus_logic.sigAutofocusError.connect(self.error_live_stabilization)
+        self._focus_logic.sigAutofocusStopped.connect(self.autofocus_stopped)
+        self._focus_logic.sigAutofocusError.connect(self.autofocus_stopped)
         self._focus_logic.sigSetpointDefined.connect(self.update_autofocus_setpoint)
 
     def on_deactivate(self):
@@ -235,7 +236,7 @@ class FocusGUI(GUIBase):
         self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
         # and the timetrace
         if self._focus_logic.timetrace_enabled:
-            self.update_timetrace()
+            self.update_timetrace(position)
 
     def move_up_button_clicked(self):
         """ Callback of the move_up_Pushbutton. Send a signal to logic to perform a piezo movement of step upwards.
@@ -274,13 +275,13 @@ class FocusGUI(GUIBase):
             self._mw.tracking_Action.setText('Stop Tracking')
             self.sigTimetraceOn.emit()
 
-    def update_timetrace(self):
+    def update_timetrace(self, position):
         """ Callback of sigUpdateTimetrace from focus_logic. Adds a new data point to the timetrace. """
         # t data not needed, only if it is wanted that the axis labels move also. then see variant 2 from pyqtgraph.examples scrolling plot
         # self.t_data[:-1] = self.t_data[1:] # shift data in the array one position to the left, keeping same array size
         # self.t_data[-1] += 1 # add the new last element
         self.y_data[:-1] = self.y_data[1:]  # shift data one position to the left ..
-        self.y_data[-1] = self._focus_logic.get_position()
+        self.y_data[-1] = position
 
         # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
         self._timetrace.setData(self.y_data)  # x axis values do not move
@@ -358,15 +359,13 @@ class FocusGUI(GUIBase):
             self._mw.autofocus_Action.setText('Stop focus stabilization')
             self.sigAutofocusStart.emit()
 
-    def error_live_stabilization(self, message):
-        """ Callback of sigAutofocusError sent from focus_logic. Reset autofocus action button to callable state
-        after a focus stabilization ended in an error (focus lost) or was not started because of missing calibrations.
+    def autofocus_stopped(self):
+        """ Callback of sigAutofocusStopped or sigAutofocusError sent from focus_logic.
+        Reset autofocus action button to callable state when autofocus was programmatically stopped, ended in an error
+        (autofocus signal lost) or was not started because of missing calibrations.
         """
         self._mw.autofocus_Action.setText('Start focus stabilization')
         self._mw.autofocus_Action.setChecked(False)
-        # open a message box to inform that autofocus signal has been lost
-        # alternative: log entry in focus_logic at level error instead of warning
-        # QtWidgets.QMessageBox.warning(self._mw, 'Autofocus warning', message, QtWidgets.QMessageBox.Ok)
 
     def start_live_clicked(self):
         """ When the action button start/stop Live is triggered, this method is called. If the camera is

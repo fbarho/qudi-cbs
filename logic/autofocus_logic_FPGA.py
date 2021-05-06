@@ -39,8 +39,8 @@ from time import sleep
 
 class AutofocusLogic(GenericLogic):
     """ This logic connect to the instruments necessary for the autofocus method based on the FPGA + QPD. This logic
-    is directly connected to the focus_logic controlling the piezo position.
-    
+    can be accessed from the focus_logic controlling the piezo position.
+
     autofocus_logic:
         module.Class: 'autofocus_logic.AutofocusLogic'
         autofocus_ref_axis : 'X' # 'Y'
@@ -63,7 +63,6 @@ class AutofocusLogic(GenericLogic):
     _camera_acquiring = False
 
     # autofocus attributes
-    # _autofocus_signal = None
     _focus_offset = ConfigOption('focus_offset', 0, missing='warn')
     _ref_axis = ConfigOption('autofocus_ref_axis', 'X', missing='warn')
     _autofocus_stable = False
@@ -83,8 +82,7 @@ class AutofocusLogic(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-
-        self.threadpool = QtCore.QThreadPool()
+        # self.threadpool = QtCore.QThreadPool()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -117,17 +115,17 @@ class AutofocusLogic(GenericLogic):
         """
         return self.qpd_read_sum()
 
-    # for better readability maybe invert true and false .. false meaning that signal not ok ..
     def autofocus_check_signal(self):
-        """ Check that the intensity detected by the QPD is above a specific threshold (50). If the signal is too low,
-        the function returns a TRUE signal indicating that the autofocus has been lost.
+        """ Check that the intensity detected by the QPD is above a specific threshold (300). If the signal is too low,
+        the function returns False to indicate that the autofocus signal is lost.
+        :return bool: True: signal ok, False: signal too low
         """
         qpd_sum = self.qpd_read_sum()
         print(qpd_sum)
         if qpd_sum < 300:
-            return True
-        else:
             return False
+        else:
+            return True
 
     def define_pid_setpoint(self):
         """ Initialize the pid setpoint
@@ -203,8 +201,8 @@ class AutofocusLogic(GenericLogic):
         # Move the stage by the default offset value along the z-axis
         self.stage_move_z(offset)
 
-        # Check the IR signal is detected
-        if self.autofocus_check_signal():  # returns true if focus lost
+        # rescue autofocus when no signal detected
+        if not self.autofocus_check_signal():
             self.rescue_autofocus()
 
         # Look for the position with the maximum intensity - for the QPD the SUM signal is used.
@@ -246,27 +244,20 @@ class AutofocusLogic(GenericLogic):
         z position of the stage is moved until the piezo signal is found again.
         """
         z_range = 20
-        # while self._autofocus_lost and z_range <= 40:
-        while self.autofocus_check_signal() and z_range <= 40:
+        while not self.autofocus_check_signal() and z_range <= 40:
 
-            pos_dict = {'z': -z_range/2}
-            self._stage.move_rel(pos_dict)
+            self.stage_move_z(-z_range/2)
 
             for z in range(z_range):
                 step = 1
-                pos_dict = {'z': step}
-                self._stage.move_rel(pos_dict)
+                self.stage_move_z(step)
 
-                # self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
-                # if not self._autofocus_lost:
-                if not self.autofocus_check_signal():
+                if self.autofocus_check_signal():
                     print("autofocus signal found!")
                     break
 
-            # if self._autofocus_lost:
-            if self.autofocus_check_signal():
-                pos_dict = {'z': -z_range//2}
-                self._stage.move_rel(pos_dict)
+            if not self.autofocus_check_signal():
+                self.stage_move_z(-z_range/2)
                 z_range += 10
 
     def stage_move_z(self, step):
@@ -275,7 +266,6 @@ class AutofocusLogic(GenericLogic):
     def do_position_correction(self, step):
         self.stage_move_z(step)
         self.sigStageMoved.emit()
-
 
 # ----------------to be completed----------------------------------
 #     def start_piezo_position_correction(self, direction):

@@ -52,6 +52,7 @@ class AutofocusLogic(GenericLogic):
 
     # signals
     sigOffsetDefined = QtCore.Signal()  # never emitted from this module, just for compatibility
+    sigStageMoved = QtCore.Signal()     # never emitted from this module, just for compatibility
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -161,6 +162,13 @@ class AutofocusLogic(GenericLogic):
 # ======================================================
 # empty methods
 # ======================================================
+
+    def stage_move_z(self):
+        self.log.warning('stage movement is not supported on this setup')
+
+    def do_position_correction(self):
+        self.log.warning('stage movement is not supported on this setup')
+
     def calibrate_offset(self):
         """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
         """

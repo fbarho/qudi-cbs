@@ -74,18 +74,19 @@ class FocusLogic(GenericLogic):
     sigStepChanged = QtCore.Signal(float)
     sigPositionChanged = QtCore.Signal(float)
     sigPiezoInitFinished = QtCore.Signal()
-    sigUpdateTimetrace = QtCore.Signal()
+    sigUpdateTimetrace = QtCore.Signal(float)
     sigPlotCalibration = QtCore.Signal(object, object, object, float)
     sigOffsetCalibration = QtCore.Signal(float)
     sigDisplayImageAndMask = QtCore.Signal(object, object, float, float)
     sigDisplayImage = QtCore.Signal(object)  # np.ndarray
-    sigAutofocusError = QtCore.Signal(str)
+    sigAutofocusError = QtCore.Signal()
+    sigAutofocusStopped = QtCore.Signal()  # signal emitted when autofocus is programmatically stopped
     sigSetpointDefined = QtCore.Signal(float)
     sigDoStageMovement = QtCore.Signal(float)
 
     # piezo attributes
     _step = 0.01
-    _init_position = ConfigOption('init_position', 5, missing='warn')
+    _init_position = ConfigOption('init_position', 10, missing='warn')
     _max_step = 0
     _axis = None
 
@@ -103,9 +104,10 @@ class FocusLogic(GenericLogic):
 
     _calibrated = False
     _setpoint_defined = False
-    autofocus_enabled = False
     _autofocus_lost = False
-    # _enable_autofocus_rescue = False
+
+    autofocus_enabled = False
+
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -129,10 +131,6 @@ class FocusLogic(GenericLogic):
         # initialize the autofocus class
         self._autofocus_logic = self.autofocus()
 
-        # allow the rescue option when working with the RAMM setup
-        # if self._setup == "RAMM":
-        #     self._enable_autofocus_rescue = True
-
         # signals to autofocus logic
         self.sigDoStageMovement.connect(self._autofocus_logic.do_position_correction)
 
@@ -155,13 +153,19 @@ class FocusLogic(GenericLogic):
 # methods for manual focus setting (manual focus dockwidget)
 # ==========================================================
 
+    def init_piezo(self):
+        """ Move piezo to initial position defined in the configuration file. """
+        init_pos = self._init_position
+        self.piezo_ramp(init_pos)
+        sleep(0.03)  # stabilization time
+        self.sigPiezoInitFinished.emit()
+
     def move_up(self, step):
         """ Make a relative movement in positive z direction.
         :param float step: target relative movement (positive value)
         :return None
         """
         self._piezo.move_rel({self._axis: step})
-        # self._piezo.wait_for_idle()
         # the wait on target function does not really work yet. so we get the precedent position
         # because the value is read too fast..
         # possible solution is to use the stabilisation time of 30 ms but this could slow down continuous movements (button pressed down on GUI or key shortcuts)
@@ -175,7 +179,6 @@ class FocusLogic(GenericLogic):
         :return None
         """
         self._piezo.move_rel({self._axis: -step})
-        # self._piezo.wait_for_idle()
         position = self.get_position()
         # self.log.debug('moved down: {0} um. New position: {1}'.format(step, position))
         self.sigPositionChanged.emit(position)
@@ -194,12 +197,6 @@ class FocusLogic(GenericLogic):
         self._step = step
         # in case this function is called via console, update the GUI
         self.sigStepChanged.emit(step)
-
-    def init_piezo(self):
-        """ Move piezo to initial position defined in the configuration file. """
-        init_pos = self._init_position
-        self.piezo_ramp(init_pos)
-        self.sigPiezoInitFinished.emit()
 
     def go_to_position(self, position):
         """ Move piezo to the target position using a ramp to avoid moving in too big steps.
@@ -248,11 +245,10 @@ class FocusLogic(GenericLogic):
     def position_tracking_loop(self):
         """ Execute step in the data recording loop, get the current z position of the piezo.
         """
-        self._position = self.get_position()
-        self.sigUpdateTimetrace.emit()
+        position = self.get_position()
+        self.sigUpdateTimetrace.emit(position)
         if self.timetrace_enabled:
             self.timer.start(self.refresh_time)
-        # might want to modify this to emit directly the new position ..
 
 # ==============================================================
 # live display for camera (image display dockwidget)
@@ -351,10 +347,10 @@ class FocusLogic(GenericLogic):
         """ Check if there is signal detected for the autofocus. Depending on the method it can be a non-zero signal
         detected by the QPD or the camera.
         """
-        self._autofocus_lost = self._autofocus_logic.autofocus_check_signal()
+        self._autofocus_lost = not self._autofocus_logic.autofocus_check_signal()
         if self._autofocus_lost:
             self.log.warning('autofocus lost!')
-            self.sigAutofocusError.emit('Autofocus lost!')
+            self.sigAutofocusError.emit()
 
     def start_autofocus(self, stop_when_stable=False):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
@@ -371,7 +367,7 @@ class FocusLogic(GenericLogic):
 
                 self._autofocus_logic.init_pid()
                 self._z0 = self.get_position()
-                self._z_new = self._z0
+                self._z_new = self._z0  # do we need this ?
                 self._dt = self._autofocus_logic._pid_frequency
 
                 worker = AutofocusWorker(self._dt)
@@ -380,11 +376,11 @@ class FocusLogic(GenericLogic):
 
         elif not self._calibrated:
             self.log.warning('autofocus not yet calibrated')
-            self.sigAutofocusError.emit('Autofocus not calibrated')
+            self.sigAutofocusError.emit()
 
         elif not self._setpoint_defined:
             self.log.warning('setpoint not yet defined')
-            self.sigAutofocusError.emit('Setpoint not defined')
+            self.sigAutofocusError.emit()
 
     def run_autofocus(self, stop_when_stable):
         """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
@@ -413,13 +409,13 @@ class FocusLogic(GenericLogic):
             else:
                 self.log.warning('piezo position out of constraints')
                 self.stop_autofocus()
-                self.sigAutofocusError.emit('piezo position out of constraints')
+                self.sigAutofocusError.emit()
 
             if stop_when_stable:
                 if stable:
                     self.log.info('focus is stable')
                     self.stop_autofocus()
-                    self.sigAutofocusError.emit('focus is stable')  # replace by sigAutofocusStopped()
+                    self.sigAutofocusStopped.emit()
 
     def stop_autofocus(self):
         """ Stop the autofocus loop
@@ -449,7 +445,7 @@ class FocusLogic(GenericLogic):
 
     def rescue_autofocus(self):
         """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The
-        z position of the stage is moved until the piezo signal is found again.
+        z position of the stage is moved until the signal is found again.
         """
         self._autofocus_logic.rescue_autofocus()
 
@@ -473,10 +469,6 @@ class FocusLogic(GenericLogic):
                 else:
                     self.sigDoStageMovement.emit(-1)
 
-
-
-
-
 #----------------to be completed----------------------------------
     # def start_piezo_position_correction(self, direction):
     #     """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
@@ -494,21 +486,26 @@ class FocusLogic(GenericLogic):
 # ---------------------------------------------------------------
 
     def search_focus(self):
-        # forcer calibration avant de pouvoir appeler cette fonction
-        offset = self._autofocus_logic._focus_offset
-        self._autofocus_logic.stage_move_z(offset)
-        sleep(1)  #replace by wait for idle
-        self.start_autofocus(stop_when_stable=True) # add rescue as kwarg: proceed to rescue procedure if autofocus lost --> add this to run_autofocus
-        ready = self._autofocus_logic._autofocus_stable
-        print(f'ready {ready}')
-        while not ready:
-            sleep(0.1)
+        """ Search the IR reflection signal on a reference plane at a distance 'offset' from the current position.
+        Autofocus is programatically stopped once the signal was found and is stable.
+        This method can only be used when calibrations were correctly made.
+        """
+        if self._calibrated and self._setpoint_defined:
+            offset = self._autofocus_logic._focus_offset
+            self._autofocus_logic.stage_move_z(offset)
+            sleep(1)  #replace by wait for idle
+            self.start_autofocus(stop_when_stable=True)
             ready = self._autofocus_logic._autofocus_stable
             print(f'ready {ready}')
-            # pour tests
-            autofocus_lost = self._autofocus_lost
-            if autofocus_lost:
-                break
-        self._autofocus_logic.stage_move_z(-offset)
+            while not ready:
+                sleep(0.1)
+                ready = self._autofocus_logic._autofocus_stable
+                print(f'ready {ready}')
+                autofocus_lost = self._autofocus_lost
+                if autofocus_lost:
+                    break
+            self._autofocus_logic.stage_move_z(-offset)
+        else:
+            self.log.warn('Search focus can not be used. Calibration or setpoint missing.')
 
 
