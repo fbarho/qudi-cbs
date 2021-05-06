@@ -16,25 +16,25 @@ from numpy.polynomial import Polynomial as Poly
 from time import sleep
 
 
-class WorkerSignals(QtCore.QObject):
-    """ Defines the signals available from a running worker thread """
+# class WorkerSignals(QtCore.QObject):
+#     """ Defines the signals available from a running worker thread """
+#
+#     sigFinished = QtCore.Signal()
 
-    sigFinished = QtCore.Signal()
 
-
-class StageAutofocusWorker(QtCore.QRunnable):
-    """ Worker thread to control the stage position and adjust the piezo position when autofocus in ON
-    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
-
-    def __init__(self, *args, **kwargs):
-        super(StageAutofocusWorker, self).__init__(*args, **kwargs)
-        self.signals = WorkerSignals()
-
-    @QtCore.Slot()
-    def run(self):
-        """ """
-        sleep(0.5)
-        self.signals.sigFinished.emit()
+# class StageAutofocusWorker(QtCore.QRunnable):
+#     """ Worker thread to control the stage position and adjust the piezo position when autofocus in ON
+#     The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
+#
+#     def __init__(self, *args, **kwargs):
+#         super(StageAutofocusWorker, self).__init__(*args, **kwargs)
+#         self.signals = WorkerSignals()
+#
+#     @QtCore.Slot()
+#     def run(self):
+#         """ """
+#         sleep(0.5)
+#         self.signals.sigFinished.emit()
 
 
 class AutofocusLogic(GenericLogic):
@@ -79,6 +79,7 @@ class AutofocusLogic(GenericLogic):
 
     # signals
     sigOffsetDefined = QtCore.Signal()
+    sigStageMoved = QtCore.Signal()
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -271,42 +272,47 @@ class AutofocusLogic(GenericLogic):
     def stage_move_z(self, step):
         self._stage.move_rel({'z': step})
 
+    def do_position_correction(self, step):
+        self.stage_move_z(step)
+        self.sigStageMoved.emit()
+
+
 # ----------------to be completed----------------------------------
-    def start_piezo_position_correction(self, direction):
-        """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
-        to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
-        close to the upper limit (>70µm), it is moved back to 50µm.
-        """
-
-        if direction == "up":
-            step = 1
-        elif direction == "down":
-            step = -1
-        else:
-            self.log.warning('no valid direction specified')
-            return
-
-        self._pos_dict = {'z': step}
-
-        # this needs to be modified :
-        if not self._run_autofocus:
-            self.start_autofocus()
-
-        stage_worker = StageAutofocusWorker()
-        stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
-        self.threadpool.start(stage_worker)
-
-    def run_piezo_position_correction(self):
-        """ Correct the piezo position by moving the MS2000 stage while the autofocus ON
-        """
-        z = self.get_position()  # z posiiton of the piezo -- to be modified, this needs to be passed in by the focus_logic
-        # if not self._autofocus_lost and (z < 25 or z > 50):
-        if not self.autofocus_check_signal and (z < 25 or z > 50):
-            self._stage.move_rel(self._pos_dict)
-
-            stage_worker = StageAutofocusWorker()
-            stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
-            self.threadpool.start(stage_worker)
+#     def start_piezo_position_correction(self, direction):
+#         """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
+#         to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
+#         close to the upper limit (>70µm), it is moved back to 50µm.
+#         """
+#
+#         if direction == "up":
+#             step = 1
+#         elif direction == "down":
+#             step = -1
+#         else:
+#             self.log.warning('no valid direction specified')
+#             return
+#
+#         self._pos_dict = {'z': step}
+#
+#         # this needs to be modified :
+#         if not self._run_autofocus:
+#             self.start_autofocus()
+#
+#         stage_worker = StageAutofocusWorker()
+#         stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
+#         self.threadpool.start(stage_worker)
+#
+#     def run_piezo_position_correction(self):
+#         """ Correct the piezo position by moving the MS2000 stage while the autofocus ON
+#         """
+#         z = self.get_position()  # z posiiton of the piezo -- to be modified, this needs to be passed in by the focus_logic
+#         # if not self._autofocus_lost and (z < 25 or z > 50):
+#         if not self.autofocus_check_signal and (z < 25 or z > 50):
+#             self._stage.move_rel(self._pos_dict)
+#
+#             stage_worker = StageAutofocusWorker()
+#             stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
+#             self.threadpool.start(stage_worker)
 # ---------------------------------------------------------------
 
 # =================================================================

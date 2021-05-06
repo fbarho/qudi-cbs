@@ -81,6 +81,7 @@ class FocusLogic(GenericLogic):
     sigDisplayImage = QtCore.Signal(object)  # np.ndarray
     sigAutofocusError = QtCore.Signal(str)
     sigSetpointDefined = QtCore.Signal(float)
+    sigDoStageMovement = QtCore.Signal(float)
 
     # piezo attributes
     _step = 0.01
@@ -132,8 +133,12 @@ class FocusLogic(GenericLogic):
         # if self._setup == "RAMM":
         #     self._enable_autofocus_rescue = True
 
-        # signals
+        # signals to autofocus logic
+        self.sigDoStageMovement.connect(self._autofocus_logic.do_position_correction)
+
+        # signals from autofocus logic
         self._autofocus_logic.sigOffsetDefined.connect(self.define_autofocus_setpoint)
+        self._autofocus_logic.sigStageMoved.connect(self.do_piezo_position_correction)
 
         # initialize the timer for the timetrace of the piezo position, it is then started when start_position_tracking is called
         self.timer = QtCore.QTimer()
@@ -359,12 +364,12 @@ class FocusLogic(GenericLogic):
 
             self.check_autofocus()
             if not self._autofocus_lost:
+                self.autofocus_enabled = True
 
                 if self._setup == 'PALM' and not self.live_display_enabled:
                     self._autofocus_logic.start_camera_live()
 
                 self._autofocus_logic.init_pid()
-                self.autofocus_enabled = True
                 self._z0 = self.get_position()
                 self._z_new = self._z0
                 self._dt = self._autofocus_logic._pid_frequency
@@ -448,14 +453,37 @@ class FocusLogic(GenericLogic):
         """
         self._autofocus_logic.rescue_autofocus()
 
+    def do_piezo_position_correction(self):
+        """ When the piezo position gets too close to the limits, the MS2000 stage moves by steps of 1 um
+        while autofocus is on, so that piezo will follow back into the central range (between 25 and 50 um).
+        If the piezo is close to the lower limit (<5µm for example) it is moved to 25µm. If the piezo is too
+        close to the upper limit (>70µm for example), it is moved back to 50µm.
+        """
+        # start autofocus if not yet started (maybe not necessary because this method will only be called inside the run_autofocus)
+        if not self.autofocus_enabled:
+            self.start_autofocus()  # maybe add a signal to tell the gui that autofocus was programatically started
+        # get the piezo position
+        piezo_pos = self.get_position()
+        if (piezo_pos < 25) or (piezo_pos > 50):  # or and not self._autofocus_lost
+            if self._autofocus_lost:
+                self.sigAutofocusError.emit()
+            else:
+                if piezo_pos < 25:
+                    self.sigDoStageMovement.emit(1)  # check if the directions are ok
+                else:
+                    self.sigDoStageMovement.emit(-1)
+
+
+
+
 
 #----------------to be completed----------------------------------
-    def start_piezo_position_correction(self, direction):
-        """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
-        to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
-        close to the upper limit (>70µm), it is moved back to 50µm.
-        """
-        self._autofocus_logic.start_piezo_position_correction(direction)
+    # def start_piezo_position_correction(self, direction):
+    #     """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
+    #     to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
+    #     close to the upper limit (>70µm), it is moved back to 50µm.
+    #     """
+    #     self._autofocus_logic.start_piezo_position_correction(direction)
 
         # maybe pass current piezo position as parameter and then communicate current position via signals ..
 
