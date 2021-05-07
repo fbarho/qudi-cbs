@@ -41,6 +41,9 @@ class Task(InterruptableTask):
         config:
             path_to_user_config: 'C:/Users/sCMOS-1/qudi_files/qudi_task_config_files/fluidics_task_RAMM.yaml'
     """
+    # ===============================================================================================================
+    # Generic Task methods
+    # ===============================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -49,9 +52,15 @@ class Task(InterruptableTask):
 
     def startTask(self):
         """ """
+        self.log.info('started Task')
+
+        # disable actions on Fluidics GUI (except from measurement mode)
+        self.ref['valves'].disable_valve_positioning()
+        self.ref['flow'].disable_pressure_setting()
+        self.ref['pos'].disable_positioning_actions()
+
+        # load user parameters
         self.load_user_parameters()
-        # self.load_injection_parameters()
-        self.log.info('Injection parameters loaded')
         self.step_counter = 0
 
         self.ref['valves'].set_valve_position('b', 2)
@@ -63,23 +72,20 @@ class Task(InterruptableTask):
         """ Task step (iterating over the number of injection steps to be done) """
         print(f'step: {self.step_counter+1}')
 
-        if self.hybridization_list[self.step_counter]['product'] is not None:  # then it is an injection step
+        if self.hybridization_list[self.step_counter]['product'] is not None:  # an injection step
             # set the 8 way valve to the position corresponding to the product
             product = self.hybridization_list[self.step_counter]['product']
             valve_pos = self.buffer_dict[product]
             self.ref['valves'].set_valve_position('a', valve_pos)
             self.ref['valves'].wait_for_idle()
 
-            # as an initial value, set the pressure to 0 mbar
-            self.ref['flow'].set_pressure(0.0)
-            # start the pressure regulation
+            # pressure regulation
+            self.ref['flow'].set_pressure(0.0)  # as initial value
             self.ref['flow'].start_pressure_regulation_loop(self.hybridization_list[self.step_counter]['flowrate'])
             # start counting the volume of buffer or probe
-            sampling_interval = 0.5  #in seconds
+            sampling_interval = 1  # in seconds
             self.ref['flow'].start_volume_measurement(self.hybridization_list[self.step_counter]['volume'], sampling_interval)
 
-            # put this thread to sleep until the target volume is reached
-            # is it a problem that this thread becomes inresponsive when using sleep function ?
             ready = self.ref['flow'].target_volume_reached
             while not ready:
                 sleep(2)
@@ -87,7 +93,7 @@ class Task(InterruptableTask):
             self.ref['flow'].stop_pressure_regulation_loop()
             sleep(2)  # waiting time to wait until last regulation step is finished, afterwards reset pressure to 0
             self.ref['flow'].set_pressure(0.0)
-        else:  # product is none: then it is an incubation step
+        else:  # an incubation step
             time = self.hybridization_list[self.step_counter]['time']
             print(f'Incubation time.. {time} s')
             self.ref['valves'].set_valve_position('c', 1)
@@ -111,6 +117,12 @@ class Task(InterruptableTask):
 
     def cleanupTask(self):
         """ Cleanup """
+
+        # enable actions on Fluidics GUI
+        self.ref['valves'].enable_valve_positioning()
+        self.ref['flow'].enable_pressure_setting()
+        self.ref['pos'].enable_positioning_actions()
+
         self.ref['flow'].set_pressure(0.0)
         self.ref['valves'].set_valve_position('b', 1)
         self.ref['valves'].wait_for_idle()
@@ -120,6 +132,14 @@ class Task(InterruptableTask):
         self.ref['valves'].wait_for_idle()
 
         self.log.info('Cleanup task finished')
+
+    # ===============================================================================================================
+    # Helper functions
+    # ===============================================================================================================
+
+    # ------------------------------------------------------------------------------------------
+    # user parameters
+    # ------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -135,41 +155,17 @@ class Task(InterruptableTask):
 
     def load_injection_parameters(self):
         """ """
-        with open(self.injections_path, 'r') as stream:
-            documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
-            buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
-            # self.probe_dict = documents['probes']
-            self.hybridization_list = documents['hybridization list']
-            # self.photobleaching_list = documents['photobleaching list']
+        try:
+            with open(self.injections_path, 'r') as stream:
+                documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
+                buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+                self.hybridization_list = documents['hybridization list']
 
-        # self.hybridization_list = [
-        #     {'step_number': 1,
-        #      'procedure': 'Hybridization',
-        #      'product': 'Buffer3',
-        #      'volume': 100,
-        #      'flowrate': 150,
-        #      'time': None},
-        #     {'step_number': 2,
-        #      'procedure': 'Hybridization',
-        #      'product': None,
-        #      'volume': None,
-        #      'flowrate': None,
-        #      'time': 3},
-        #     {'step_number': 3,
-        #      'procedure': 'Hybridization',
-        #      'product': 'Buffer8',
-        #      'volume': 200,
-        #      'flowrate': 250,
-        #      'time': None}
-        # ]
-        #
-        # buffer_dict = {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+            # invert the buffer dict to address the valve by the product name as key
+            self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
 
-        # invert the buffer dict to address the valve by the product name as key
-        self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
-        print(self.buffer_dict)
+        except Exception as e:
+            self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
 
-        # self.probe_dict = {1: 'Probe1', 2: 'Probe2', 3: 'Probe3'}
-        # inversion might be needed as for the buffer_dict.. to check
 
 
