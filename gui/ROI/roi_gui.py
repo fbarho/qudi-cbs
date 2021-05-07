@@ -271,6 +271,16 @@ class RoiMainWindow(QtWidgets.QMainWindow):
         uic.loadUi(ui_file, self)
         self.show()
 
+class RoiMainWindowCE(RoiMainWindow):
+    """ RoiMainWindow child class that allows to stop the tracking mode when window is closed. """
+
+    def __init__(self, close_function):
+        super().__init__()
+        self.close_function = close_function
+
+    def closeEvent(self, event):
+        self.close_function()
+        event.accept()
 
 class RoiGUI(GUIBase):
     """ This is the GUI Class for Roi selection
@@ -305,7 +315,7 @@ class RoiGUI(GUIBase):
         """
         self._markers = {}  # already initialized in init so maybe remove it here..
 
-        self._mw = RoiMainWindow()
+        self._mw = RoiMainWindowCE(self.close_function)
 
         
         # set the default save path before validator is applied: make sure that config is correct
@@ -353,8 +363,7 @@ class RoiGUI(GUIBase):
         self.__disconnect_control_signals_to_logic()
         self.__disconnect_update_signals_from_logic()
         self.__disconnect_internal_signals()
-        # self._mw.close()
-        self.close_window()
+        self.close_function()
 
     # is it needed to have the camera image superposed with the roi markers ? 
     # in a first version: just keep the overview with the roi markers without camera image, comment everything camera image related..    
@@ -450,8 +459,7 @@ class RoiGUI(GUIBase):
         self._mw.tracking_mode_Action.triggered.connect(self.tracking_mode_clicked)
 
         # file menu
-        # self._mw.close_MenuAction.triggered.connect(self._mw.close)
-        self._mw.close_MenuAction.triggered.connect(self.close_window)
+        self._mw.close_MenuAction.triggered.connect(self._mw.close)
         # options menu
         self._mw.mosaic_scan_MenuAction.triggered.connect(self.open_mosaic_settings)
 
@@ -883,10 +891,9 @@ class RoiGUI(GUIBase):
 
         self._mw.active_roi_ComboBox.setDisabled(False)
 
-    def close_window(self):
+    def close_function(self):
         if self.roi_logic().tracking:
             self.sigStopTracking.emit()
-        self._mw.close()
-             # this works only if the menu close action is used to close the window, not when user clicks the red x shortcut.
+
 
 
