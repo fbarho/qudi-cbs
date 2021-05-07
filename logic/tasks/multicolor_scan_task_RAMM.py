@@ -13,10 +13,10 @@ Config example pour copy-paste:
     MulticolorScanTask:
         module: 'multicolor_scan_task_RAMM'
         needsmodules:
-            fpga: 'lasercontrol_logic'
+            laser: 'lasercontrol_logic'
             cam: 'camera_logic'
             daq: 'nidaq_6259_logic'
-            piezo: 'focus_logic'
+            focus: 'focus_logic'
         config:
             path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/multicolor_scan_task_RAMM.yaml'
 """
@@ -31,6 +31,9 @@ from logic.generic_task import InterruptableTask
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
     """ This task does an acquisition of a series of planes in z direction using a sequence of lightsources for each plane
     """
+    # ===============================================================================================================
+    # Generic Task methods
+    # ===============================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -39,18 +42,25 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def startTask(self):
         """ """
-        print('start Task')
         self.log.info('started Task')
-        # close default FPGA session
-        self.ref['fpga'].close_default_session()
+        # stop all interfering modes on GUIs and disable GUI actions
+        self.ref['cam'].stop_live_mode()
+        self.ref['cam'].disable_camera_actions()
+
+        self.ref['laser'].stop_laser_output()
+        self.ref['laser'].disable_laser_actions()
+
+        # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
 
         # read all user parameters from config
         self.load_user_parameters()
 
+        # close default FPGA session
+        self.ref['laser'].close_default_session()
+
         # download the bitfile for the task on the FPGA
-        # bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_FPGAmerFISHtrigg_jtu2knQ4gk8.lvbitx'  #version including qpd but qpd part not yet corrected
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx' # associated to Qudi_HiM_QPD_PID.vi
-        self.ref['fpga'].start_task_session(bitfile)
+        self.ref['laser'].start_task_session(bitfile)
         self.log.info('Task session started')
 
         # prepare the daq: set the digital output to 0 before starting the task
@@ -65,7 +75,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.step_counter = 0
 
         # start the session on the fpga using the user parameters
-        self.ref['fpga'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities,
+        self.ref['laser'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities,
                                                              self.num_laserlines, self.exposure)
 
     def runTaskStep(self):
@@ -77,10 +87,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # position the piezo
         position = self.start_position + (self.step_counter - 1) * self.z_step
-        self.ref['piezo'].go_to_position(position)
+        self.ref['focus'].go_to_position(position)
         print(f'target position: {position} um')
         sleep(0.03)
-        cur_pos = self.ref['piezo'].get_position()
+        cur_pos = self.ref['focus'].get_position()
         print(f'current position: {cur_pos} um')
 
         # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
@@ -98,7 +108,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             t1 = time() - t0
             if t1 > 1:  # for safety: timeout if no signal received within 1 s
-                self.log.warning('Timeout occured')
+                self.log.warning('Timeout occurred')
                 break
 
         return self.step_counter < self.num_z_planes
@@ -116,7 +126,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('cleanupTask called')
 
         # reset piezo position to the initial one
-        self.ref['piezo'].go_to_position(self.focal_plane_position)
+        self.ref['focus'].go_to_position(self.focal_plane_position)
 
         # get acquired data from the camera and save it to file in case the task has not been aborted during acquisition
         if self.step_counter == self.num_z_planes:
@@ -133,11 +143,25 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
+
         # close the fpga session and restart the default session
-        self.ref['fpga'].end_task_session()
-        self.ref['fpga'].restart_default_session()
+        self.ref['laser'].end_task_session()
+        self.ref['laser'].restart_default_session()
         self.log.info('restarted default fpga session')
+
+        # enable gui actions
+        self.ref['cam'].enable_camera_actions()
+        self.ref['laser'].enable_laser_actions()
+
         self.log.info('cleanupTask finished')
+
+    # ===============================================================================================================
+    # Helper functions
+    # ===============================================================================================================
+
+    # ------------------------------------------------------------------------------------------
+    # user parameters
+    # ------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -192,43 +216,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    def get_metadata(self):
-        """ Get a dictionary containing the metadata in a plain text compatible format. """
-        metadata = {}
-        metadata['Sample name'] = self.sample_name
-        metadata['Exposure time (s)'] = self.exposure
-        metadata['Scan step length (um)'] = self.z_step
-        metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
-        # metadata['filter'] = 'filtername'  # or without this entry ???
-        metadata['Number laserlines'] = self.num_laserlines
-        for i in range(self.num_laserlines):
-            metadata[f'Laser line {i+1}'] = self.imaging_sequence[i][0]
-            metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
-        # pixel size ???
-        return metadata
-
-    def get_fits_metadata(self):
-        """ Get a dictionary containing the metadata in a fits header compatible format. """
-        metadata = {}
-        metadata['SAMPLE'] = (self.sample_name, 'sample name')
-        metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
-        metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
-        metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
-        metadata['CHANNELS'] = (self.num_laserlines, 'number laserlines')
-        for i in range(self.num_laserlines):
-            metadata[f'LINE{i+1}'] = (self.imaging_sequence[i][0], f'laser line {i+1}')
-            metadata[f'INTENS{i+1}'] = (self.imaging_sequence[i][1], f'laser intensity {i+1}')
-        return metadata
-
-    def save_metadata_file(self, metadata, path):
-        """" Save a txt file containing the metadata dictionary
-
-        :param dict metadata: dictionary containing the metadata
-        :param str path: pathname
-        """
-        with open(path, 'w') as outfile:
-            yaml.safe_dump(metadata, outfile, default_flow_style=False)
-        self.log.info('Saved metadata to {}'.format(path))
+    # ------------------------------------------------------------------------------------------
+    # file path handling
+    # ------------------------------------------------------------------------------------------
 
     def get_complete_path(self, path_stem):
         """ Create the complete path based on path_stem given as user parameter,
@@ -267,5 +257,47 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         file_name = f'scan_{prefix}.{self.file_format}'
         complete_path = os.path.join(path, file_name)
         return complete_path
+
+    # ------------------------------------------------------------------------------------------
+    # metadata
+    # ------------------------------------------------------------------------------------------
+
+    def get_metadata(self):
+        """ Get a dictionary containing the metadata in a plain text compatible format. """
+        metadata = {}
+        metadata['Sample name'] = self.sample_name
+        metadata['Exposure time (s)'] = self.exposure
+        metadata['Scan step length (um)'] = self.z_step
+        metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
+        metadata['Number laserlines'] = self.num_laserlines
+        for i in range(self.num_laserlines):
+            metadata[f'Laser line {i+1}'] = self.imaging_sequence[i][0]
+            metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
+        # pixel size ???
+        return metadata
+
+    def get_fits_metadata(self):
+        """ Get a dictionary containing the metadata in a fits header compatible format. """
+        metadata = {}
+        metadata['SAMPLE'] = (self.sample_name, 'sample name')
+        metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
+        metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
+        metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
+        metadata['CHANNELS'] = (self.num_laserlines, 'number laserlines')
+        for i in range(self.num_laserlines):
+            metadata[f'LINE{i+1}'] = (self.imaging_sequence[i][0], f'laser line {i+1}')
+            metadata[f'INTENS{i+1}'] = (self.imaging_sequence[i][1], f'laser intensity {i+1}')
+        return metadata
+
+    def save_metadata_file(self, metadata, path):
+        """" Save a txt file containing the metadata dictionary
+
+        :param dict metadata: dictionary containing the metadata
+        :param str path: pathname
+        """
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(metadata, outfile, default_flow_style=False)
+        self.log.info('Saved metadata to {}'.format(path))
+
 
 # to do: save also a list with the z positions
