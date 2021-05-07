@@ -157,6 +157,8 @@ class FluidicsGUI(GUIBase):
 
         # signals from logic
         self._valve_logic.sigPositionChanged.connect(self.update_combobox_index)
+        self._valve_logic.sigDisableValvePositioning.connect(self.disable_valve_positioning)
+        self._valve_logic.sigEnableValvePositioning.connect(self.enable_valve_positioning)
 
     def init_flowcontrol(self):
         """ Initialize the labels on the flowcontrol dockwidget and the toolbar actions. """
@@ -177,6 +179,8 @@ class FluidicsGUI(GUIBase):
         # signals from logic
         self._flow_logic.sigUpdateFlowMeasurement.connect(self.update_flowrate_and_pressure)
         self._flow_logic.sigUpdatePressureSetpoint.connect(self.update_pressure_setpoint)
+        self._flow_logic.sigDisablePressureAction.connect(self.disable_set_pressure_button)
+        self._flow_logic.sigEnablePressureAction.connect(self.enable_set_pressure_button)
 
     def init_positioning(self):
         """ Initialize the indicators on the positioning dockwidget and the toolbar actions. """
@@ -211,6 +215,8 @@ class FluidicsGUI(GUIBase):
         self._positioning_logic.sigOriginDefined.connect(self.origin_defined)
         self._positioning_logic.sigStageMovedToTarget.connect(self.update_target_position)
         self._positioning_logic.sigStageStopped.connect(self.stage_stopped)
+        self._positioning_logic.sigDisablePositioningActions.connect(self.disable_positioning_actions)
+        self._positioning_logic.sigEnablePositioningActions.connect(self.enable_positioning_actions)
 
     # Initialisation of the position1 settings windows
     def init_position1_settings_ui(self):
@@ -371,6 +377,19 @@ class FluidicsGUI(GUIBase):
         else:
             self._mw.probe_position_LineEdit.setText('Not at a probe XY position')
 
+    @QtCore.Slot()
+    def disable_positioning_actions(self):
+        self._mw.move_stage_Action.setDisabled(True)
+        self._mw.set_position1_Action.setDisabled(True)
+        self._mw.go_to_position_Action.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_positioning_actions(self):
+        self._mw.move_stage_Action.setDisabled(False)
+        self._mw.set_position1_Action.setDisabled(False)
+        if self._positioning_logic.origin is not None:
+            self._mw.go_to_position_Action.setDisabled(False)
+
     # slots related to pressure settings
     @QtCore.Slot()
     def set_pressure_clicked(self):
@@ -404,6 +423,17 @@ class FluidicsGUI(GUIBase):
         """ Callback of a signal emitted from logic updating the pressure setpoint display. """
         self._mw.pressure_setpoint_DSpinBox.setValue(pressure)
 
+    @QtCore.Slot()
+    def disable_set_pressure_button(self):
+        """ Disables set pressure toolbutton, to be used for example during tasks. """
+        self._mw.set_pressure_Action.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_set_pressure_button(self):
+        """ Enables set pressure toolbutton. """
+        self._mw.set_pressure_Action.setDisabled(False)
+
+
     # slots related to valve dockwidget
     @QtCore.Slot(int)
     def change_valve_position(self, valve_num):
@@ -429,5 +459,17 @@ class FluidicsGUI(GUIBase):
             self.valve_ComboBoxes[3].setCurrentIndex(valve_pos-1)
         else:
             pass
+
+    @QtCore.Slot()
+    def disable_valve_positioning(self):
+        """ Disables the valve comboboxes, to be used for example during tasks. """
+        for i in range(len(self.valve_ComboBoxes)):
+            self.valve_ComboBoxes[i].setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_valve_positioning(self):
+        """ Enables the valve comboboxes. """
+        for i in range(len(self.valve_ComboBoxes)):
+            self.valve_ComboBoxes[i].setDisabled(False)
 
 
