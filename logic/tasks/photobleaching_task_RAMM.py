@@ -13,7 +13,7 @@ Config example pour copy-paste:
     PhotobleachingTask:
         module: 'photobleaching_task_RAMM'
         needsmodules:
-            fpga: 'lasercontrol_logic'
+            laser: 'lasercontrol_logic'
             roi: 'roi_logic'
         config:
             path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/photobleaching_task_RAMM.yaml'
@@ -26,6 +26,9 @@ from logic.generic_task import InterruptableTask
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
     """ This task iterates over all roi given in a file and illuminates this position with a sequence of lasers.
     """
+    # ===============================================================================================================
+    # Generic Task methods
+    # ===============================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -35,37 +38,45 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def startTask(self):
         """ """
         self.log.info('started Task')
+        # stop all interfering modes on GUIs and disable GUI actions
+        self.ref['roi'].disable_tracking_mode()
+        self.ref['roi'].disable_roi_actions()
 
-        # read all user parameters from config
-        self.load_user_parameters()
+        self.ref['laser'].stop_laser_output()
+        self.ref['laser'].disable_laser_actions()
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
+        # read all user parameters from config
+        self.load_user_parameters()
+
         # initialize a counter to iterate over the ROIs
         self.roi_counter = 0
-        # set the active_roi to none # to avoid having two active rois displayed
+        # set the active_roi to none to avoid having two active rois displayed
         self.ref['roi'].active_roi = None
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
-        # go to roi
+        # ------------------------------------------------------------------------------------------
+        # move to ROI
+        # ------------------------------------------------------------------------------------------
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
         self.ref['roi'].go_to_roi_xy()
         self.log.info('Moved to {}'.format(self.roi_names[self.roi_counter]))
-        # waiting time needed ???
         sleep(1)  # replace maybe by wait for idle
 
-        # activate lightsources
+        # ------------------------------------------------------------------------------------------
+        # activate lightsource
+        # ------------------------------------------------------------------------------------------
         for item in self.imaging_sequence:
-            self.ref['fpga'].apply_voltage_single_channel(item[1], item[0])  #  param: intensity, channel
+            self.ref['laser'].apply_voltage_single_channel(item[1], item[0])  #  param: intensity, channel
             sleep(self.illumination_time)
-            self.ref['fpga'].apply_voltage_single_channel(0, item[0])
+            self.ref['laser'].apply_voltage_single_channel(0, item[0])
 
         self.roi_counter += 1
-
         return self.roi_counter < len(self.roi_names)
 
     def pauseTask(self):
@@ -84,16 +95,27 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # for safety, make sure all lasers are off
         for item in self.imaging_sequence:
-            self.ref['fpga'].apply_voltage_single_channel(0, item[0])
+            self.ref['laser'].apply_voltage_single_channel(0, item[0])
+
+        # enable gui actions
+        # roi gui
+        self.ref['roi'].enable_tracking_mode()
+        self.ref['roi'].enable_roi_actions()
+        # basic imaging gui
+        self.ref['laser'].enable_laser_actions()
 
         self.log.info('cleanupTask finished')
 
-    def load_user_parameters(self):
-        # define user parameters
-        # self.illumination_time = 1  # in s
-        # imaging_sequence = [('488 nm', 20), ('561 nm', 10), ('640 nm', 10)]
-        # self.roi_list_path = 'C:\\Users\\sCMOS-1\\Desktop\\roilist1.json'
 
+    # ===============================================================================================================
+    # Helper functions
+    # ===============================================================================================================
+
+    # ------------------------------------------------------------------------------------------
+    # user parameters
+    # ------------------------------------------------------------------------------------------
+
+    def load_user_parameters(self):
         try:
             with open(self.user_config_path, 'r') as stream:
                 self.user_param_dict = yaml.safe_load(stream)
@@ -106,9 +128,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones:
-        # create a list of roi names
         self.ref['roi'].load_roi_list(self.roi_list_path)
-        # get the list of the roi names
         self.roi_names = self.ref['roi'].roi_names
 
         # convert the imaging_sequence given by user into format required for function call
