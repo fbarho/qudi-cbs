@@ -81,6 +81,8 @@ class PositioningLogic(GenericLogic):
     sigStageMovedToTarget = QtCore.Signal(tuple, int)  # target position (number of merfish probe) given # tuple contains the new stage position (x, y, z), int is the target position
     sigOriginDefined = QtCore.Signal()
     sigStageStopped = QtCore.Signal(tuple)
+    sigDisablePositioningActions = QtCore.Signal()
+    sigEnablePositioningActions = QtCore.Signal()
 
     # attributes
     move_stage = False  # flag
@@ -341,5 +343,11 @@ class PositioningLogic(GenericLogic):
         self._probe_xy_position_dict = inv_dict
         self.sigOriginDefined.emit()
 
-# add the default values for position 1
+    def disable_positioning_actions(self):
+        """ This method provides a security to avoid using the positioning action buttons on GUI, for example during Tasks. """
+        self.sigDisablePositioningActions.emit()
+
+    def enable_positioning_actions(self):
+        """ This method resets positioning action button on GUI to callable state, for example after Tasks. """
+        self.sigEnablePositioningActions.emit()
 

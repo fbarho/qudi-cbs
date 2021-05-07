@@ -25,6 +25,8 @@ class ValveLogic(GenericLogic):
 
     # signals
     sigPositionChanged = QtCore.Signal(str, int)
+    sigDisableValvePositioning = QtCore.Signal()
+    sigEnableValvePositioning = QtCore.Signal()
 
     # attributes
     valve_dict = {}
@@ -79,3 +81,11 @@ class ValveLogic(GenericLogic):
         """ Wait for valves to be set to position.
         """
         self._valves.wait_for_idle()
+
+    def disable_valve_positioning(self):
+        """ This method provides a security to avoid modifying the valve position from GUI, for example during Tasks. """
+        self.sigDisableValvePositioning.emit()
+
+    def enable_valve_positioning(self):
+        """ This method resets the valve positioning comboboxes on GUI to callable state, for example after Tasks. """
+        self.sigEnableValvePositioning.emit()

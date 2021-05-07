@@ -92,6 +92,8 @@ class FlowcontrolLogic(GenericLogic):
     # signals
     sigUpdateFlowMeasurement = QtCore.Signal(float, float)
     sigUpdatePressureSetpoint = QtCore.Signal(float)
+    sigDisablePressureAction = QtCore.Signal()
+    sigEnablePressureAction = QtCore.Signal()
 
     # attributes
     measuring = False
@@ -290,6 +292,14 @@ class FlowcontrolLogic(GenericLogic):
 
     def stop_volume_measurement(self):
         self.target_volume_reached = True
+
+    def disable_pressure_setting(self):
+        """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
+        self.sigDisablePressureAction.emit()
+
+    def enable_pressure_setting(self):
+        """ This method resets set pressure button on GUI to callable state, for example after Tasks. """
+        self.sigEnablePressureAction.emit()
 
 
 
