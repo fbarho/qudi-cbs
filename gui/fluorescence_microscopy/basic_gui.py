@@ -75,6 +75,16 @@ class BasicWindow(QtWidgets.QMainWindow):
 
         self.show()
 
+class BasicWindowCE(BasicWindow):
+    """ Basic Window child class that allows to stop the live mode when window is closed. """
+    def __init__(self, close_function):
+        super().__init__()
+        self.close_function = close_function
+
+    def closeEvent(self, event):
+        self.close_function()
+        event.accept()
+
 
 class BasicGUI(GUIBase):
     """ Main window containing the basic tools for the fluorescence microscopy setup
@@ -167,7 +177,8 @@ class BasicGUI(GUIBase):
             self._brightfield_logic = self.brightfield_logic()
 
         # Windows
-        self._mw = BasicWindow()
+        self._mw = BasicWindowCE(self.close_function)
+
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
         self.init_camera_settings_ui()
@@ -1090,3 +1101,11 @@ class BasicGUI(GUIBase):
         self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
         self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
         self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
+
+    def close_function(self):
+        # stop live mode when window is closed
+        if self._camera_logic.enabled:
+            self.start_video_clicked()
+            self.reset_start_video_button()
+
+
