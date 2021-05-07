@@ -39,6 +39,9 @@ class BrightfieldLogic(GenericLogic):
     # declare connectors
     controller = Connector(interface='BrightfieldInterface')
 
+    # signals
+    sigBrightfieldStopped = QtCore.Signal()
+
     enabled = False  # read from current value from hardware
 
     def __init__(self, config, **kwargs):
@@ -65,6 +68,7 @@ class BrightfieldLogic(GenericLogic):
     def led_off(self):
         self.enabled = False
         self._controller.led_control(0)
+        self.sigBrightfieldStopped.emit()  # emit this signal if led_off is programmatically called to reset GUI toolbutton state
 
     def led_on_max(self):
         self.enabled = True
