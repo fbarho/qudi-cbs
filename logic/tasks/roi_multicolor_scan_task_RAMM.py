@@ -141,8 +141,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
 
                 t1 = time() - t0
-                if t1 > 1:  # for safety: timeout if no signal received within 5 s
-                    self.log.info('Timeout occurred')
+                if t1 > 1:  # for safety: timeout if no signal received within 1 s
+                    self.log.warning('Timeout occurred')
                     break
 
         self.ref['focus'].go_to_position(start_position)
@@ -175,9 +175,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
-
-        # reset piezo position to the initial one
-        self.ref['focus'].go_to_position(self.focal_plane_position)
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
@@ -252,7 +249,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         current_pos = self.ref['focus'].get_position()  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
         print(f'current position: {current_pos}')
-        self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
