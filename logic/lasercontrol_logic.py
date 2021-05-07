@@ -38,6 +38,9 @@ class LaserControlLogic(GenericLogic):
 
     # signals
     sigIntensityChanged = QtCore.Signal()  # if intensity dict is changed programmatically, this updates the GUI
+    sigLaserStopped = QtCore.Signal()
+    sigDisableLaserActions = QtCore.Signal()
+    sigEnableLaserActions = QtCore.Signal()
 
     # attributes
     enabled = False
@@ -130,6 +133,22 @@ class LaserControlLogic(GenericLogic):
                 self._controller.apply_voltage(0, self._laser_dict[key]['channel'])
         else:
             self.log.warning('your controller type is currently not covered')
+
+    def stop_laser_output(self):
+        """ Allows to stop the laser output programmatically, for example in the preparation steps of a task.
+        Emits a signal to reset the state of the GUI buttons / controls. """
+        if self.enabled:
+            self.voltage_off()
+            self.sigLaserStopped.emit()
+
+    def disable_laser_actions(self):
+        """ This method provides a security to avoid all laser related actions from GUI,
+        for example during Tasks. """
+        self.sigDisableLaserActions.emit()
+
+    def enable_laser_actions(self):
+        """ This method resets all laser related actions from GUI to callable state, for example after Tasks. """
+        self.sigEnableLaserActions.emit()
 
     @QtCore.Slot(str, int)  # should the decorator be removed when this method is called in a task ???
     def update_intensity_dict(self, key, value):
