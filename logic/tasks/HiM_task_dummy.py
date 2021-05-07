@@ -13,9 +13,9 @@ Config example pour copy-paste:
     HiMTask:
         module: 'HiM_task_dummy'
         needsmodules:
-            fpga: 'lasercontrol_logic'
+            laser: 'lasercontrol_logic'
             cam: 'camera_logic'
-            piezo: 'focus_logic'
+            focus: 'focus_logic'
             roi: 'roi_logic'
             valves: 'valve_logic'
             pos: 'positioning_logic'
@@ -35,6 +35,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     """ This task iterates over all roi given in a file and does an acquisition of a series of planes in z direction
     using a sequence of lightsources for each plane, for each roi.
     """
+    # ===============================================================================================================
+    # Generic Task methods
+    # ===============================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -44,10 +47,27 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def startTask(self):
         """ """
         self.log.info('started Task')
+        # stop all interfering modes on GUIs and disable GUI actions
+        self.ref['roi'].disable_tracking_mode()
+        self.ref['roi'].disable_roi_actions()
+
+        self.ref['cam'].stop_live_mode()
+        self.ref['cam'].disable_camera_actions()
+
+        self.ref['laser'].stop_laser_output()
+        self.ref['laser'].disable_laser_actions()
+
+        # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
+
+        # disable actions on valves and positioning ?
+
         # control if experiment can be started : origin defined in position logic ?
         if not self.ref['pos'].origin:
             self.log.warning('No position 1 defined for injections. Experiment can not be started. Please define position 1')
             return
+
+        # set stage velocity
+        self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
         # read all user parameters from config
         self.load_user_parameters()
@@ -62,25 +82,27 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # initialize a counter to iterate over the number of probes to inject
         self.probe_counter = 0
 
+
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
-        # control steps
+        # go directly to cleanupTask if position 1 is not defined
         if not self.ref['pos'].origin:
             return False
 
         # info message
         self.probe_counter += 1
         print(f'Probe number {self.probe_counter}')
+        self.log.info(f'Probe number {self.probe_counter}')
 
         # position the needle in the probe
         self.ref['pos'].start_move_to_target(self.probe_counter)
 
 
-        # =========================================================
-        # hybridization
-        # =========================================================
+        # ------------------------------------------------------------------------------------------
+        # Hybridization
+        # ------------------------------------------------------------------------------------------
         # position the valves for hybridization sequence
         self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
         self.ref['valves'].wait_for_idle()
@@ -90,8 +112,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # iterate over the steps in the hybridization sequence
         for step in range(len(self.hybridization_list)):
             print(f'Hybridisation step {step+1}')
+            self.log.info(f'Hybridisation step {step+1}')
 
-            if self.hybridization_list[step]['product'] is not None:  # then it is an injection step
+            if self.hybridization_list[step]['product'] is not None:  # an injection step
                 # set the 8 way valve to the position corresponding to the product
                 product = self.hybridization_list[step]['product']
                 valve_pos = self.buffer_dict[product]
@@ -99,12 +122,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.ref['valves'].wait_for_idle()
 
                 print(f'Injection of {product} ... ')
+                self.log.info(f'Injection of {product} ... ')
                 time.sleep(1)
+
                 # add here simulated data for pressure value and total volume
 
-            else:  # product is none: then it is an incubation step
+            else:  # an incubation step
                 t = self.hybridization_list[step]['time']
                 print(f'Incubation time.. {t} s')
+                self.log.info(f'Incubation time.. {t} s')
                 self.ref['valves'].set_valve_position('c', 1)
                 self.ref['valves'].wait_for_idle()
                 time.sleep(self.hybridization_list[step]['time'])
@@ -112,29 +138,40 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.ref['valves'].set_valve_position('c', 2)
                 self.ref['valves'].wait_for_idle()
                 print('Incubation time finished')
-        # how do the valves need to be set at the end ?
+                self.log.info('Incubation time finished')
 
-        # hybridization finished
-        # ---------------------------------------------------------
+        # set valves to default positions
+        self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
+        self.ref['valves'].wait_for_idle()
+        self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
+        self.ref['valves'].wait_for_idle()
+        self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
+        self.ref['valves'].wait_for_idle()
+        # Hybridization finished ---------------------------------------------------------------------------------------
 
-        # =========================================================
-        # imaging
-        # =========================================================
+        # ------------------------------------------------------------------------------------------
+        # Imaging for all ROI
+        # ------------------------------------------------------------------------------------------
         # iterate over all ROIs
         for item in self.roi_names:
-            # create the path for each roi
+            # create the save path for each roi ------------------------------------------------------------------------
             cur_save_path = self.get_complete_path(self.directory, item, self.probe_dict[self.probe_counter])
-            self.log.info(f'current save path: {cur_save_path}')
 
-            # set the active_roi to none to avoid having two active rois displayed
+            # move to roi ----------------------------------------------------------------------------------------------
             self.ref['roi'].active_roi = None
-            # go to roi
             self.ref['roi'].set_active_roi(name=item)
             self.ref['roi'].go_to_roi()
             self.log.info('Moved to {}'.format(item))
-            # waiting time needed ???
             time.sleep(1)  # replace maybe by wait for idle
 
+            # autofocus ------------------------------------------------------------------------------------------------
+            # self.ref['focus'].search_focus()
+            reference_position = self.ref['focus'].get_position() + np.random.normal() # save it to go back to this plane after imaging
+            # for simulatied task only
+            self.ref['focus'].go_to_position(reference_position)
+            start_position = self.calculate_start_position(self.centered_focal_plane)
+
+            # imaging sequence -----------------------------------------------------------------------------------------
             # self.ref['cam'].stop_acquisition()   # for safety
             # self.ref['cam'].start_acquisition()
 
@@ -143,16 +180,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 print(f'plane number {plane + 1}')
 
                 # position the piezo
-                position = self.start_position + plane * self.z_step
-                self.ref['piezo'].go_to_position(position)
+                position = start_position + plane * self.z_step
+                self.ref['focus'].go_to_position(position)
                 print(f'target position: {position} um')
                 time.sleep(0.03)
-                cur_pos = self.ref['piezo'].get_position()
+                cur_pos = self.ref['focus'].get_position()
                 print(f'current position: {cur_pos} um')
 
-            # get acquired data from the camera and save it to file
+            self.ref['focus'].go_to_position(reference_position)
+
+            # data handling --------------------------------------------------------------------------------------------
             image_data = np.random.normal(size=(self.num_frames, 125, 125))  # self.ref['cam'].get_acquired_data()
-            print(image_data.shape)
 
             if self.file_format == 'fits':
                 metadata = {} # self.get_fits_metadata()
@@ -162,13 +200,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 metadata = self.get_metadata()
                 file_path = cur_save_path.replace('tiff', 'txt', 1)
                 self.save_metadata_file(metadata, file_path)
+        # Imaging (for all ROIs) finished ------------------------------------------------------------------------------
 
-        # imaging for all ROIs finished
-        # ---------------------------------------------------------
-
-        # =========================================================
-        # photobleaching
-        # =========================================================
+        # ------------------------------------------------------------------------------------------
+        # Photobleaching
+        # ------------------------------------------------------------------------------------------
         # position the valves for photobleaching sequence
         self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
         self.ref['valves'].wait_for_idle()
@@ -180,8 +216,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # iterate over the steps in the photobleaching sequence
         for step in range(len(self.photobleaching_list)):
             print(f'Photobleaching step {step+1}')
+            self.log.info(f'Photobleaching step {step+1}')
 
-            if self.photobleaching_list[step]['product'] is not None:  # then it is an injection step
+            if self.photobleaching_list[step]['product'] is not None:  # an injection step
                 # set the 8 way valve to the position corresponding to the product
                 product = self.photobleaching_list[step]['product']
                 valve_pos = self.buffer_dict[product]
@@ -189,12 +226,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.ref['valves'].wait_for_idle()
 
                 print(f'Injection of {product} ... ')
+                self.log.info(f'Injection of {product} ... ')
                 time.sleep(1)
                 # add here simulated data for pressure value and total volume
 
-            else:  # product is none: then it is an incubation step
+            else:  # an incubation step
                 t = self.photobleaching_list[step]['time']
                 print(f'Incubation time.. {t} s')
+                self.log.info(f'Incubation time .. {t} s')
                 self.ref['valves'].set_valve_position('c', 1)
                 self.ref['valves'].wait_for_idle()
                 time.sleep(self.photobleaching_list[step]['time'])
@@ -202,11 +241,16 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.ref['valves'].set_valve_position('c', 2)
                 self.ref['valves'].wait_for_idle()
                 print('Incubation time finished')
+                self.log.info('Incubation time finished')
 
-        # how do the valves need to be set at the end ?
-
-        # photobleaching finished
-        # ---------------------------------------------------------
+        # set valves to default positions
+        self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
+        self.ref['valves'].wait_for_idle()
+        self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
+        self.ref['valves'].wait_for_idle()
+        self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
+        self.ref['valves'].wait_for_idle()
+        # Photobleaching finished --------------------------------------------------------------------------------------
 
         return self.probe_counter < len(self.probe_dict)
 
@@ -221,10 +265,31 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
 
+        # reset stage velocity to default
+        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
+
+        # enable gui actions
+        # roi gui
+        self.ref['roi'].enable_tracking_mode()
+        self.ref['roi'].enable_roi_actions()
+        # basic imaging gui
+        self.ref['cam'].enable_camera_actions()
+        self.ref['laser'].enable_laser_actions()
+        # enable actions on valves and positioning if disabled on start
+
         self.log.info('cleanupTask finished')
+
+    # ===============================================================================================================
+    # Helper functions
+    # ===============================================================================================================
+
+    # ------------------------------------------------------------------------------------------
+    # user parameters
+    # ------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -246,36 +311,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)
-        # create a list of roi names
+        # load rois from file and create a list ------------------------------------------------------------------------
         self.ref['roi'].load_roi_list(self.roi_list_path)
-        # get the list of the roi names
         self.roi_names = self.ref['roi'].roi_names
 
-        # load injection parameters
-        self.load_injection_parameters()
-
+        # imaging ------------------------------------------------------------------------------------------------------
         self.num_laserlines = len(self.imaging_sequence)
         # not needed for dummy him task (maybe for metadata..)
         self.wavelengths = [self.imaging_sequence[i][0] for i, item in enumerate(self.imaging_sequence)]
         self.intensities = [self.imaging_sequence[i][1] for i, item in enumerate(self.imaging_sequence)]
 
-    def calculate_start_position(self, centered_focal_plane):
-        """
-        @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
-        """
-        current_pos = 20  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
-
-        if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
-            # even number of planes:
-            if self.num_z_planes % 2 == 0:
-                start_pos = current_pos - self.num_z_planes / 2 * self.z_step  # focal plane is the first one of the upper half of the number of planes
-            # odd number of planes:
-            else:
-                start_pos = current_pos - (self.num_z_planes - 1)/2 * self.z_step
-            return start_pos
-        else:
-            return current_pos  # the scan starts at the current position and moves up
+        # injections ---------------------------------------------------------------------------------------------------
+        self.load_injection_parameters()
 
     def load_injection_parameters(self):
         """ """
@@ -289,6 +336,26 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # invert the buffer dict to address the valve by the product name as key
         self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
 
+    def calculate_start_position(self, centered_focal_plane):
+        """
+        @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
+        """
+        current_pos = self.ref['focus'].get_position()
+
+        if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
+            # even number of planes:
+            if self.num_z_planes % 2 == 0:
+                start_pos = current_pos - self.num_z_planes / 2 * self.z_step  # focal plane is the first one of the upper half of the number of planes
+            # odd number of planes:
+            else:
+                start_pos = current_pos - (self.num_z_planes - 1)/2 * self.z_step
+            return start_pos
+        else:
+            return current_pos  # the scan starts at the current position and moves up
+
+    # ------------------------------------------------------------------------------------------
+    # file path handling
+    # ------------------------------------------------------------------------------------------
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
         in which the folders for the ROI will be created
@@ -339,8 +406,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-
-# --------------------------------------------------------
+    # ------------------------------------------------------------------------------------------
+    # metadata
+    # ------------------------------------------------------------------------------------------
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
         metadata = {}
@@ -356,8 +424,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # to check where the problem comes from :
         # metadata['x position'] = self.ref['roi'].stage_position[0]
         # metadata['y position'] = self.ref['roi'].stage_position[1]
-        # roi_001_pos = self.ref['roi'].get_roi_position('ROI_001')  # np.ndarray return type
-        # metadata['ROI_001'] = (float(roi_001_pos[0]), float(roi_001_pos[1]), float(roi_001_pos[2]))
         # pixel size ???
         return metadata
 
@@ -374,7 +440,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             metadata[f'INTENS{i+1}'] = (self.imaging_sequence[i][1], f'laser intensity {i+1}')
         metadata['X_POS'] = (self.ref['roi'].stage_position[0], 'x position')
         metadata['Y_POS'] = (self.ref['roi'].stage_position[1], 'y position')
-        # metadata['ROI001'] = (self.ref['roi'].get_roi_position('ROI001'), 'ROI 001 position')
         # pixel size
         return metadata
 
