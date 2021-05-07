@@ -41,6 +41,16 @@ class FluidicsWindow(QtWidgets.QMainWindow):
         uic.loadUi(ui_file, self)
         self.show()
 
+class FluidicsWindowCE(FluidicsWindow):
+    """ Fluidics Window child class that allows to stop the measurement mode when window is closed. """
+    def __init__(self, close_function):
+        super().__init__()
+        self.close_function = close_function
+
+    def closeEvent(self, event):
+        self.close_function()
+        event.accept()
+
 
 class FluidicsGUI(GUIBase):
     """ Main window that allows to handle the fluidics devices
@@ -94,7 +104,7 @@ class FluidicsGUI(GUIBase):
         self._flow_logic = self.flowcontrol_logic()
         self._positioning_logic = self.positioning_logic()
 
-        self._mw = FluidicsWindow()
+        self._mw = FluidicsWindowCE(self.close_function)
         self._mw.centralwidget.hide()  # everything is in dockwidgets
 
         # initialize settings dialog
@@ -471,5 +481,12 @@ class FluidicsGUI(GUIBase):
         """ Enables the valve comboboxes. """
         for i in range(len(self.valve_ComboBoxes)):
             self.valve_ComboBoxes[i].setDisabled(False)
+
+
+    def close_function(self):
+        # stop measurement mode when window is closed
+        if self._flow_logic.measuring:
+            self.measure_flow_clicked()
+            self._mw.start_flow_measurement_Action.setChecked(False)
 
 
