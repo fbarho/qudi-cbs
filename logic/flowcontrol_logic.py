@@ -8,6 +8,7 @@ This module contains the logic to control the microfluidics pump and flowrate me
 """
 from time import sleep
 import math
+from simple_pid import PID
 
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
@@ -100,6 +101,11 @@ class FlowcontrolLogic(GenericLogic):
     regulating = False
     total_volume = 0
     target_volume_reached = True
+
+    # attributes for pid
+    p_gain = 0.005
+    i_gain = 0.001
+    d_gain = 0
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -219,6 +225,12 @@ class FlowcontrolLogic(GenericLogic):
             worker = MeasurementWorker()
             worker.signals.sigFinished.connect(self.flow_measurement_loop)
             self.threadpool.start(worker)
+
+    def init_pid(self, setpoint):
+        pid = PID(self.p_gain, self.i_gain, self.d_gain, setpoint=setpoint)
+        pid.output_limits = (0, 15)
+        pid.sample_time = self.pid_sample_time
+        return pid
 
 
     def regulate_pressure(self, target_flowrate, sensor_channel=None, pressure_channel=None):
