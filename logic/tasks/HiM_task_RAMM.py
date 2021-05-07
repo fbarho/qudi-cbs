@@ -57,10 +57,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['laser'].stop_laser_output()
         self.ref['laser'].disable_laser_actions()
-
         # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
 
-        # disable actions on valves and positioning ?
+        self.ref['valves'].disable_valve_positioning()
+        self.ref['flow'].disable_pressure_setting()
+        self.ref['pos'].disable_positioning_actions()
 
         # control if experiment can be started : origin defined in position logic ?
         if not self.ref['pos'].origin:
@@ -324,7 +325,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # basic imaging gui
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
-        # enable actions on valves and positioning if disabled on start
+        self.ref['valves'].enable_valve_positioning()
+        self.ref['flow'].enable_pressure_setting()
+        self.ref['pos'].enable_positioning_actions()
 
         self.log.info('cleanupTask finished')
 
