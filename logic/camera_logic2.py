@@ -82,6 +82,10 @@ class CameraLogic(GenericLogic):
 
     sigUpdateCamStatus = QtCore.Signal(str, str, str, str)
 
+    sigLiveStopped = QtCore.Signal()  # informs the GUI that live mode was stopped programatically
+    sigDisableCameraActions = QtCore.Signal()
+    sigEnableCameraActions = QtCore.Signal()
+
     timer = None
 
     enabled = False  # indicates if the camera is currently acquiring data
@@ -246,6 +250,12 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
         
+    def stop_live_mode(self):  # might be included directly in prepare_camera_for_multichannel_imaging
+        """ Allows to stop the live mode programmatically, for example in the preparation steps of a task
+        where live mode would interfere with the new camera settings. """
+        if self.enabled:
+            self.stop_loop()
+            self.sigLiveStopped.emit()  # to inform the GUI that live mode has been stopped programmatically
 
     # make these interface functions and remove the low level functions instead
     def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
@@ -268,6 +278,14 @@ class CameraLogic(GenericLogic):
         
     def abort_acquisition(self):
         self._hardware._abort_acquisition()
+
+    def disable_camera_actions(self):
+        """ This method provides a security to avoid all camera related actions from GUI, for example during Tasks. """
+        self.sigDisableCameraActions.emit()
+
+    def enable_camera_actions(self):
+        """ This method resets all camera related actions from GUI to callable state, for example after Tasks. """
+        self.sigEnableCameraActions.emit()
 
 
     ##########################
