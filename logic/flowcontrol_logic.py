@@ -135,9 +135,10 @@ class FlowcontrolLogic(GenericLogic):
         else:
             return pressure
 
-    def set_pressure(self, pressures, channels=None):
+    def set_pressure(self, pressures, log_entry=True, channels=None):
         """
         @param: float or float list pressures: pressure to be set to a given channel
+        @param: bool log_entry: make log entry optional, for example to avoid overloading logger while running a pressure regulation loop
         @param: int list channels: optional, needed in case more than one pressure channel is available
         """
         if not channels:
@@ -148,7 +149,8 @@ class FlowcontrolLogic(GenericLogic):
                 param_dict[0] = pressures  # maybe modify in case another pump has a different way of addressing its channel (adapt by config; default_channel_ID ?)
                 unit = self.get_pressure_unit()
                 self._pump.set_pressure(param_dict)
-                self.log.info(f'Pressure set to {pressures} {unit}')
+                if log_entry:
+                    self.log.info(f'Pressure set to {pressures} {unit}')
                 self.sigUpdatePressureSetpoint.emit(pressures)
         else:
             param_dict = dict(zip(channels, pressures))
@@ -263,7 +265,7 @@ class FlowcontrolLogic(GenericLogic):
         print('flowrate {:.0f}'.format(flowrate))
         new_pressure = float(self.pid(flowrate))
         print(f'new_pressure {new_pressure}')
-        self.set_pressure(new_pressure)
+        self.set_pressure(new_pressure, log_entry=False)
 
 # first tests with a simple version where the channels are not specified (we would need signal overloading in the worker thread... to be explored later)
     def start_pressure_regulation_loop(self, target_flowrate):
