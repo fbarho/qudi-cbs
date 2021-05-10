@@ -133,7 +133,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             image_data = self.ref['cam'].get_acquired_data()
 
             if self.file_format == 'fits':
-                metadata = {} # self.get_fits_metadata()
+                metadata = self.get_fits_metadata()
                 self.ref['cam']._save_to_fits(self.complete_path, image_data, metadata)
             else:   # use tiff as default format
                 self.ref['cam']._save_to_tiff(self.num_frames, self.complete_path, image_data)
@@ -202,7 +202,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
-        current_pos = self.ref['piezo'].get_position()  # user has set focus
+        current_pos = self.ref['focus'].get_position()  # user has set focus
         self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
