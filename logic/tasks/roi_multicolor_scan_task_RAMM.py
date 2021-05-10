@@ -175,6 +175,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+        # go back to first ROI
+        self.ref['roi'].set_active_roi(name=self.roi_names[0])
+        self.ref['roi'].go_to_roi_xy()
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
