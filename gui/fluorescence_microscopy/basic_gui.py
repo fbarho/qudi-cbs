@@ -177,7 +177,7 @@ class BasicGUI(GUIBase):
             self._brightfield_logic = self.brightfield_logic()
 
         # Windows
-        self._mw = BasicWindowCE(self.close_function)
+        self._mw = BasicWindowCE(self.close_function)  # 
 
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
@@ -1027,8 +1027,8 @@ class BasicGUI(GUIBase):
         """ Callback of the signal sigBrightfieldStopped from brightfield logic,
         emitted when brightfield output is programmatically stopped
         (for example to prepare a task). """
-        self._mw.brightfield_on_Action.setText('Brightfield On')
-        self._mw.brightfield_on_Action.setChecked(False)
+        self.brightfield_on_Action.setText('Brightfield On')
+        self.brightfield_on_Action.setChecked(False)
 
 
     @QtCore.Slot()
