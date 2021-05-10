@@ -106,6 +106,7 @@ class FlowcontrolLogic(GenericLogic):
     p_gain = 0.005
     i_gain = 0.001
     d_gain = 0
+    pid_sample_time =  0.1 # in s, frequency for the PID update
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -232,7 +233,6 @@ class FlowcontrolLogic(GenericLogic):
         pid.sample_time = self.pid_sample_time
         return pid
 
-
     def regulate_pressure(self, target_flowrate, sensor_channel=None, pressure_channel=None):
         """
         @param: float target_flowrate
@@ -258,10 +258,21 @@ class FlowcontrolLogic(GenericLogic):
             pass
         # rajouter I de 0.01 (min)
 
+    def regulate_pressure_pid(self):  # maybe add channel as argument later
+        flowrate = self.get_flowrate()
+        print('flowrate {:.0f}'.format(flowrate))
+        new_pressure = float(self.pid(flowrate))
+        print(f'new_pressure {new_pressure}')
+        self.set_pressure(new_pressure)
+
 # first tests with a simple version where the channels are not specified (we would need signal overloading in the worker thread... to be explored later)
     def start_pressure_regulation_loop(self, target_flowrate):
         self.regulating = True
-        self.regulate_pressure(target_flowrate)
+        # self.regulate_pressure(target_flowrate)
+
+        # new version with simple pid
+        self.pid = self.init_pid(setpoint=target_flowrate)
+
         # regulate the pressure, using a worker thread
         worker = RegulationWorker(target_flowrate)
         worker.signals.sigRegulationWaitFinished.connect(self.pressure_regulation_loop)
@@ -270,8 +281,9 @@ class FlowcontrolLogic(GenericLogic):
     def stop_pressure_regulation_loop(self):
         self.regulating = False
 
-    def pressure_regulation_loop(self, target_flowrate):
-        self.regulate_pressure(target_flowrate)
+    def pressure_regulation_loop(self, target_flowrate):  # if simple pid works well, the target flowrate argument can be removed because not needed
+        # self.regulate_pressure(target_flowrate)
+        self.regulate_pressure_pid()
         if self.regulating:
             # enter in a loop until the regulating mode is stopped
             worker = RegulationWorker(target_flowrate)
