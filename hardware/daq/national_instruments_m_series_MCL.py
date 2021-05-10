@@ -26,6 +26,7 @@ class NIDAQMSeries(Base):
     functionality
     - control the mcl piezo stage
     - generate/read signals for communication with an FPGA
+    - control the pump for needle rinsing
     
     Example config for copy-paste:
         nidaq_6259:
@@ -33,12 +34,14 @@ class NIDAQMSeries(Base):
             piezo_read: 'Dev1/AI0'
             piezo_write: 'Dev1/AO1'
             ao_voltage_range: [0, 10]
+            pump_write: 'Dev1/AO0'
             read_write_timeout: 10 # in seconds
     """
     
     # config
     _piezo_read_channel = ConfigOption('piezo_read', missing='error')
     _piezo_write_channel = ConfigOption('piezo_write', missing='error')
+    _pump_write_channel = ConfigOption('pump_write', missing='error')
     _ao_voltage_range = ConfigOption('ao_voltage_range', missing='error')
     # timeout for the Read or/and write process in s
     _RWTimeout = ConfigOption('read_write_timeout', default=10)
@@ -79,19 +82,26 @@ class NIDAQMSeries(Base):
         except:
             self.log.error('Failed to start digital input / output')
 
+        # create the analog output for pump control
+        try:
+            taskhandles = self.create_taskhandle()
+            self.pump_write_taskhandle = self.activate_AO(taskhandles, self._pump_write_channel, [-10, 10]) # self._ao_voltage_range)
+            print('Pump write created')
+        except:
+            self.log.error('Failed to start analog output')
 
 
     def activate_AO(self, taskhandles, channel, voltage_range):
         daq.DAQmxCreateTask('', daq.byref(taskhandles))
         daq.DAQmxCreateAOVoltageChan(taskhandles, channel, '', voltage_range[0],
                                      voltage_range[1], daq.DAQmx_Val_Volts, None)
-        return(taskhandles)
+        return taskhandles
 
     def activate_AI(self, taskhandles, channel):
         daq.DAQmxCreateTask('', daq.byref(taskhandles))
         daq.DAQmxCreateAIVoltageChan(taskhandles, channel, '', daq.DAQmx_Val_RSE, 0.0, 10.0,
                                  daq.DAQmx_Val_Volts, None)
-        return(taskhandles)
+        return taskhandles
 
     def activate_DO(self, taskhandles, channel):
         daq.DAQmxCreateTask('', daq.byref(taskhandles))
@@ -123,6 +133,8 @@ class NIDAQMSeries(Base):
             self.piezo_write_taskhandles.value = None  # reset it to nullpointer
             daq.DAQmxClearTask(self.piezo_read_taskhandle)
             self.piezo_read_taskhandle.value = None  # reset it to nullpointer
+            daq.DAQmxClearTask(self.pump_write_taskhandle)
+            self.pump_write_taskhandle.value = None  # reset it to nullpointer
         except:
             self.log.exception('Could not clear AO/AI Tasks.')
 
@@ -160,6 +172,24 @@ class NIDAQMSeries(Base):
             daq.DAQmxStopTask(self.piezo_write_taskhandles)
         else:
             self.log.exception('Position out of boundaries')
+
+
+    def write_to_pump_ao_channel(self, voltage, autostart=True, timeout=10):
+        """ Start / Stop the needle rinsing pump
+
+        @params: float voltage: target voltage to apply to the channel
+        @params: bool autostart: True = task started immediately on call of start task. autostart = False can only be used if timing is configured.
+        @param: float timeout: RW timeout in seconds
+
+        @returns: None
+        """
+        if voltage > -10 and voltage < 10:  # read limits from config
+            daq.WriteAnalogScalarF64(self.pump_write_taskhandle, autostart, timeout, voltage,
+                                     None)  # parameters passed in: taskHandle, autoStart, timeout, value, reserved
+            daq.DAQmxStartTask(self.pump_write_taskhandle)
+            daq.DAQmxStopTask(self.pump_write_taskhandle)
+        else:
+            self.log.warning('Voltage not in allowed range.')
 
     def write_to_do_channel(self, num_samp, digital_write, channel):
         """ use the digital output as trigger """
