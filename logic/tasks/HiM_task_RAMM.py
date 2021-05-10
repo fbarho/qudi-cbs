@@ -93,8 +93,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.probe_counter = 0
 
         # add here the initialization of the autofocus (relative movement of stage and piezo to have travel range in both directions) ?
-        #
-        #
+        # move - offset
+        # do_piezo_position_correction
+        # move + offset
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
@@ -241,11 +242,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # ------------------------------------------------------------------------------------------
         # Photobleaching
         # ------------------------------------------------------------------------------------------
-        # position the valves for photobleaching sequence
-        # self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
-        # self.ref['valves'].wait_for_idle()
-        # to add: do the rinsing of the needle
+        # rinse needle in parallel with photobleaching
+        self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: rinse needle
+        self.ref['valves'].wait_for_idle()
+        self.ref['daq'].start_rinsing(60)
 
+        # inject product
         self.ref['valves'].set_valve_position('c', 2)  # Syringe valve: towards pump
         self.ref['valves'].wait_for_idle()
 
@@ -295,7 +297,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['valves'].wait_for_idle()
         # Photobleaching finished --------------------------------------------------------------------------------------
 
-        return self.probe_counter < len(self.probe_list)
+        return self.probe_counter < len(self.probe_dict)
 
     def pauseTask(self):
         """ """
@@ -308,6 +310,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+        # go back to first ROI
+        self.ref['roi'].set_active_roi(name=self.roi_names[0])
+        self.ref['roi'].go_to_roi_xy()
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
