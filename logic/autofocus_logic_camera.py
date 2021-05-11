@@ -49,6 +49,7 @@ class AutofocusLogic(GenericLogic):
     _setpoint = None
     _pid = None
     # _pid = PID(_P_gain, _I_gain, 0, setpoint=_setpoint)
+    _focus_offset = 0  # needed for compatibility with focus_logic
 
     # signals
     sigOffsetDefined = QtCore.Signal()  # never emitted from this module, just for compatibility
@@ -163,7 +164,7 @@ class AutofocusLogic(GenericLogic):
 # empty methods
 # ======================================================
 
-    def stage_move_z(self):
+    def stage_move_z(self, step):
         self.log.warning('stage movement is not supported on this setup')
 
     def do_position_correction(self):

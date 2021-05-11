@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>780</width>
+    <width>902</width>
     <height>890</height>
    </rect>
   </property>
@@ -19,7 +19,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>780</width>
+     <width>902</width>
      <height>22</height>
     </rect>
    </property>
@@ -363,7 +363,9 @@
     <bool>false</bool>
    </attribute>
    <addaction name="start_live_Action"/>
+   <addaction name="piezo_position_correction_Action"/>
    <addaction name="autofocus_Action"/>
+   <addaction name="search_focus_Action"/>
   </widget>
   <action name="close_MenuAction">
    <property name="text">
@@ -460,6 +462,22 @@
   <action name="camera_settings_Action">
    <property name="text">
     <string>Camera settings</string>
+   </property>
+  </action>
+  <action name="search_focus_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Search focus</string>
+   </property>
+  </action>
+  <action name="piezo_position_correction_Action">
+   <property name="text">
+    <string>Piezo position correction</string>
+   </property>
+   <property name="toolTip">
+    <string>Moves the piezo within a range of 25 - 50 um to allow travel range in both directions</string>
    </property>
   </action>
  </widget>

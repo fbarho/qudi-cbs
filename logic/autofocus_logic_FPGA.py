@@ -243,6 +243,7 @@ class AutofocusLogic(GenericLogic):
         """ When the autofocus signal is lost, launch a rescuing procedure by using the MS2000 translation stage. The
         z position of the stage is moved until the piezo signal is found again.
         """
+        success = False
         z_range = 20
         while not self.autofocus_check_signal() and z_range <= 40:
 
@@ -253,12 +254,15 @@ class AutofocusLogic(GenericLogic):
                 self.stage_move_z(step)
 
                 if self.autofocus_check_signal():
+                    success = True
                     print("autofocus signal found!")
-                    break
+                    return success
 
             if not self.autofocus_check_signal():
                 self.stage_move_z(-z_range/2)
                 z_range += 10
+
+        return success
 
     def stage_move_z(self, step):
         self._stage.move_rel({'z': step})

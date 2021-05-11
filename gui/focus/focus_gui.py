@@ -63,6 +63,8 @@ class FocusGUI(GUIBase):
     sigUpdateThreshold = QtCore.Signal(int)
     sigAutofocusStart = QtCore.Signal()
     sigAutofocusStop = QtCore.Signal()
+    sigSearchFocus = QtCore.Signal()
+    sigDoPiezoPositionCorrection = QtCore.Signal()
 
     _mw = None
 
@@ -98,10 +100,6 @@ class FocusGUI(GUIBase):
 
         self._centroid = self._mw.threshold_image_PlotWidget.plot([0], [0], symbol='+')
 
-        # initialize camera and threshold images
-        # self._image = None
-        # self._binary = None
-
         # actualize the piezo position
         position = self._focus_logic.get_position()
         self._mw.position_Label.setText('z position (um): {:.3f}'.format(position))
@@ -117,6 +115,9 @@ class FocusGUI(GUIBase):
         self._mw.tracking_Action.setChecked(self._focus_logic.timetrace_enabled)  # checked state takes the same bool value as enabled attribute in logic (enabled = 0: no timetrace running) # button is defined as checkable in designer
         self._mw.start_live_Action.setChecked(self._focus_logic.live_display_enabled)
         self._mw.autofocus_Action.setChecked(self._focus_logic.autofocus_enabled)
+        self._mw.autofocus_Action.setDisabled(True)
+        self._mw.search_focus_Action.setDisabled(True)
+        self._mw.piezo_position_correction_Action.setDisabled(True)
 
         # connect signals
         # internal signals
@@ -128,6 +129,8 @@ class FocusGUI(GUIBase):
         self._mw.tracking_Action.triggered.connect(self.start_tracking_clicked)
         self._mw.start_live_Action.triggered.connect(self.start_live_clicked)
         self._mw.autofocus_Action.triggered.connect(self.start_focus_stabilization_clicked)
+        self._mw.search_focus_Action.triggered.connect(self.search_focus_clicked)
+        self._mw.piezo_position_correction_Action.triggered.connect(self.piezo_position_correction_clicked)
         # widgets
         self._mw.step_doubleSpinBox.valueChanged.connect(self.step_changed)
         self._mw.move_up_PushButton.clicked.connect(self.move_up_button_clicked)
@@ -151,6 +154,8 @@ class FocusGUI(GUIBase):
         self.sigUpdateThreshold.connect(self._focus_logic.update_threshold)
         self.sigAutofocusStart.connect(self._focus_logic.start_autofocus)
         self.sigAutofocusStop.connect(self._focus_logic.stop_autofocus)
+        self.sigSearchFocus.connect(self._focus_logic.search_focus)
+        self.sigDoPiezoPositionCorrection.connect(self._focus_logic.do_piezo_position_correction)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -168,6 +173,7 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigAutofocusStopped.connect(self.autofocus_stopped)
         self._focus_logic.sigAutofocusError.connect(self.autofocus_stopped)
         self._focus_logic.sigSetpointDefined.connect(self.update_autofocus_setpoint)
+        self._focus_logic.sigFocusFound.connect(self.reset_search_focus_button)
 
     def on_deactivate(self):
         """ Required deactivation steps. """
@@ -305,11 +311,6 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PushButton.setChecked(True)
         self.sigCalibrateFocusStabilization.emit()
 
-        # old version:
-        # if not self._mw.calibration_PushButton.isChecked():
-        #     self.sigCalibrateFocusStabilization.emit()
-        #     self._mw.calibration_PushButton.setText('Calibrating ...')
-
     def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
         """ Callback of sigPlotCalibration from focus_logic. Once the calibration finished, reset the pushbutton state
         and display the calibration results in the plotwidget and display also the calculated slope. """
@@ -324,6 +325,11 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
+        # enable the piezo position correction, focus stabilization and search focus toolbuttons
+        self._mw.autofocus_Action.setDisabled(False)
+        self._mw.search_focus_Action.setDisabled(False)
+        if self._focus_logic._setup == 'RAMM':
+            self._mw.piezo_position_correction_Action.setDisabled(False)
 
     def calibrate_offset_clicked(self):
         """ Callback of the find offset pushbutton. Handles the pushbutton state and starts the calibration of the
@@ -346,6 +352,13 @@ class FocusGUI(GUIBase):
         """ Callback of sigSetpointDefined from focus_logic. Display the current setpoint on the GUI. """
         self._mw.setpoint_lineEdit.setText("{:.2f}".format(setpoint))
 
+    def piezo_position_correction_clicked(self):
+        self._mw.piezo_position_correction_Action.setDisabled(True)
+        self._mw.piezo_position_correction_Action.setText('Moving piezo into central range..')
+        self._mw.search_focus_Action.setDisabled(True)  # incompatible action
+        self._mw.autofocus_Action.setDisabled(True)  # can be on or off, but do not allow to act on this while position correction is running
+        self.sigDoPiezoPositionCorrection.emit()
+
     def start_focus_stabilization_clicked(self):
         """ When the toolbutton start/stop autofocus is triggered, this function is called. If the autofocus is
         not running yet, a signal is sent to the logic to launch it and the button text is changed to "stop autofocus".
@@ -358,6 +371,22 @@ class FocusGUI(GUIBase):
         else:
             self._mw.autofocus_Action.setText('Stop focus stabilization')
             self.sigAutofocusStart.emit()
+
+    def search_focus_clicked(self):
+        self._mw.autofocus_Action.setDisabled(True)  # do not allow both actions at the same time
+        self._mw.search_focus_Action.setText('Searching focus ...')
+        self._mw.search_focus_Action.setDisabled(True)
+        self.sigSearchFocus.emit()
+
+    def reset_search_focus_button(self):
+        """ Callback of sigFocusFound sent from focus_logic.
+        Re-enable the focus stabilization action (autofocus_Action) and reset search_focus_Action to its default state.
+        """
+        self._mw.autofocus_Action.setDisabled(False)
+        self._mw.search_focus_Action.setChecked(False)
+        self._mw.search_focus_Action.setText('Search focus')
+        self._mw.search_focus_Action.setDisabled(False)
+
 
     def autofocus_stopped(self):
         """ Callback of sigAutofocusStopped or sigAutofocusError sent from focus_logic.
