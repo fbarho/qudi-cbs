@@ -394,21 +394,21 @@ class BasicGUI(GUIBase):
         self.sigLaserOff.connect(self._laser_logic.voltage_off)
 
         # actions on changing laser spinbox values
-        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox,
-                             self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
+        self.spinbox_list = [self._mw.laser1_control_DSpinBox, self._mw.laser2_control_DSpinBox,
+                             self._mw.laser3_control_DSpinBox, self._mw.laser4_control_DSpinBox]
         # actualize the laser intensity dictionary
-        self._mw.laser1_control_SpinBox.valueChanged.connect(
+        self._mw.laser1_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser1']['label'],
-                                                             self._mw.laser1_control_SpinBox.value()))
-        self._mw.laser2_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser1_control_DSpinBox.value()))
+        self._mw.laser2_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser2']['label'],
-                                                             self._mw.laser2_control_SpinBox.value()))
-        self._mw.laser3_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser2_control_DSpinBox.value()))
+        self._mw.laser3_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser3']['label'],
-                                                             self._mw.laser3_control_SpinBox.value()))
-        self._mw.laser4_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser3_control_DSpinBox.value()))
+        self._mw.laser4_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser4']['label'],
-                                                             self._mw.laser4_control_SpinBox.value()))
+                                                             self._mw.laser4_control_DSpinBox.value()))
         # lambda function is used to pass in an additional argument. See also the decorator @QtCore.Slot(str, int).
         # in case lambda does not work well on runtime, check functools.partial
         # or signal mapper ? to explore ..
@@ -1079,10 +1079,10 @@ class BasicGUI(GUIBase):
         
         @returns: None
         """                   
-        self._mw.laser1_control_SpinBox.setEnabled(bool_list[0])
-        self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
-        self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
-        self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
+        self._mw.laser1_control_DSpinBox.setEnabled(bool_list[0])
+        self._mw.laser2_control_DSpinBox.setEnabled(bool_list[1])
+        self._mw.laser3_control_DSpinBox.setEnabled(bool_list[2])
+        self._mw.laser4_control_DSpinBox.setEnabled(bool_list[3])
 
     def close_function(self):
         # stop live mode when window is closed
