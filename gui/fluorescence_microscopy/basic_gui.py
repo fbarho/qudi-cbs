@@ -152,7 +152,7 @@ class BasicGUI(GUIBase):
     imageitem = None
     spinbox_list = None
 
-    # flags that enable to reuse the save settings dialog for both save video and save long video (=spooling)
+    # flags that enable to reuse the save settings dialog for both save video and spooling
     _video = False
     _spooling = False
 
@@ -294,14 +294,6 @@ class BasicGUI(GUIBase):
         self._mw.save_video_Action.setChecked(self._camera_logic.saving)
         self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
 
-        # spooling action only available for andor iXon Ultra camera
-        if not self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.spooling_Action.setEnabled(False)
-        else:
-            self._mw.spooling_Action.setEnabled(True)
-            self._mw.spooling_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
-        self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
-
         self._mw.video_quickstart_Action.triggered.connect(self.video_quickstart_clicked)
 
         self._mw.set_sensor_Action.setEnabled(True)
@@ -325,7 +317,7 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
-        self._camera_logic.sigSpoolingFinished.connect(self.spooling_finished)
+        self._camera_logic.sigSpoolingFinished.connect(self.video_saving_finished)
         self._camera_logic.sigCleanStatusbar.connect(self.clean_statusbar)
 
     def init_camera_status_dockwidget(self):
@@ -551,8 +543,8 @@ class BasicGUI(GUIBase):
 
         metadata = self._create_metadata_dict()
 
-        # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
-        # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
+        # we need a case structure here: if the dialog was on a system with Andor iXon Ultra camera, sigSpoolingStart
+        # must be emitted, else, sigVideoSavingStart must be emitted.
         if self._video:
             self.sigVideoSavingStart.emit(path, fileformat, n_frames, display, metadata)
         elif self._spooling:
@@ -721,23 +713,24 @@ class BasicGUI(GUIBase):
         metadata = self._create_metadata_dict()
         self._camera_logic.save_last_image(filenamestem, metadata)
 
-    @QtCore.Slot()
-    def save_video_clicked(self):
-        """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
-        # disable camera related toolbuttons
-        self.disable_camera_toolbuttons()
-        # set the flag to True so that the dialog knows that is was called from save video button
-        self._video = True
-        # open the save settings window
-        self.open_save_settings()
-        # hide the rubberband tool used for roi selection on sensor
-        self.imageitem.getViewBox().rbScaleBox.hide()
+    # @QtCore.Slot()
+    # def save_video_clicked(self):
+    #     """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
+    #     # disable camera related toolbuttons
+    #     self.disable_camera_toolbuttons()
+    #     # set the flag to True so that the dialog knows that is was called from save video button
+    #     self._video = True
+    #     # open the save settings window
+    #     self.open_save_settings()
+    #     # hide the rubberband tool used for roi selection on sensor
+    #     self.imageitem.getViewBox().rbScaleBox.hide()
 
     @QtCore.Slot()
     def video_saving_finished(self):
         """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
-        # reset the flag
+        # reset the flags
         self._video = False
+        self._spooling = False
         # toolbuttons
         self.enable_camera_toolbuttons()
         self._mw.save_video_Action.setChecked(False)
@@ -745,27 +738,19 @@ class BasicGUI(GUIBase):
         self._mw.progress_label.setText('')
 
     @QtCore.Slot()
-    def set_spooling_clicked(self):
-        """ callback of spooling_Action. Handles toolbutton state, and opens the save settings dialog"""
+    def save_video_clicked(self):
+        """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
         # disable camera related toolbuttons
         self.disable_camera_toolbuttons()
-        # set the flag to True so that the dialog nows that is was called from save video button
-        self._spooling = True
-        # open the save settings dialog
+        # set the flag to True so that the dialog knows that is was called from save video button
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._spooling = True
+        else:
+            self._video = True
+        # open the save settings window
         self.open_save_settings()
         # hide the rubberband tool used for roi selection on sensor
         self.imageitem.getViewBox().rbScaleBox.hide()
-
-    @QtCore.Slot()
-    def spooling_finished(self):
-        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
-        # reset the flag
-        self._spooling = False
-        # enable the toolbuttons
-        self.enable_camera_toolbuttons()
-        self._mw.spooling_Action.setChecked(False)
-        # clear the statusbar
-        self._mw.progress_label.setText('')
 
     @QtCore.Slot()
     def video_quickstart_clicked(self):
@@ -775,7 +760,7 @@ class BasicGUI(GUIBase):
         self.disable_camera_toolbuttons()
         # decide depending on camera which signal has to be emitted in save_video_accepted method
         # same approach can later be used to regroup save_video and save_long_video buttons into one action
-        if self._camera_logic.get_name == 'iXon Ultra 897':
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._spooling = True
         else:
             self._video = True
@@ -801,8 +786,8 @@ class BasicGUI(GUIBase):
 
         Sets the camera toolbuttons to callable state, and unchecks them"""
         self.enable_camera_toolbuttons()
-        self._mw.save_video_Action.setChecked(False)  # simply uncheck both independent of which one was checked before
-        self._mw.spooling_Action.setChecked(False)
+        self._mw.save_video_Action.setChecked(False)
+
 
     def disable_camera_toolbuttons(self):
         """ disables all toolbuttons of the camera toolbar"""
@@ -810,7 +795,6 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
-        self._mw.spooling_Action.setDisabled(True)
         self._mw.video_quickstart_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
 
@@ -826,8 +810,6 @@ class BasicGUI(GUIBase):
         self._mw.save_video_Action.setDisabled(False)
         self._mw.video_quickstart_Action.setDisabled(False)
         self._mw.set_sensor_Action.setDisabled(False)
-        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
-            self._mw.spooling_Action.setDisabled(False)
 
     def _create_metadata_dict(self):
         """ create a dictionary containing the metadata.
