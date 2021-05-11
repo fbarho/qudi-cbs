@@ -169,6 +169,13 @@ class ExpConfigLogic(GenericLogic):
 
         self.config_dict = data_dict
 
+        # safety check: is at least the key 'experiment' contained in the file ?
+        if not 'experiment' in self.config_dict.keys():
+            self.log.warning('The loaded files does not contain necessary parameters. Configuration not loaded.')
+            return
+        else:
+            self.log.info(f'Configuration loaded from {path}')
+
         if 'imaging_sequence' in self.config_dict.keys():
             # synchronize the listviewmodel with the config_dict['imaging_sequence'] entry
             self.img_sequence_model.items = self.config_dict['imaging_sequence']
@@ -189,6 +196,7 @@ class ExpConfigLogic(GenericLogic):
         self.img_sequence_model.items = []
         self.config_dict['save_path'] = self.default_path_images
         self.config_dict['file_format'] = 'tiff'
+        self.config_dict['num_z_planes'] = 1
         self.config_dict['centered_focal_plane'] = False
         self.sigConfigDictUpdated.emit()
 
