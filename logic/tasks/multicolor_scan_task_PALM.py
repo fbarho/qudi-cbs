@@ -30,53 +30,44 @@ from logic.generic_task import InterruptableTask
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
     """ This task does an acquisition of a series of images from different channels or using different intensities
     """
+    # ===============================================================================================================
+    # Generic Task methods
+    # ===============================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
-        self.laser_allowed = False
-#        self.user_config_path = self.config['path_to_user_config']
-#        self.log.info('Task {0} using the configuration at {1}'.format(self.name, self.user_config_path))
+        self.user_config_path = self.config['path_to_user_config']
 
     def startTask(self):
         """ """
+        self.log.info('started Task')
         self.err_count = 0  # initialize the error counter (counts number of missed triggers for debug)
-        self.plane_counter = 0  # initialize the counter for the number of planes. Task step iterates over this counter
 
-        
-        # control if live mode in basic gui is running. Task can not be started then.
-        if self.ref['camera'].enabled:
-            self.log.warn('Task cannot be started: Please stop live mode first')
-            # calling self.cleanupTask() here does not seem to guarantee that the taskstep is not performed. so put an additional safety check in taskstep
-            return
-        # control if video saving is currently running.  Task can not be started then.
-        if self.ref['camera'].saving:
-            self.log.warn('Task cannot be started: Wait until saving finished')
-            return
-        # control if laser has been switched on in basic gui. Task can not be started then.
-        if self.ref['daq'].enabled:
-            self.log.warn('Task cannot be started: Please switch laser off first')
-            return
+        # stop all interfering modes on GUIs and disable GUI actions
+        self.ref['camera'].stop_live_mode()
+        self.ref['camera'].disable_camera_actions()
 
-        self._load_user_parameters()
+        self.ref['daq'].stop_laser_output()
+        self.ref['daq'].disable_laser_actions()
+
+        # read all user parameters from config
+        self.load_user_parameters()
 
         # control the config : laser allowed for given filter ?
-        self.laser_allowed = self._control_user_parameters()
+        self.laser_allowed = self.control_user_parameters()
         
         if not self.laser_allowed:
             self.log.warning('Task aborted. Please specify a valid filter / laser combination')
             return
-        ### all conditions to start the task have been tested: Task can now be started safely   
-        
 
-        
-        # set the filter to the specified position
+        # preparation steps
+        # set the filter to the specified position (changing filter not allowed during task because this is too slow)
         self.ref['filter'].set_position(self.filter_pos)
-        # use only one filter. do not allow changing filter because this will be too slow
         # wait until filter position set
         pos = self.ref['filter'].get_position()
         while not pos == self.filter_pos:
-            sleep(2)
+            sleep(1)
             pos = self.ref['filter'].get_position()
 
         # initialize the digital output channel for trigger
@@ -85,46 +76,36 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # initialize the analog input channel that reads the fire
         self.ref['daq'].set_up_ai_channel()
 
-             
-        # define save path
-        self.complete_path = self.ref['camera']._create_generic_filename(self.save_path, '_Scan', 'testimg', '', False)
-        # maybe add an extension with the current date to self.save_path. Could be done in load_user_param method
-        
         # prepare the camera
         frames = len(self.imaging_sequence) * self.num_frames * self.num_z_planes  # self.num_frames = 1 typically, but keep as an option 
-        self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain, self.complete_path, self.file_format)
+        self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain, self.complete_path.rsplit('.', 1)[0], self.file_format)
+
+        # initialize the counter (corresponding to the number of planes already acquired)
+        self.step_counter = 0
 
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
-        # control if live mode in basic gui is running. Taskstep will not be run then.
-        if self.ref['camera'].enabled:
-            return False
-        # control if video saving is currently running
-        if self.ref['camera'].saving:
-            return False
-        # control if laser is switched on
-        if self.ref['daq'].enabled:
-            return False
-        # add similar control for all other criteria
-        # .. 
         if not self.laser_allowed:
-            return False
-        #########################
-        
-        self.plane_counter += 1
-        print(f'plane number {self.plane_counter}')
+            return False  # skip runTaskStep and directly go to cleanupTask
 
+        # ------------------------------------------------------------------------------------------
         # position the piezo
-        position = self.start_position + (self.plane_counter - 1) * self.z_step
+        # ------------------------------------------------------------------------------------------
+        self.step_counter += 1
+        print(f'plane number {self.step_counter}')
+
+        position = self.start_position + (self.step_counter - 1) * self.z_step
         self.ref['focus'].go_to_position(position)
         print(f'target position: {position} um')
         sleep(0.03)  # how long is the stabilisation time for Pifoc ?
         cur_pos = self.ref['focus'].get_position()
         print(f'current position: {cur_pos} um')
-        
 
+        # ------------------------------------------------------------------------------------------
+        # imaging sequence (image data is spooled to disk)
+        # ------------------------------------------------------------------------------------------
         # outer loop over the number of frames per color
         for j in range(self.num_frames):  # per default only one frame per plane per color but keep it as an option 
 
@@ -135,7 +116,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.ref['daq'].reset_intensity_dict()
                 # prepare the output value for the specified channel
                 self.ref['daq'].update_intensity_dict(self.imaging_sequence[i][0], self.imaging_sequence[i][1])
-                # waiting time for stability
+                # waiting time for stability of the synchronization
                 sleep(0.05)
             
                 # switch the laser on and send the trigger to the camera
@@ -162,7 +143,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 else:
                     i += 1  # increment to continue with the next image
 
-        return self.plane_counter < self.num_z_planes
+        return self.step_counter < self.num_z_planes
 
     def pauseTask(self):
         """ """
@@ -173,108 +154,99 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('resumeTask called')
 
     def cleanupTask(self):
-        """ """          
+        """ """
+        self.log.info('cleanupTask called')
+
+        # reset piezo position to the initial one
+        self.ref['focus'].go_to_position(self.focal_plane_position)
+
+        # reset the camera to default state
+        self.ref['camera'].reset_camera_after_multichannel_imaging()
+
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
         self.ref['daq'].close_do_task()
         self.ref['daq'].close_ai_task()
-        self.ref['camera'].abort_acquisition()
-        # save metadata
-        metadata = self._create_metadata_dict()  
-        if self.file_format == 'fits':
-            complete_path = self.complete_path + '.fits'
-            self.ref['camera']._add_fits_header(complete_path, metadata)
-        else:  # default case, add a txt file with the metadata
-            self.ref['camera']._save_metadata_txt_file(self.save_path, '_Scan', metadata)
-        
-        self.ref['camera'].reset_camera_after_multichannel_imaging()
-        self.log.debug(f'number of missed triggers: {self.err_count}')
-        self.log.info('cleanupTask called')
-        
-# # to do: use these two methods instead of the way it is now implemented        
-#    def checkExtraStartPrerequisites(self):
-#        """ Check extra start prerequisites, there are none """
-#        start_prerequisites = True  # as initialization
-#        # control if live mode in basic gui is running. Task can not be started then.
-#        if self.ref['camera'].enabled:
-#            start_prerequisites = False
-#        # control if video saving is currently running.  Task can not be started then.
-#        if self.ref['camera'].saving:
-#            start_prerequisites = False
-#        # control if laser has been switched on in basic gui. Task can not be started then.
-#        if self.ref['daq'].enabled:
-#            start_prerequisites = False
-#        return start_prerequisites
-#
-#    def checkExtraPausePrerequisites(self):
-#        """ Check extra pause prerequisites, there are none """
-#        return True
 
-    def _load_user_parameters(self):
+        # save metadata if task has not been aborted during acquisition
+        if self.step_counter == self.num_z_planes:
+            if self.file_format == 'fits':
+                metadata = self.get_fits_metadata()
+                self.ref['camera']._add_fits_header(self.complete_path, metadata)
+            else:  # save metadata in a txt file
+                metadata = self.get_metadata()
+                file_path = self.complete_path.replace('tiff', 'txt', 1)
+                self.save_metadata_file(metadata, file_path)
+
+        # enable gui actions
+        self.ref['camera'].enable_camera_actions()
+        self.ref['daq'].enable_laser_actions()
+
+        self.log.debug(f'number of missed triggers: {self.err_count}')
+        self.log.info('cleanupTask finished')
+
+    # ===============================================================================================================
+    # Helper functions
+    # ===============================================================================================================
+
+    # ------------------------------------------------------------------------------------------
+    # user parameters
+    # ------------------------------------------------------------------------------------------
+
+    def load_user_parameters(self):
         """ this function is called from startTask() to load the parameters given in a specified format by the user
 
         specify only the path to the user defined config in the (global) config of the experimental setup
 
         user must specify the following dictionary (here with example entries):
+            sample_name: 'Mysample'
             filter_pos: 1
             exposure: 0.05  # in s
             gain: 0
             num_frames: 1  # number of frames per color
-            save_path: 'E:\\Data'
+            num_z_planes: 50
+            z_step: 0.25  # in um
+            centered_focal_plane: False
+            save_path: 'E:\'
             file_format: 'tiff'
             imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)]
         """
-        # for tests 
-        self.filter_pos = 1
-        self.exposure = 0.05  # in s
-        self.gain = 50
-        self.num_frames = 1
-        self.save_path = 'C:\\Users\\admin\\imagetest\\testmulticolorstack'
-        self.file_format = 'tiff'
-        self.imaging_sequence_raw = [('561 nm', 3), ('561 nm', 1), ('561 nm', 5)] 
-        self.num_z_planes = 5
-        self.z_step = 0.25  # in um  # plane_spacing
-        self.centered_focal_plane = True
-        self.start_position = self.calculate_start_position(self.centered_focal_plane)
-        self.log.info(f'start position: {self.start_position}')
-        
+        try:
+            with open(self.user_config_path, 'r') as stream:
+                self.user_param_dict = yaml.safe_load(stream)
+
+                self.sample_name = self.user_param_dict['sample_name']
+                self.filter_pos = self.user_param_dict['filter_pos']
+                self.exposure = self.user_param_dict['exposure']
+                self.gain = self.user_param_dict['gain']
+                self.num_frames = self.user_param_dict['num_frames']
+                self.num_z_planes = self.user_param_dict['num_z_planes']
+                self.z_step = self.user_param_dict['z_step']  # in um
+                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+                self.save_path = self.user_param_dict['save_path']
+                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
+                self.file_format = self.user_param_dict['file_format']
+
+        except Exception as e:  # add the type of exception
+            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
+            return
+
+        # establish further user parameters derived from the given ones:
         # for the imaging sequence, we need to access the corresponding labels
         laser_dict = self.ref['daq'].get_laser_dict()
         imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
-                                     self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
+                             self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
         self.log.info(imaging_sequence)
         self.imaging_sequence = imaging_sequence
-    
-#        try:
-#            with open(self.user_config_path, 'r') as stream:
-#                self.user_param_dict = yaml.safe_load(stream)
-#
-#                self.filter_pos = self.user_param_dict['filter_pos']
-#                self.exposure = self.user_param_dict['exposure']
-#                self.gain = self.user_param_dict['gain']
-#                self.num_frames = self.user_param_dict['num_frames']
-#                self.save_path = self.user_param_dict['save_path']
-#                self.file_format = self.user_param_dict['file_format']
-#                self.imaging_sequence_raw = self.user_param_dict['imaging_sequence']
-#                self.num_z_planes = self.user_param_dict['num_z_plane']
-#                self.z_step = self.user_param_dict['z_step']  # in um
-#                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
-#                
-#                self.log.debug(self.imaging_sequence_raw)  # remove after tests
-#
-#                # for the imaging sequence, we need to access the corresponding labels
-#                laser_dict = self.ref['daq'].get_laser_dict()
-#                imaging_sequence = [(*get_entry_nested_dict(laser_dict, self.imaging_sequence_raw[i][0], 'label'),
-#                                     self.imaging_sequence_raw[i][1]) for i in range(len(self.imaging_sequence_raw))]
-#                self.log.info(imaging_sequence)
-#                self.imaging_sequence = imaging_sequence
-#                # new format should be self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
-#                
-#        except Exception as e:  # add the type of exception
-#            self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
-                          
-            
-    def _control_user_parameters(self):
+        # new format: self.imaging_sequence = [('laser2', 10), ('laser2', 20), ('laser3', 10)]
+
+        self.num_laserlines = len(self.imaging_sequence)
+
+        self.complete_path = self.get_complete_path(self.save_path)
+
+        self.start_position = self.calculate_start_position(self.centered_focal_plane)
+
+    def control_user_parameters(self):
         # use the filter position to create the key # simpler than using get_entry_netsted_dict method
         key = 'filter{}'.format(self.filter_pos)
         bool_laserlist = self.ref['filter'].get_filter_dict()[key]['lasers']  # list of booleans, laser allowed ? such as [True True False True], corresponding to [laser1, laser2, laser3, laser4]
@@ -295,6 +267,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
         current_pos = self.ref['focus'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
@@ -306,42 +279,109 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             return start_pos
         else:
             return current_pos  # the scan starts at the current position and moves up
-                
 
+    # ------------------------------------------------------------------------------------------
+    # file path handling
+    # ------------------------------------------------------------------------------------------
 
-    def _create_metadata_dict(self):
-        """ create a dictionary containing the metadata
+    def get_complete_path(self, path_stem):
+        """ Create the complete path based on path_stem given as user parameter,
+        such as path_stem/YYYY_MM_DD/001_Scan_samplename/scan_001.tiff
+        or path_stem/YYYY_MM_DD/027_Scan_samplename/scan_027.fits
 
-        this is a similar to the function available in basic_gui. the values are addressed slightly differently via the refs"""
+        :param: str path_stem such as E:/
+        :return: str complete path (see examples above)
+        """
+        cur_date = datetime.today().strftime('%Y_%m_%d')
+
+        path_stem_with_date = os.path.join(path_stem, cur_date)
+
+        # check if folder path_stem/cur_date exists, if not: create it
+        if not os.path.exists(path_stem_with_date):
+            try:
+                os.makedirs(path_stem_with_date)  # recursive creation of all directories on the path
+            except Exception as e:
+                self.log.error('Error {0}'.format(e))
+
+        # count the subdirectories in the directory path (non recursive !) to generate an incremental prefix
+        dir_list = [folder for folder in os.listdir(path_stem_with_date) if
+                    os.path.isdir(os.path.join(path_stem_with_date, folder))]
+        number_dirs = len(dir_list)
+
+        prefix = str(number_dirs + 1).zfill(3)
+        foldername = f'{prefix}_Scan_{self.sample_name}'
+
+        path = os.path.join(path_stem_with_date, foldername)
+
+        # create the path  # no need to check if it already exists due to incremental prefix
+        try:
+            os.makedirs(path)  # recursive creation of all directories on the path
+        except Exception as e:
+            self.log.error('Error {0}'.format(e))
+
+        file_name = f'scan_{prefix}.{self.file_format}'
+        complete_path = os.path.join(path, file_name)
+        return complete_path
+
+    # ------------------------------------------------------------------------------------------
+    # metadata
+    # ------------------------------------------------------------------------------------------
+
+    def get_metadata(self):
+        """ Get a dictionary containing the metadata in a plain text compatible format. """
         metadata = {}
-        # timestamp
-        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')  # or take the starting time of the acquisition instead ??? # then add a variable to startTask
-        
-        # filter name
+        metadata['Time'] = datetime.now().strftime(
+            '%m-%d-%Y, %H:%M:%S')  # or take the starting time of the acquisition instead ??? # then add a variable to startTask
+        metadata['Sample name'] = self.sample_name
+        metadata['Exposure time (s)'] = self.exposure
+        metadata['Kinetic time (s)'] = self.ref['camera'].get_kinetic_time()
+        metadata['Gain'] = self.gain
+        metadata['Sensor temperature (deg C)'] = self.ref['camera'].get_temperature()
         filterpos = self.ref['filter'].get_position()
         filterdict = self.ref['filter'].get_filter_dict()
         label = 'filter{}'.format(filterpos)
-        metadata['filter'] = filterdict[label]['name']
-        
-        # gain
-        metadata['gain'] = self.ref['camera'].get_gain()  # could also use the value from the user config directly ?? 
-        
-        # exposure and kinetic time              
-        metadata['exposure'] = self.ref['camera'].get_exposure()
-        metadata['kinetic'] = self.ref['camera'].get_kinetic_time()
-        
-        # lasers and intensity 
+        metadata['Filter'] = filterdict[label]['name']
+        metadata['Number laserlines'] = self.num_laserlines
         imaging_sequence = self.imaging_sequence_raw
-        metadata['laser'] = [imaging_sequence[i][0] for i in range(len(imaging_sequence))]  # needs to be adapted for fits header compatibility
-        metadata['intens'] = [imaging_sequence[i][1] for i in range(len(imaging_sequence))]  # needs to be adapted for fits header compatibility
-        
-        # sensor temperature
-        if self.ref['camera'].has_temp:
-            metadata['temp'] = self.ref['camera'].get_temperature()
-        else:
-            metadata['temp'] = 'Not available'
-            
+        for i in range(self.num_laserlines):
+            metadata[f'Laser line {i + 1}'] = imaging_sequence[i][0]
+            metadata[f'Laser intensity {i + 1} (%)'] = imaging_sequence[i][1]
+        metadata['Scan step length (um)'] = self.z_step
+        metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
+        # pixel size ???
         return metadata
+
+    def get_fits_metadata(self):
+        """ Get a dictionary containing the metadata in a fits header compatible format. """
+        metadata = {}
+        metadata['TIME'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        metadata['SAMPLE'] = (self.sample_name, 'sample name')
+        metadata['EXPOSURE'] = (self.exposure, 'exposure time (s)')
+        metadata['KINETIC'] = (self.ref['camera'].get_kinetic_time(), 'kinetic time (s)')
+        metadata['GAIN'] = (self.gain, 'gain')
+        metadata['TEMP'] = (self.ref['camera'].get_temperature(), 'sensor temperature (deg C)')
+        filterpos = self.ref['filter'].get_position()
+        filterdict = self.ref['filter'].get_filter_dict()
+        label = 'filter{}'.format(filterpos)
+        metadata['FILTER'] = (filterdict[label]['name'], 'filter')
+        metadata['CHANNELS'] = (self.num_laserlines, 'number laserlines')
+        for i in range(self.num_laserlines):
+            metadata[f'LINE{i + 1}'] = (self.imaging_sequence_raw[i][0], f'laser line {i + 1}')
+            metadata[f'INTENS{i + 1}'] = (self.imaging_sequence_raw[i][1], f'laser intensity {i + 1}')
+        metadata['Z_STEP'] = (self.z_step, 'scan step length (um)')
+        metadata['Z_TOTAL'] = (self.z_step * self.num_z_planes, 'scan total length (um)')
+        # pixel size
+        return metadata
+
+    def save_metadata_file(self, metadata, path):
+        """" Save a txt file containing the metadata dictionary
+
+        :param dict metadata: dictionary containing the metadata
+        :param str path: pathname
+        """
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(metadata, outfile, default_flow_style=False)
+        self.log.info('Saved metadata to {}'.format(path))
 
 
 
@@ -366,7 +406,3 @@ def get_entry_nested_dict(nested_dict, val, entry):
     return entrylist
 
 
-# to do on this task:
-# check if metadata contains everything that is needed
-# checked state for laser on button in basic gui gets messed up    (because of call to voltage_off in cleanupTask called)
-    # fits header: can value be a list ? check with simple example
