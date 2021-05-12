@@ -52,18 +52,20 @@ class PIFOC(Base, MotorInterface):
     def on_activate(self):
         """ Initialization
         """
-        # initalize the dll
-        self.pidevice = GCSDevice(self._controllername)
-        # open the connection
-        self.pidevice.ConnectUSB(serialnum=self._serialnum)
-        self.log.info('connected: {}'.format(self.pidevice.qIDN().strip()))
+        try:
+            # initalize the dll
+            self.pidevice = GCSDevice(self._controllername)
+            # open the connection
+            self.pidevice.ConnectUSB(serialnum=self._serialnum)
+            self.log.info('connected: {}'.format(self.pidevice.qIDN().strip()))
 
-        # Initialize the axis label and axis ID (single axis controller)
-        self.axes = self.pidevice.axes  # this returns a list
-        self._axis_label = self.axes[0]  # axes is actuallly a list of length 1
-        self._axis_ID = self.pidevice.GetID()
-        self.log.info(f'available axis: {self._axis_label}, ID: {self._axis_ID}')
-        
+            # Initialize the axis label and axis ID (single axis controller)
+            self.axes = self.pidevice.axes  # this returns a list
+            self._axis_label = self.axes[0]  # axes is actuallly a list of length 1
+            self._axis_ID = self.pidevice.GetID()
+            self.log.info(f'available axis: {self._axis_label}, ID: {self._axis_ID}')
+        except Exception as e:
+            self.log.error(f'Physik Instrumente PIFOC: Connection failed: {e}.')
 
     def on_deactivate(self):
         """ Required deactivation steps

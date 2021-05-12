@@ -53,21 +53,22 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         
         @returns int: error code (ok: O)
         """
+        try:
+            self._serial_connection = serial.Serial(
+                self._com_port, baudrate=self._baud_rate, bytesize=8, parity="N", stopbits=1, xonxoff=True
+            )
 
-        self._serial_connection = serial.Serial(
-            self._com_port, baudrate=self._baud_rate, bytesize=8, parity="N", stopbits=1, xonxoff=True
-        )
+            # add here the setting of private attributes
+            self._timeout = 15
 
-        # add here the setting of private attributes
-        self._timeout = 15
-
-        # create a list as iterator for methods that need a specified axis to apply to
-        axis_list = [self._first_axis_label, self._second_axis_label, self._third_axis_label]  # this serves only as local iterator
-        self.axis_list = []
-        for item in axis_list:
-            if isinstance(item, str):
-                self.axis_list.append(item)
-
+            # create a list as iterator for methods that need a specified axis to apply to
+            axis_list = [self._first_axis_label, self._second_axis_label, self._third_axis_label]  # this serves only as local iterator
+            self.axis_list = []
+            for item in axis_list:
+                if isinstance(item, str):
+                    self.axis_list.append(item)
+        except Exception:
+            self.log.error(f'ASI MS2000 automated stage not connected. Check if device is switched on.')
 
     def on_deactivate(self):
         """ Close serial port when deactivating the module.

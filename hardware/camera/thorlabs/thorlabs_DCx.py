@@ -73,10 +73,13 @@ class CameraThorlabs(Base, CameraInterface):
         """ Initialisation performed during activation of the module.
          """
 
-        # Load the dll if present
-        self._load_dll()
-        self._connect_camera()
-        self._init_camera()
+        try:
+            # Load the dll if present
+            self._load_dll()
+            self._connect_camera()
+            self._init_camera()
+        except Exception as e:
+            self.log.error(f'Thorlabs DCx Camera: Connection failed: {e}.')
 
     def _check_error(self, code, message):
         """

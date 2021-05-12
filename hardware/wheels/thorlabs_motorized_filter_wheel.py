@@ -87,8 +87,8 @@ class ThorlabsMotorizedFilterWheel(Base, FilterwheelInterface):
                                                 read_termination='\r')
             idn = self._query('*idn?')
             self.log.debug('Connected to : {}'.format(idn))
-        except visa.VisaIOError:
-            self.log.error('Could not connect to device')
+        except visa.VisaIOError as e:
+            self.log.error(f'Thorlabs filter wheel: Connection failed: {e} Check if device is switched on.')
 
         if len(self._filternames) != self._num_filters or len(self._positions) != self._num_filters or len(self._allowed_lasers) != self._num_filters:
             self.log.warning('Please specify name, position, and allowed lasers for each filter')

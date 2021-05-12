@@ -173,21 +173,24 @@ class IxonUltra(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
          """
-        self.dll = cdll.LoadLibrary(self._dll_location)
-        self.dll.Initialize()
-        nx_px, ny_px = c_int(), c_int()
-        self._get_detector(nx_px, ny_px)
-        self._width, self._height = nx_px.value, ny_px.value
-        self._full_width, self._full_height = self._width, self._height
-        self._set_read_mode(self._read_mode)
-        self._set_trigger_mode(self._trigger_mode)
-        self._set_exposuretime(self._exposure)
-        self._set_acquisition_mode(self._acquisition_mode)
-        # start cooler if specified in config (otherwise it must be done via the console)
-        self._set_cooler(self._cooler_on)
-        self.set_temperature(self._default_temperature)
-        # set the preamp gain (it is not accessible by the user interface)
-        # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
+        try:
+            self.dll = cdll.LoadLibrary(self._dll_location)
+            self.dll.Initialize()
+            nx_px, ny_px = c_int(), c_int()
+            self._get_detector(nx_px, ny_px)
+            self._width, self._height = nx_px.value, ny_px.value
+            self._full_width, self._full_height = self._width, self._height
+            self._set_read_mode(self._read_mode)
+            self._set_trigger_mode(self._trigger_mode)
+            self._set_exposuretime(self._exposure)
+            self._set_acquisition_mode(self._acquisition_mode)
+            # start cooler if specified in config (otherwise it must be done via the console)
+            self._set_cooler(self._cooler_on)
+            self.set_temperature(self._default_temperature)
+            # set the preamp gain (it is not accessible by the user interface)
+            # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
+        except Exception as e:
+            self.log.error(f'Andor iXon Ultra 897 Camera: Connection failed: {e}.')
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
