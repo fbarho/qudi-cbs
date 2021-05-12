@@ -128,7 +128,12 @@ class ExpConfigLogic(GenericLogic):
                     filename = 'multicolor_scan_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane']
                 config_dict = {key: self.config_dict[key] for key in keys_to_extract}
-            elif experiment == 'ROI multicolor scan':
+            elif experiment == 'ROI multicolor scan PALM':
+                if not filename:
+                    filename = 'ROI_multicolor_scan_task_PALM.yaml'
+                keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane', 'roi_list_path']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'ROI multicolor scan':  # maybe modify into ROI multicolor scan RAMM
                 if not filename:
                     filename = 'ROI_multicolor_scan_task_RAMM.yaml'
                 keys_to_extract = ['sample_name', 'dapi', 'rna', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'roi_list_path', 'centered_focal_plane']
@@ -189,7 +194,7 @@ class ExpConfigLogic(GenericLogic):
         self.config_dict = {}
         self.config_dict['dapi'] = False
         self.config_dict['rna'] = False
-        self.config_dict['exposure'] = 0.0
+        self.config_dict['exposure'] = 0.05
         self.config_dict['gain'] = 0
         self.config_dict['num_frames'] = 1
         self.config_dict['filter_pos'] = 1

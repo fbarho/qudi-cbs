@@ -199,7 +199,23 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.num_frames_Label.setVisible(False)
             self._mw.num_frames_SpinBox.setVisible(False)
 
-        elif experiment == 'ROI multicolor scan':
+        elif experiment == 'ROI multicolor scan PALM':
+            self._mw.formWidget.setVisible(True)
+            self.set_visibility_general_settings(True)
+            self.set_visibility_camera_settings(True)
+            self.set_visibility_filter_settings(True)
+            self.set_visibility_imaging_settings(True)
+            self.set_visibility_save_settings(True)
+            self.set_visibility_scan_settings(True)
+            self.set_visibility_documents_settings(True)
+            self.set_visibility_prebleaching_settings(False)
+
+            # additional visibility modifications
+            self._mw.injections_list_Label.setVisible(False)
+            self._mw.injections_list_LineEdit.setVisible(False)
+            self._mw.load_injections_PushButton.setVisible(False)
+
+        elif experiment == 'ROI multicolor scan':  # maybe modifiy into ROI multicolor scan RAMM
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
@@ -286,7 +302,6 @@ class ExpConfiguratorGUI(GUIBase):
         # the dapi and rna checkboxes are needed only for the ROI Multicolor scan
         self._mw.dapi_CheckBox.setVisible(False)
         self._mw.rna_CheckBox.setVisible(False)
-
 
     def set_visibility_camera_settings(self, visible):
         """ Show or hide the block with the camera settings widgets
