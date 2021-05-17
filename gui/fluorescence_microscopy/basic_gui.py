@@ -177,7 +177,7 @@ class BasicGUI(GUIBase):
             self._brightfield_logic = self.brightfield_logic()
 
         # Windows
-        self._mw = BasicWindowCE(self.close_function)  # 
+        self._mw = BasicWindowCE(self.close_function)  #
 
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
@@ -363,8 +363,8 @@ class BasicGUI(GUIBase):
         # add brightfield control widgets if applicable
         if self.brightfield_control:
             self.bf_Label = QtWidgets.QLabel('BF')
-            self.bf_control_SpinBox = QtWidgets.QSpinBox()
-            self._mw.formLayout_3.addRow(self.bf_Label, self.bf_control_SpinBox)
+            self.bf_control_DSpinBox = QtWidgets.QDoubleSpinBox()
+            self._mw.formLayout_3.addRow(self.bf_Label, self.bf_control_DSpinBox)
 
             self.brightfield_on_Action = self._mw.toolBar_2.addAction('Brightfield on')
             self.brightfield_on_Action.setCheckable(True)
@@ -376,7 +376,7 @@ class BasicGUI(GUIBase):
             self.sigBFOff.connect(self._brightfield_logic.led_off)
 
             # update the physical output when the spinbox value is changed
-            self.bf_control_SpinBox.valueChanged.connect(self._brightfield_logic.update_intensity)
+            self.bf_control_DSpinBox.valueChanged.connect(self._brightfield_logic.update_intensity)
 
             self._brightfield_logic.sigBrightfieldStopped.connect(self.reset_brightfield_toolbutton)
 
@@ -973,7 +973,7 @@ class BasicGUI(GUIBase):
             item.setValue(0)
         # also set brightfield control to zero in case it is available
         if self.brightfield_control:
-            self.bf_control_SpinBox.setValue(0)
+            self.bf_control_DSpinBox.setValue(0)
 
     def update_laser_spinbox(self):
         """ update values in laser spinboxes if the intensity dictionary in the logic module was changed """
@@ -993,7 +993,7 @@ class BasicGUI(GUIBase):
         else:
             # brightfield is initially off
             self.brightfield_on_Action.setText('Brightfield Off')
-            intensity = self.bf_control_SpinBox.value()
+            intensity = self.bf_control_DSpinBox.value()
             self.sigBFOn.emit(intensity)
 
     @QtCore.Slot()
