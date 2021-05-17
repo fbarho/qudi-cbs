@@ -84,6 +84,7 @@ class FocusLogic(GenericLogic):
     sigSetpointDefined = QtCore.Signal(float)
     sigDoStageMovement = QtCore.Signal(float)
     sigFocusFound = QtCore.Signal()
+    sigPiezoPositionCorrectionFinished = QtCore.Signal()
 
     # piezo attributes
     _step = 0.01
@@ -108,6 +109,8 @@ class FocusLogic(GenericLogic):
     _autofocus_lost = False
 
     autofocus_enabled = False
+
+    _stage_is_positioned = False
 
 
     def __init__(self, config, **kwargs):
@@ -137,7 +140,7 @@ class FocusLogic(GenericLogic):
 
         # signals from autofocus logic
         self._autofocus_logic.sigOffsetDefined.connect(self.define_autofocus_setpoint)
-        self._autofocus_logic.sigStageMoved.connect(self.do_piezo_position_correction)
+        self._autofocus_logic.sigStageMoved.connect(self.finish_piezo_position_correction)
 
         # initialize the timer for the timetrace of the piezo position, it is then started when start_position_tracking is called
         self.timer = QtCore.QTimer()
@@ -158,7 +161,6 @@ class FocusLogic(GenericLogic):
         """ Move piezo to initial position defined in the configuration file. """
         init_pos = self._init_position
         self.piezo_ramp(init_pos)
-        sleep(0.03)  # stabilization time
         self.sigPiezoInitFinished.emit()
 
     def move_up(self, step):
@@ -170,6 +172,7 @@ class FocusLogic(GenericLogic):
         # the wait on target function does not really work yet. so we get the precedent position
         # because the value is read too fast..
         # possible solution is to use the stabilisation time of 30 ms but this could slow down continuous movements (button pressed down on GUI or key shortcuts)
+        sleep(0.03)
         position = self.get_position()
         # self.log.debug('moved up: {0} um. New position: {1}'.format(step, position))
         self.sigPositionChanged.emit(position)
@@ -180,6 +183,7 @@ class FocusLogic(GenericLogic):
         :return None
         """
         self._piezo.move_rel({self._axis: -step})
+        sleep(0.03)
         position = self.get_position()
         # self.log.debug('moved down: {0} um. New position: {1}'.format(step, position))
         self.sigPositionChanged.emit(position)
@@ -353,39 +357,8 @@ class FocusLogic(GenericLogic):
         #     self.log.warning('autofocus lost!')
         #     self.sigAutofocusError.emit()
 
-    # def start_autofocus(self, stop_when_stable=False, rescue=True):
-    #     """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
-    #         A check is also performed in order to make sure there is enough signal detected by the detector.
-    #     """
-    #     if self._calibrated and self._setpoint_defined:
-    #
-    #         self.check_autofocus()
-    #         if not self._autofocus_lost:
-    #             self.autofocus_enabled = True
-    #
-    #             if self._setup == 'PALM' and not self.live_display_enabled:
-    #                 self._autofocus_logic.start_camera_live()
-    #
-    #             self._autofocus_logic.init_pid()
-    #             self._z0 = self.get_position()
-    #             self._z_new = self._z0  # do we need this ?
-    #             self._dt = self._autofocus_logic._pid_frequency
-    #
-    #             worker = AutofocusWorker(self._dt)
-    #             worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable, rescue))
-    #             self.threadpool.start(worker)
-    #
-    #     elif not self._calibrated:
-    #         self.log.warning('autofocus not yet calibrated')
-    #         self.sigAutofocusError.emit()
-    #
-    #     elif not self._setpoint_defined:
-    #         self.log.warning('setpoint not yet defined')
-    #         self.sigAutofocusError.emit()
-
-
     # reorganized version
-    def start_autofocus(self, stop_when_stable=False, rescue=True):
+    def start_autofocus(self, stop_when_stable=False, search_focus=False, rescue=True):
         """ Launch the autofocus only if the piezo was calibrated and a setpoint defined.
             A check is also performed in order to make sure there is enough signal detected by the detector.
         """
@@ -405,10 +378,13 @@ class FocusLogic(GenericLogic):
         self.check_autofocus()  # this updates self._autofocus_lost
 
         if self._autofocus_lost:
-            self.log.warning('autofocus lost!')
+            self.log.warning('autofocus lost! in start_autofocus')
             if rescue:
                 success = self.rescue_autofocus()
-                if not success:
+                if success:
+                    self.start_autofocus(stop_when_stable=stop_when_stable, search_focus=search_focus, rescue=rescue)
+                    return
+                else:
                     self.autofocus_enabled = False
                     self.log.warning('autofocus signal not found')
                     self.sigAutofocusError.emit()
@@ -428,10 +404,10 @@ class FocusLogic(GenericLogic):
         self._dt = self._autofocus_logic._pid_frequency
 
         worker = AutofocusWorker(self._dt)
-        worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable, rescue))
+        worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable=stop_when_stable, search_focus=search_focus, rescue=rescue))
         self.threadpool.start(worker)
 
-    def run_autofocus(self, stop_when_stable, rescue):
+    def run_autofocus(self, stop_when_stable, search_focus, rescue):
         """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
         unnecessary movement of the piezo, the corrections are only applied when an absolute displacement >100nm is
         required.
@@ -441,10 +417,13 @@ class FocusLogic(GenericLogic):
         if self.autofocus_enabled:
 
             if self._autofocus_lost:
-                self.log.warning('autofocus lost!')
+                self.log.warning('autofocus lost! in run_autofocus')
                 if rescue:
                     success = self.rescue_autofocus()
-                    if not success:
+                    if success:
+                        self.start_autofocus(stop_when_stable=stop_when_stable, search_focus=search_focus, rescue=rescue)
+                        return
+                    else:
                         self.autofocus_enabled = False
                         self.log.warning('autofocus signal not found')
                         self.sigAutofocusError.emit()
@@ -460,18 +439,23 @@ class FocusLogic(GenericLogic):
                     self.log.info('focus is stable')
                     self.autofocus_enabled = False
                     self.sigAutofocusStopped.emit()
+                    if search_focus:
+                        self.search_focus_finished()
                     return
             else:
                 pid = self._autofocus_logic.read_pid_output(False)
 
             # calculate the necessary movement of piezo dz
             z = self._z0 + pid / self._slope
+            print(f'z position {z}')
 
             dz = np.absolute(self.get_position() - z)
 
             if self._min_z + 1 < z < self._max_z - 1:
                 if dz > 0.1:
                     self.go_to_position(z)
+                else:
+                    pass
 
             else:
                 self.log.warning('piezo position out of constraints')
@@ -480,49 +464,8 @@ class FocusLogic(GenericLogic):
                 return
 
             worker = AutofocusWorker(self._dt)
-            worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable, rescue))
+            worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable=stop_when_stable, search_focus=search_focus, rescue=rescue))
             self.threadpool.start(worker)
-
-    # def run_autofocus(self, stop_when_stable, rescue):
-    #     """ Based on the pid output, the position of the piezo is corrected in real time. In order to avoid
-    #     unnecessary movement of the piezo, the corrections are only applied when an absolute displacement >100nm is
-    #     required.
-    #     """
-    #     self.check_autofocus()
-    #     if self.autofocus_enabled and not self._autofocus_lost:
-    #
-    #         worker = AutofocusWorker(self._dt)
-    #         worker.signals.sigFinished.connect(partial(self.run_autofocus, stop_when_stable, rescue))
-    #         self.threadpool.start(worker)
-    #
-    #         if not stop_when_stable:
-    #             pid = self._autofocus_logic.read_pid_output(False)
-    #         else:
-    #             pid, stable = self._autofocus_logic.read_pid_output(True)
-    #
-    #         z = self._z0 + pid / self._slope
-    #
-    #         dz = np.absolute(self.get_position() - z)
-    #
-    #         if self._min_z + 1 < z < self._max_z - 1:
-    #             if dz > 0.1:
-    #                 self.go_to_position(z)
-    #         else:
-    #             self.log.warning('piezo position out of constraints')
-    #             self.stop_autofocus()
-    #             self.sigAutofocusError.emit()
-    #
-    #         if stop_when_stable:
-    #             if stable:
-    #                 self.log.info('focus is stable')
-    #                 self.stop_autofocus()
-    #                 self.sigAutofocusStopped.emit()
-    #
-    #     elif self.autofocus_enabled and self._autofocus_lost:
-    #         if rescue:
-    #             self.rescue_autofocus()
-    #         else:
-    #             pass  #maybe add a warning message
 
     def stop_autofocus(self):
         """ Stop the autofocus loop
@@ -562,46 +505,86 @@ class FocusLogic(GenericLogic):
         If the piezo is close to the lower limit (<5µm for example) it is moved to 25µm. If the piezo is too
         close to the upper limit (>70µm for example), it is moved back to 50µm.
         """
+        # # start autofocus if not yet started
+        # enabled = self.autofocus_enabled  # to reset the inital state at the end of this method
+        # if not self.autofocus_enabled:
+        #     self.start_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically started
+        # # get the piezo position
+        # piezo_pos = self.get_position()
+        # print(f'piezo_position: {piezo_pos}')
+        # if (piezo_pos < 25) or (piezo_pos > 50):
+        #     if self._autofocus_lost:
+        #         self.log.warning('Autofocus lost!')
+        #     else:
+        #         if piezo_pos < 25:
+        #             self.sigDoStageMovement.emit(0.5)
+        #         else:
+        #             self.sigDoStageMovement.emit(-0.5)
+        # if not enabled:
+        #     self.stop_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically stopped
+
+        # little test version
+        # print('doing piezo position correction ..')
+        # sleep(2)
+        # self.sigPiezoPositionCorrectionFinished.emit()
+
         # start autofocus if not yet started
-        enabled = self.autofocus_enabled  # to reset the inital state at the end of this method
-        if not self.autofocus_enabled:
-            self.start_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically started
+        # if not self.autofocus_enabled:
+        #     self.start_autofocus()
+            # add a signal to inform the GUI that autofocus was programmatically started
         # get the piezo position
         piezo_pos = self.get_position()
-        if (piezo_pos < 25) or (piezo_pos > 50):
-            if self._autofocus_lost:
-                self.log.warning('Autofocus lost!')
-            else:
-                if piezo_pos < 25:
-                    self.sigDoStageMovement.emit(1)
-                else:
-                    self.sigDoStageMovement.emit(-1)
-        if not enabled:
-            self.stop_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically stopped
+        if piezo_pos < 25:
+            # calculate the relative movement necessary to move piezo to 25 um
+            step = 25 - piezo_pos
+            print(step)
+            self.sigDoStageMovement.emit(step)
+        elif piezo_pos > 50:
+            step = piezo_pos - 50
+            print(step)
+            self.sigDoStageMovement.emit(-step)
+        else:
+            pass
 
-    def search_focus(self):
+    def finish_piezo_position_correction(self):
+        self.sigPiezoPositionCorrectionFinished.emit()
+
+
+    def start_search_focus(self):
         """ Search the IR reflection signal on a reference plane at a distance 'offset' from the current position.
         Autofocus is programatically stopped once the signal was found and is stable.
         This method can only be used when calibrations were correctly made.
         """
         if self._calibrated and self._setpoint_defined:
+            self._stage_is_positioned = False
             offset = self._autofocus_logic._focus_offset
             self._autofocus_logic.stage_move_z(offset)
             sleep(1)  #replace by wait for idle
-            self.start_autofocus(stop_when_stable=True)
-            ready = self._autofocus_logic._autofocus_stable
-            print(f'ready {ready}')
-            while not ready:
-                sleep(0.1)
-                ready = self._autofocus_logic._autofocus_stable
-                print(f'ready {ready}')
-                autofocus_lost = self._autofocus_lost
-                if autofocus_lost:
-                    break
-            self._autofocus_logic.stage_move_z(-offset)
-            self.sigFocusFound.emit()
+            self.start_autofocus(stop_when_stable=True, search_focus=True, rescue=True)
+            # ready = self._autofocus_logic._autofocus_stable
+            # print(f'ready {ready}')
+            # counter = 0
+            # while not ready:
+            #     counter += 1
+            #     sleep(1)
+            #     ready = self._autofocus_logic._autofocus_stable
+            #     print(f'ready {ready}')
+            #     if counter > 20:
+            #         break
+            #     autofocus_lost = self._autofocus_lost
+            #     if autofocus_lost:
+            #         break
+            # self._autofocus_logic.stage_move_z(-offset)
+            # self.sigFocusFound.emit()
         else:
             self.log.warn('Search focus can not be used. Calibration or setpoint missing.')
             self.sigFocusFound.emit()  # signal is sent anyway to reset toolbutton state
+
+    def search_focus_finished(self):
+        offset = self._autofocus_logic._focus_offset
+        self._autofocus_logic.stage_move_z(-offset)
+        sleep(1)
+        self._stage_is_positioned = True
+        self.sigFocusFound.emit()
 
 
