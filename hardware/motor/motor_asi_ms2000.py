@@ -263,8 +263,8 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         status = self.get_status()
         waiting_time = 0
         while status != "N":
-            sleep(0.5)
-            waiting_time = waiting_time + 0.5
+            sleep(0.1)
+            waiting_time = waiting_time + 0.1
             status = self.get_status()
             if waiting_time >= self._timeout:
                 self.log.error("ASI MS2000 translation stage timeout occurred")
