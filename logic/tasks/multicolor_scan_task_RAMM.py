@@ -78,6 +78,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities,
                                                              self.num_laserlines, self.exposure)
 
+        # initialize arrays to store target and actual z positions
+        self.z_target_positions = []
+        self.z_actual_positions = []
+
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
@@ -92,6 +96,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         sleep(0.03)
         cur_pos = self.ref['focus'].get_position()
         print(f'current position: {cur_pos} um')
+        self.z_target_positions.append(position)
+        self.z_actual_positions.append(cur_pos)
 
         # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
         self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
@@ -138,8 +144,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             else:   # use tiff as default format
                 self.ref['cam']._save_to_tiff(self.num_frames, self.complete_path, image_data)
                 metadata = self.get_metadata()
-                file_path = self.complete_path.replace('tiff', 'txt', 1)
+                file_path = self.complete_path.replace('tiff', 'yaml', 1)
                 self.save_metadata_file(metadata, file_path)
+
+            # save file with z positions (same procedure for either file format)
+            file_path = os.path.join(os.path.split(self.complete_path)[0], 'z_positions.yaml')
+            self.save_z_positions_to_file(self.z_target_positions, self.z_actual_positions, file_path)
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
@@ -299,5 +309,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
 
-
-# to do: save also a list with the z positions
+    def save_z_positions_to_file(self, z_target_positions, z_actual_positions, path):
+        z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)

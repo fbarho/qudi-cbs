@@ -28,6 +28,7 @@ import os
 import yaml
 from time import sleep, time
 from datetime import datetime
+from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -103,7 +104,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         sleep(1)  # replace maybe by wait for idle
 
         # autofocus
-        self.ref['focus'].search_focus()
+        self.ref['focus'].start_search_focus()
+        # need to ensure that focus is stable here.
+        ready = self.ref['focus']._stage_is_positioned
+        counter = 0
+        while not ready:
+            counter += 1
+            sleep(0.1)
+            ready = self.ref['focus']._stage_is_positioned
+            if counter > 50:
+                break
+
         start_position = self.calculate_start_position(self.centered_focal_plane)
 
         # ------------------------------------------------------------------------------------------
@@ -116,16 +127,24 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].stop_acquisition()  # for safety
         self.ref['cam'].start_acquisition()
 
-        for plane in range(self.num_z_planes):
-            print(f'plane number {plane + 1}')
+        # initialize arrays to save the target and current z positions
+        z_target_positions = []
+        z_actual_positions = []
+
+        print(f'{self.roi_names[self.roi_counter]}: performing z stack..')
+
+        for plane in tqdm(range(self.num_z_planes)):
+            # print(f'plane number {plane + 1}')
 
             # position the piezo
             position = start_position + plane * self.z_step
             self.ref['focus'].go_to_position(position)
-            print(f'target position: {position} um')
+            # print(f'target position: {position} um')
             sleep(0.03)
             cur_pos = self.ref['focus'].get_position()
-            print(f'current position: {cur_pos} um')
+            # print(f'current position: {cur_pos} um')
+            z_target_positions.append(position)
+            z_actual_positions.append(cur_pos)
 
             # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
             self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
@@ -158,8 +177,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:  # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
             metadata = self.get_metadata()
-            file_path = cur_save_path.replace('tiff', 'txt', 1)
+            file_path = cur_save_path.replace('tiff', 'yaml', 1)
             self.save_metadata_file(metadata, file_path)
+
+        # save file with z positions (same procedure for either file format)
+        file_path = os.path.join(os.path.split(cur_save_path)[0], 'z_positions.yaml')
+        self.save_z_positions_to_file(z_target_positions, z_actual_positions, file_path)
 
         self.roi_counter += 1
         return self.roi_counter < len(self.roi_names)
@@ -251,7 +274,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         or if the focal plane is the bottommost plane in the scan (False)
         """
         current_pos = self.ref['focus'].get_position()  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
-        print(f'current position: {current_pos}')
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
@@ -353,8 +375,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
         metadata['x position'] = self.ref['roi'].stage_position[0]
         metadata['y position'] = self.ref['roi'].stage_position[1]
-        roi_001_pos = self.ref['roi'].get_roi_position('ROI_001')  # np.ndarray return type
-        metadata['ROI_001'] = (float(roi_001_pos[0]), float(roi_001_pos[1]), float(roi_001_pos[2]))
+        # roi_001_pos = self.ref['roi'].get_roi_position('ROI_001')  # np.ndarray return type
+        # metadata['ROI_001'] = (float(roi_001_pos[0]), float(roi_001_pos[1]), float(roi_001_pos[2]))
         # pixel size ???
         return metadata
 
@@ -376,7 +398,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         return metadata
 
     def save_metadata_file(self, metadata, path):
-        """" Save a txt file containing the metadata dictionary
+        """" Save a txt or yaml file containing the metadata dictionary
 
         :param dict metadata: dictionary containing the metadata
         :param str path: pathname
@@ -384,4 +406,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
+
+    def save_z_positions_to_file(self, z_target_positions, z_actual_positions, path):
+        z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
 
