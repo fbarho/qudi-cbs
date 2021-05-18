@@ -179,12 +179,22 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # move to roi ----------------------------------------------------------------------------------------------
             self.ref['roi'].active_roi = None
             self.ref['roi'].set_active_roi(name=item)
-            self.ref['roi'].go_to_roi()
+            self.ref['roi'].go_to_roi_xy()
             self.log.info('Moved to {}'.format(item))
             time.sleep(1)  # replace maybe by wait for idle
 
             # autofocus ------------------------------------------------------------------------------------------------
-            self.ref['focus'].search_focus()
+            self.ref['focus'].start_search_focus()
+            # need to ensure that focus is stable here.
+            ready = self.ref['focus']._stage_is_positioned
+            counter = 0
+            while not ready:
+                counter += 1
+                time.sleep(0.1)
+                ready = self.ref['focus']._stage_is_positioned
+                if counter > 50:
+                    break
+
             reference_position = self.ref['focus'].get_position()  # save it to go back to this plane after imaging
             start_position = self.calculate_start_position(self.centered_focal_plane)
 
@@ -200,7 +210,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             z_target_positions = []
             z_actual_positions = []
 
-            print(f'{self.roi_names[self.roi_counter]}: performing z stack..')
+            print(f'{item}: performing z stack..')
 
             for plane in tqdm(range(self.num_z_planes)):
                 # print(f'plane number {plane + 1}')
