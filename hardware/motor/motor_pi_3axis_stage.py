@@ -53,56 +53,59 @@ class PIMotorStage(Base, MotorInterface):
     #     super().__init__()
 
     def on_activate(self):
-        self.first_axis_label = self._first_axis_label
-        self.second_axis_label = self._second_axis_label
-        self.third_axis_label = self._third_axis_label
+        try:
+            self.first_axis_label = self._first_axis_label
+            self.second_axis_label = self._second_axis_label
+            self.third_axis_label = self._third_axis_label
 
-        # open the daisy chain connection
-        self.pidevice_1st_axis = GCSDevice(self._first_axis_controllername)  # 1st axis controller # master device
-        self.pidevice_2nd_axis = GCSDevice(self._second_axis_controllername)  # 2nd axis controller
-        self.pidevice_3rd_axis = GCSDevice(self._third_axis_controllername)  # 3rd axis controller
+            # open the daisy chain connection
+            self.pidevice_1st_axis = GCSDevice(self._first_axis_controllername)  # 1st axis controller # master device
+            self.pidevice_2nd_axis = GCSDevice(self._second_axis_controllername)  # 2nd axis controller
+            self.pidevice_3rd_axis = GCSDevice(self._third_axis_controllername)  # 3rd axis controller
 
-        self.pidevice_1st_axis.OpenUSBDaisyChain(description=self._serialnum_master)
-        self.daisychainid = self.pidevice_1st_axis.dcid
-        print(f'Daisychainid: {self.daisychainid}')
-        # controllers are ordered with increasing serial number in the daisy chain
-        # this is why z is connected as first
-        # do we need to programmatically sort by nth_axis_daisychain id ??
-        self.pidevice_3rd_axis.ConnectDaisyChainDevice(self._third_axis_daisychain_id, self.daisychainid)  # SN 019550119
-        self.pidevice_1st_axis.ConnectDaisyChainDevice(self._first_axis_daisychain_id, self.daisychainid)  # SN 019550121
-        self.pidevice_2nd_axis.ConnectDaisyChainDevice(self._second_axis_daisychain_id, self.daisychainid)  # SN 019550124
-        print('\n{}:\n{}'.format(self.pidevice_1st_axis.GetInterfaceDescription(), self.pidevice_1st_axis.qIDN()))
-        print('\n{}:\n{}'.format(self.pidevice_2nd_axis.GetInterfaceDescription(), self.pidevice_2nd_axis.qIDN()))
-        print('\n{}:\n{}'.format(self.pidevice_3rd_axis.GetInterfaceDescription(), self.pidevice_3rd_axis.qIDN()))
+            self.pidevice_1st_axis.OpenUSBDaisyChain(description=self._serialnum_master)
+            self.daisychainid = self.pidevice_1st_axis.dcid
+            print(f'Daisychainid: {self.daisychainid}')
+            # controllers are ordered with increasing serial number in the daisy chain
+            # this is why z is connected as first
+            # do we need to programmatically sort by nth_axis_daisychain id ??
+            self.pidevice_3rd_axis.ConnectDaisyChainDevice(self._third_axis_daisychain_id, self.daisychainid)  # SN 019550119
+            self.pidevice_1st_axis.ConnectDaisyChainDevice(self._first_axis_daisychain_id, self.daisychainid)  # SN 019550121
+            self.pidevice_2nd_axis.ConnectDaisyChainDevice(self._second_axis_daisychain_id, self.daisychainid)  # SN 019550124
+            print('\n{}:\n{}'.format(self.pidevice_1st_axis.GetInterfaceDescription(), self.pidevice_1st_axis.qIDN()))
+            print('\n{}:\n{}'.format(self.pidevice_2nd_axis.GetInterfaceDescription(), self.pidevice_2nd_axis.qIDN()))
+            print('\n{}:\n{}'.format(self.pidevice_3rd_axis.GetInterfaceDescription(), self.pidevice_3rd_axis.qIDN()))
 
-        # initialization of all axes
-        print('Initializing PI stage ...')
-        # servo on
-        pitools.startup(self.pidevice_1st_axis)
-        pitools.startup(self.pidevice_2nd_axis)
-        pitools.startup(self.pidevice_3rd_axis)
-        print('Please wait ... ')
+            # initialization of all axes
+            print('Initializing PI stage ...')
+            # servo on
+            pitools.startup(self.pidevice_1st_axis)
+            pitools.startup(self.pidevice_2nd_axis)
+            pitools.startup(self.pidevice_3rd_axis)
+            print('Please wait ... ')
 
-        # the IDs are needed to address the axes in the dll functions
-        self.first_axis_ID = self.pidevice_1st_axis.axes[0]    # each controller is connected to one stage; so just take the first element
-        # print(self.first_axis_ID)
-        self.second_axis_ID = self.pidevice_2nd_axis.axes[0]
-        # print(self.second_axis_ID)
-        self.third_axis_ID = self.pidevice_3rd_axis.axes[0]
-        # print(self.third_axis_ID)
+            # the IDs are needed to address the axes in the dll functions
+            self.first_axis_ID = self.pidevice_1st_axis.axes[0]    # each controller is connected to one stage; so just take the first element
+            # print(self.first_axis_ID)
+            self.second_axis_ID = self.pidevice_2nd_axis.axes[0]
+            # print(self.second_axis_ID)
+            self.third_axis_ID = self.pidevice_3rd_axis.axes[0]
+            # print(self.third_axis_ID)
 
-        self.calibrate()
-        # RON:
-        # FNL: fast move to negative limit
-        # self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
-        # self.pidevice_1st_axis.FNL(self.first_axis_ID)
-        # self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-        # self.pidevice_2nd_axis.FNL(self.second_axis_ID)
-        # self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
-        # self.pidevice_3rd_axis.FNL(self.third_axis_ID)
-        # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
-        # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
-        # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
+            self.calibrate()
+            # RON:
+            # FNL: fast move to negative limit
+            # self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
+            # self.pidevice_1st_axis.FNL(self.first_axis_ID)
+            # self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
+            # self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+            # self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
+            # self.pidevice_3rd_axis.FNL(self.third_axis_ID)
+            # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
+            # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
+            # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
+        except Exception as e:
+            self.log.error(f'Physik Instrumente 3-axes stage: Connection failed: {e}. Check if device is switched on.')
 
     def on_deactivate(self):
         """ Required deactivation steps

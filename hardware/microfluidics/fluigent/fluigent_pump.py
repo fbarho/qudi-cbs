@@ -24,6 +24,7 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
+
         # Detect all controllers
         SNs, types = fgt.fgt_detect()
         controller_count = len(SNs)
@@ -31,9 +32,7 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
 
         # initialize controllers
         fgt.fgt_init()
-
-        # self.pressure_channel = 0  # or from config ?
-        # self.sensor_channel = 0
+        # add here the check if an error was raised during fgt_init and write a comprehensible error message to the log.
 
         num_pressure_channels = fgt.fgt_get_pressureChannelCount()
         if num_pressure_channels < len(self.pressure_channel_IDs):
@@ -65,6 +64,8 @@ class FluigentController(Base, MicrofluidicsPumpInterface):
         #     print(sensorInfo)
         #     print("Sensor type: {}".format(sensorTypeArray[i]))
         #
+
+
 
     def on_deactivate(self):
         fgt.fgt_close()
