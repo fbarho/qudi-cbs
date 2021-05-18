@@ -748,7 +748,7 @@ class BasicGUI(GUIBase):
         self.disable_camera_toolbuttons()
         # decide depending on camera which signal has to be emitted in save_video_accepted method
         # same approach can later be used to regroup save_video and save_long_video buttons into one action
-        if self._camera_logic.get_name == 'iXon Ultra 897':
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
             self._spooling = True
         else:
             self._video = True
