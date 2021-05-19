@@ -381,7 +381,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.illumination_time_DSpinBox.setVisible(visible)
 
     def save_config_clicked(self):
-        path = os.path.join(self.default_location, 'qudi_task_config_files') # '/home/barho/qudi-cbs-experiment-config'  # 'C:/Users/admin/qudi-cbs-user-configs'  # later: from config according to used computer
+        path = os.path.join(self.default_location, 'qudi_task_config_files')
         self.log.info(path)
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self.sigSaveConfig.emit(path, experiment, None)
@@ -391,7 +391,8 @@ class ExpConfiguratorGUI(GUIBase):
         experiment = self._mw.select_experiment_ComboBox.currentText()
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw, 'Save copy of experiental configuration',
                                                           path, 'yaml files (*.yaml)')[0]
-        filename = os.path.split(this_file)[1]
+        self.log.info(this_file)
+        path, filename = os.path.split(this_file)
         if this_file:
             self.sigSaveConfig.emit(path, experiment, filename)
 
