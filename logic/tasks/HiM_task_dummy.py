@@ -26,6 +26,7 @@ Config example pour copy-paste:
 import yaml
 from datetime import datetime
 import numpy as np
+import pandas as pd
 import os
 import time
 from logic.generic_task import InterruptableTask
@@ -43,9 +44,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.log_path = '/home/barho/log_for_hi_m_dummy_task.csv'
+        self.logging = False
 
     def startTask(self):
         """ """
+        self.start = time.time()
+        if self.logging:
+            # initialize the log file
+            log = {'timestamp': [], 'cycle_no': [], 'process': [], 'event': [], 'level': []}
+            df = pd.DataFrame(log, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
+            df.to_csv(self.log_path, index=False, header=True)
+
         self.log.info('started Task')
         # stop all interfering modes on GUIs and disable GUI actions
         self.ref['roi'].disable_tracking_mode()
@@ -96,14 +106,19 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.probe_counter += 1
         print(f'Probe number {self.probe_counter}')
         self.log.info(f'Probe number {self.probe_counter}')
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 0, f'Started cycle {self.probe_counter}', 'info')
 
         # position the needle in the probe
         self.ref['pos'].start_move_to_target(self.probe_counter)
 
+        self.ref['pos'].disable_positioning_actions()  #
 
         # ------------------------------------------------------------------------------------------
         # Hybridization
         # ------------------------------------------------------------------------------------------
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 1, 'Started Hybridization', 'info')
         # position the valves for hybridization sequence
         self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
         self.ref['valves'].wait_for_idle()
@@ -114,6 +129,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         for step in range(len(self.hybridization_list)):
             print(f'Hybridisation step {step+1}')
             self.log.info(f'Hybridisation step {step+1}')
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 1, f'Started injection {step + 1}')
 
             if self.hybridization_list[step]['product'] is not None:  # an injection step
                 # set the 8 way valve to the position corresponding to the product
@@ -141,6 +158,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 print('Incubation time finished')
                 self.log.info('Incubation time finished')
 
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 1, f'Finished injection {step + 1}')
+
         # set valves to default positions
         self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
         self.ref['valves'].wait_for_idle()
@@ -148,11 +168,16 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
         self.ref['valves'].wait_for_idle()
+
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 1, 'Finished Hybridization', 'info')
         # Hybridization finished ---------------------------------------------------------------------------------------
 
         # ------------------------------------------------------------------------------------------
         # Imaging for all ROI
         # ------------------------------------------------------------------------------------------
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 2, 'Started Imaging', 'info')
         # iterate over all ROIs
         for item in self.roi_names:
             # create the save path for each roi ------------------------------------------------------------------------
@@ -164,6 +189,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['roi'].go_to_roi()
             self.log.info('Moved to {}'.format(item))
             time.sleep(1)  # replace maybe by wait for idle
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 2, f'Moved to {item}')
 
             # autofocus ------------------------------------------------------------------------------------------------
             # self.ref['focus'].search_focus()
@@ -176,6 +203,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # self.ref['cam'].stop_acquisition()   # for safety
             # self.ref['cam'].start_acquisition()
 
+            z_target_positions = []
+            z_actual_positions = []
+
             # iterate over all planes in z
             for plane in range(self.num_z_planes):
                 print(f'plane number {plane + 1}')
@@ -187,6 +217,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 time.sleep(0.03)
                 cur_pos = self.ref['focus'].get_position()
                 print(f'current position: {cur_pos} um')
+                z_target_positions.append(position)
+                z_actual_positions.append(cur_pos)
 
             self.ref['focus'].go_to_position(reference_position)
 
@@ -199,13 +231,24 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             else:  # use tiff as default format
                 self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
                 metadata = self.get_metadata()
-                file_path = cur_save_path.replace('tiff', 'txt', 1)
+                file_path = cur_save_path.replace('tiff', 'yaml', 1)
                 self.save_metadata_file(metadata, file_path)
+                # save file with z positions
+                file_path = os.path.join(os.path.split(cur_save_path)[0], 'z_positions.yaml')
+                self.save_z_positions_to_file(z_target_positions, z_actual_positions, file_path)
+
+            if self.logging:  # to modify: check if data saved correctly before writing this log entry
+                add_log_entry(self.log_path, self.probe_counter, 2, 'Image data saved', 'info')
+
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 2, 'Finished Imaging', 'info')
         # Imaging (for all ROIs) finished ------------------------------------------------------------------------------
 
         # ------------------------------------------------------------------------------------------
         # Photobleaching
         # ------------------------------------------------------------------------------------------
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 3, 'Started Photobleaching', 'info')
         # position the valves for photobleaching sequence
         self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
         self.ref['valves'].wait_for_idle()
@@ -218,6 +261,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         for step in range(len(self.photobleaching_list)):
             print(f'Photobleaching step {step+1}')
             self.log.info(f'Photobleaching step {step+1}')
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 3, f'Started injection {step + 1}')
 
             if self.photobleaching_list[step]['product'] is not None:  # an injection step
                 # set the 8 way valve to the position corresponding to the product
@@ -244,6 +289,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 print('Incubation time finished')
                 self.log.info('Incubation time finished')
 
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 3, f'Finished injection {step + 1}')
+
         # set valves to default positions
         self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
         self.ref['valves'].wait_for_idle()
@@ -251,7 +299,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
         self.ref['valves'].wait_for_idle()
+
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 3, 'Finished Photobleaching', 'info')
         # Photobleaching finished --------------------------------------------------------------------------------------
+
+        if self.logging:
+            add_log_entry(self.log_path, self.probe_counter, 0, f'Finished cycle {self.probe_counter}', 'info')
 
         return self.probe_counter < len(self.probe_dict)
 
@@ -283,6 +337,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['valves'].enable_valve_positioning()
         self.ref['flow'].enable_pressure_setting()
         self.ref['pos'].enable_positioning_actions()
+        total = time.time() - self.start
+        print(f'total time with logging = {self.logging}: {total} s')
 
         self.log.info('cleanupTask finished')
 
@@ -455,6 +511,23 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
+
+    def save_z_positions_to_file(self, z_target_positions, z_actual_positions, path):
+        z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
+
+
+# ------------------------------------------------------------------------------------------
+# helper functions for bokeh app display  (put this in a separate file later and import)
+# ------------------------------------------------------------------------------------------
+
+def add_log_entry(path, cycle, process, event, level='info'):
+    timestamp = datetime.now()
+    entry = {'timestamp': [timestamp], 'cycle_no': [cycle], 'process': [process], 'event': [event], 'level': [level]}
+    df_line = pd.DataFrame(entry, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
+    with open(path, 'a') as file:
+        df_line.to_csv(file, index=False, header=False)
 
 
 # to do: validate metadata saving
