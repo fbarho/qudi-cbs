@@ -441,6 +441,8 @@ class BasicGUI(GUIBase):
         # signals from logic
         # update GUI when filter was manually changed
         self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
+        self._filterwheel_logic.sigDisableFilterActions.connect(self.disable_filter_selection)
+        self._filterwheel_logic.sigEnableFilterActions.connect(self.enable_filter_selection)
 
     # Initialisation of the camera settings windows in the options menu
     def init_camera_settings_ui(self):
@@ -818,31 +820,35 @@ class BasicGUI(GUIBase):
         """
         # maybe reformat using tuples of value and comment (good for fits, less adapted for txt).
         metadata = {}
-        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        # ----general----------------------------------------------------------------------------
+        metadata['Time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        # sample name ?
+        # ----camera-----------------------------------------------------------------------------
+        metadata['Exposure time (s)'] = self._camera_logic.get_exposure()
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            metadata['Kinetic time (s)'] = self._camera_logic.get_kinetic_time()
+        metadata['Gain'] = self._camera_logic.get_gain()
+        if self._camera_logic.has_temp:
+            self.sigReadTemperature.emit()  # short interruption of live mode to read temperature
+            metadata['Sensor temperature (deg C)'] = self._camera_logic._temperature
+        else:
+            metadata['Sensor temperature (deg C)'] = 'Not available'
+        # ----filter------------------------------------------------------------------------------
         filterpos = self._filterwheel_logic.get_position()
         filterdict = self._filterwheel_logic.get_filter_dict()
         label = 'filter{}'.format(filterpos)
-        metadata['filter'] = filterdict[label]['name']
-        metadata['gain'] = self._camera_logic.get_gain()
-        metadata['exposure'] = self._camera_logic.get_exposure()
-        if self._camera_logic.get_name() == 'iXon Ultra 897':
-            metadata['kinetic'] = self._camera_logic.get_kinetic_time()
+        metadata['Filter'] = filterdict[label]['name']
+        # ----laser-------------------------------------------------------------------------------
         intensity_dict = self._laser_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
         laser_dict = self._laser_logic.get_laser_dict()
-        metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
-        if metadata['laser'] == []:  # for compliance with fits header conventions ([] is forbidden)
-            metadata['laser'] = None
-        metadata['intens'] = [intensity_dict[key] for key in keylist]
-        if metadata['intens'] == []:
-            metadata['intens'] = None
-        if self._camera_logic.has_temp:
-#            metadata['temp'] = self._camera_logic.get_temperature()  # old version with missing metadata entry when live mode is running and save is clicked
-            # new version allowing temperature reading during live (short interruption of live mode)
-            self.sigReadTemperature.emit()
-            metadata['temp'] = self._camera_logic._temperature
-        else:
-            metadata['temp'] = 'Not available'
+        metadata['Laser lines'] = [laser_dict[key]['wavelength'] for key in keylist]
+        if metadata['Laser lines'] == []:  # for compliance with fits header conventions ([] is forbidden)
+            metadata['Laser lines'] = None
+        metadata['Laser intensities (%)'] = [intensity_dict[key] for key in keylist]
+        if metadata['Laser intensities (%)'] == []:
+            metadata['Laser intensities (%)'] = None
+
         return metadata
 
     @ QtCore.Slot()
@@ -1084,6 +1090,17 @@ class BasicGUI(GUIBase):
         self._mw.laser2_control_DSpinBox.setEnabled(bool_list[1])
         self._mw.laser3_control_DSpinBox.setEnabled(bool_list[2])
         self._mw.laser4_control_DSpinBox.setEnabled(bool_list[3])
+
+    @QtCore.Slot()
+    def disable_filter_selection(self):
+        """ disables filter combobox (for example as safety during tasks) """
+        self._mw.filter_ComboBox.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_filter_selection(self):
+        """ enables filter combobox """
+        self._mw.filter_ComboBox.setDisabled(False)
+
 
     def close_function(self):
         # stop live mode when window is closed
