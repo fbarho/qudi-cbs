@@ -51,6 +51,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].stop_laser_output()
         self.ref['daq'].disable_laser_actions()
 
+        self.ref['filter'].disable_filter_actions()
+
         # read all user parameters from config
         self.load_user_parameters()
 
@@ -181,6 +183,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # enable gui actions
         self.ref['camera'].enable_camera_actions()
         self.ref['daq'].enable_laser_actions()
+        self.ref['filter'].enable_filter_actions()
 
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask finished')
