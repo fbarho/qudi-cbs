@@ -42,6 +42,16 @@ class FocusWindow(QtWidgets.QMainWindow):
         uic.loadUi(ui_file, self)
         self.show()
 
+class FocusWindowCE(FocusWindow):
+    """ Focus Window child class that allows to stop the tracking mode and camera live mode when window is closed. """
+    def __init__(self, close_function):
+        super().__init__()
+        self.close_function = close_function
+
+    def closeEvent(self, event):
+        self.close_function()
+        event.accept()
+
 
 class FocusGUI(GUIBase):
     """ Tools to position the piezo to set the focus, and to calibrate and start focus stabilization (= autofocus)
@@ -77,7 +87,7 @@ class FocusGUI(GUIBase):
         self._focus_logic = self.focus_logic()
 
         # Windows
-        self._mw = FocusWindow()
+        self._mw = FocusWindowCE(self.close_function)
         self._mw.centralwidget.hide()
         self.init_pid_settings_ui()
 
@@ -425,3 +435,31 @@ class FocusGUI(GUIBase):
             self.threshold_imageitem.setImage(im_thresh)
             self._mw.threshold_image_PlotWidget.removeItem(self._centroid)
             self._centroid = self._mw.threshold_image_PlotWidget.plot([x], [y], symbol='+', color='red')
+
+    @QtCore.Slot()
+    def reset_start_tracking_button(self):
+        """ Reset the state of the start tracking button, for example when tracking mode is stopped when closing the
+        focus window.
+        """
+        self._mw.tracking_Action.setText('Start Tracking')
+        self._mw.tracking_Action.setChecked(False)
+
+    @QtCore.Slot()
+    def reset_start_live_button(self):
+        """ Reset the state of the start live display button, for example when live mode is stopped when closing the
+        focus window.
+        """
+        self._mw.start_live_Action.setText('Start live display')
+        self._mw.start_live_Action.setChecked(False)
+
+    def close_function(self):
+        # stop timetrace when window is cloded
+        if self._focus_logic.timetrace_enabled:
+            self.start_tracking_clicked()
+            self.reset_start_tracking_button()
+        # stop live mode of the camera when window is closed
+        if self._focus_logic.live_display_enabled:
+            self.start_live_clicked()
+            self.reset_start_live_button()
+        # stop autofocus ?
+

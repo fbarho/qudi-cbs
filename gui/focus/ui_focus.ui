@@ -45,7 +45,6 @@
      <string>Settings</string>
     </property>
     <addaction name="pid_settings_Action"/>
-    <addaction name="camera_settings_Action"/>
    </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
@@ -84,10 +83,10 @@
             <double>10.000000000000000</double>
            </property>
            <property name="singleStep">
-            <double>0.010000000000000</double>
+            <double>0.100000000000000</double>
            </property>
            <property name="value">
-            <double>0.010000000000000</double>
+            <double>0.100000000000000</double>
            </property>
           </widget>
          </item>
@@ -457,11 +456,6 @@
   <action name="pid_settings_Action">
    <property name="text">
     <string>PID settings</string>
-   </property>
-  </action>
-  <action name="camera_settings_Action">
-   <property name="text">
-    <string>Camera settings</string>
    </property>
   </action>
   <action name="search_focus_Action">
