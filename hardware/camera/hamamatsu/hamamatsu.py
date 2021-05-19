@@ -38,16 +38,19 @@ class HCam(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        self.camera = HamamatsuCamera(
-            self.camera_id)  # the idea is to use the class HamamatsuCamera like a python wrapper for the dcamapi
+        try:
+            self.camera = HamamatsuCamera(
+                self.camera_id)  # the idea is to use the class HamamatsuCamera like a python wrapper for the dcamapi
 
-        self.get_size()  # update the values _weight, _height
-        self._full_width = self._width
-        self._full_height = self._height
+            self.get_size()  # update the values _weight, _height
+            self._full_width = self._width
+            self._full_height = self._height
 
-        # # set some default values
-        # self.camera.setACQMode(self._default_acquisition_mode)
-        self.set_exposure(self._exposure)
+            # # set some default values
+            # self.camera.setACQMode(self._default_acquisition_mode)
+            self.set_exposure(self._exposure)
+        except Exception:
+            self.log.error(f'Hamamatsu camera not connected. Check if device is switched on.')
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.

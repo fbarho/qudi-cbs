@@ -7,7 +7,7 @@ Created on Wed March 30 2021
 This file is an extension to Qudi software
 obtained from <https://github.com/Ulm-IQO/qudi/>
 
-Merfish Experiment for the RAMM setup
+Hi-M Experiment for the RAMM setup
 
 Config example pour copy-paste:
     HiMTask:
@@ -29,6 +29,7 @@ import numpy as np
 import os
 import time
 from datetime import datetime
+from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -178,12 +179,22 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # move to roi ----------------------------------------------------------------------------------------------
             self.ref['roi'].active_roi = None
             self.ref['roi'].set_active_roi(name=item)
-            self.ref['roi'].go_to_roi()
+            self.ref['roi'].go_to_roi_xy()
             self.log.info('Moved to {}'.format(item))
             time.sleep(1)  # replace maybe by wait for idle
 
             # autofocus ------------------------------------------------------------------------------------------------
-            self.ref['focus'].search_focus()
+            self.ref['focus'].start_search_focus()
+            # need to ensure that focus is stable here.
+            ready = self.ref['focus']._stage_is_positioned
+            counter = 0
+            while not ready:
+                counter += 1
+                time.sleep(0.1)
+                ready = self.ref['focus']._stage_is_positioned
+                if counter > 50:
+                    break
+
             reference_position = self.ref['focus'].get_position()  # save it to go back to this plane after imaging
             start_position = self.calculate_start_position(self.centered_focal_plane)
 
@@ -195,16 +206,24 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['cam'].stop_acquisition()   # for safety
             self.ref['cam'].start_acquisition()
 
-            for plane in range(self.num_z_planes):
-                print(f'plane number {plane + 1}')
+            # initialize arrays to save the target and current z positions
+            z_target_positions = []
+            z_actual_positions = []
+
+            print(f'{item}: performing z stack..')
+
+            for plane in tqdm(range(self.num_z_planes)):
+                # print(f'plane number {plane + 1}')
 
                 # position the piezo
                 position = start_position + plane * self.z_step
                 self.ref['focus'].go_to_position(position)
-                print(f'target position: {position} um')
+                # print(f'target position: {position} um')
                 time.sleep(0.03)
                 cur_pos = self.ref['focus'].get_position()
-                print(f'current position: {cur_pos} um')
+                # print(f'current position: {cur_pos} um')
+                z_target_positions.append(position)
+                z_actual_positions.append(cur_pos)
 
                 # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
                 self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
@@ -235,8 +254,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             else:  # use tiff as default format
                 self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
                 metadata = self.get_metadata()
-                file_path = cur_save_path.replace('tiff', 'txt', 1)
+                file_path = cur_save_path.replace('tiff', 'yaml', 1)
                 self.save_metadata_file(metadata, file_path)
+
+            # save file with z positions (same procedure for either file format)
+            file_path = os.path.join(os.path.split(cur_save_path)[0], 'z_positions.yaml')
+            self.save_z_positions_to_file(z_target_positions, z_actual_positions, file_path)
+
         # Imaging (for all ROIs) finished ------------------------------------------------------------------------------
 
         # ------------------------------------------------------------------------------------------
@@ -510,7 +534,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         return metadata
 
     def save_metadata_file(self, metadata, path):
-        """" Save a txt file containing the metadata dictionary
+        """" Save a yaml file containing the metadata dictionary
 
         :param dict metadata: dictionary containing the metadata
         :param str path: pathname
@@ -518,4 +542,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
+
+    def save_z_positions_to_file(self, z_target_positions, z_actual_positions, path):
+        z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
 
