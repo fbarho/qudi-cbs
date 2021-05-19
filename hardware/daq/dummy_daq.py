@@ -91,3 +91,7 @@ class DummyDaq(Base, LaserControlInterface, DaqInterface):
 
     def send_trigger(self):
         self.log.info('Send trigger called')
+
+    # mock methods for different functionality such as on RAMM setup
+    def write_to_pump_ao_channel(self, voltage, autostart, timeout):
+        pass
