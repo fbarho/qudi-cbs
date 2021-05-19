@@ -86,6 +86,10 @@ class FluidicsGUI(GUIBase):
     sigSetPressure = QtCore.Signal(float)
     sigStartFlowMeasure = QtCore.Signal()
     sigStopFlowMeasure = QtCore.Signal()
+    sigStartVolumeMeasurement = QtCore.Signal(int, int)
+    sigStopVolumeMeasurement = QtCore.Signal()
+    sigStartRinsing = QtCore.Signal(int)
+    sigStopRinsing = QtCore.Signal()
 
     # signals for positioning actions
     sigStopMovement = QtCore.Signal()
@@ -180,15 +184,24 @@ class FluidicsGUI(GUIBase):
         # toolbar actions
         self._mw.set_pressure_Action.triggered.connect(self.set_pressure_clicked)
         self._mw.start_flow_measurement_Action.triggered.connect(self.measure_flow_clicked)
+        self._mw.volume_measurement_Action.triggered.connect(self.measure_volume_clicked)
+        self._mw.rinsing_Action.triggered.connect(self.start_rinsing_clicked)
 
         # signals to logic
         self.sigSetPressure.connect(self._flow_logic.set_pressure)
         self.sigStartFlowMeasure.connect(self._flow_logic.start_flow_measurement)
         self.sigStopFlowMeasure.connect(self._flow_logic.stop_flow_measurement)
+        self.sigStartVolumeMeasurement.connect(self._flow_logic.start_volume_measurement)
+        self.sigStopVolumeMeasurement.connect(self._flow_logic.stop_volume_measurement)
+        self.sigStartRinsing.connect(self._flow_logic.start_rinsing)
+        self.sigStopRinsing.connect(self._flow_logic.stop_rinsing)
 
         # signals from logic
         self._flow_logic.sigUpdateFlowMeasurement.connect(self.update_flowrate_and_pressure)
         self._flow_logic.sigUpdatePressureSetpoint.connect(self.update_pressure_setpoint)
+        self._flow_logic.sigUpdateVolumeMeasurement.connect(self.update_volume_and_time)
+        self._flow_logic.sigTargetVolumeReached.connect(self.reset_volume_measurement_button)
+        self._flow_logic.sigRinsingFinished.connect(self.reset_rinsing_action_button)
         self._flow_logic.sigDisablePressureAction.connect(self.disable_set_pressure_button)
         self._flow_logic.sigEnablePressureAction.connect(self.enable_set_pressure_button)
 
@@ -409,16 +422,21 @@ class FluidicsGUI(GUIBase):
         pressure = self._mw.pressure_setpoint_DSpinBox.value()
         self.sigSetPressure.emit(pressure)
 
+    @QtCore.Slot(float)
+    def update_pressure_setpoint(self, pressure):
+        """ Callback of a signal emitted from logic updating the pressure setpoint display. """
+        self._mw.pressure_setpoint_DSpinBox.setValue(pressure)
+
     @QtCore.Slot()
     def measure_flow_clicked(self):
         """ Callback of start flow measurement toolbutton. Handles the toolbutton state and initiates the start / stop
         of flowrate and pressure measurements.
         """
-        if self._flow_logic.measuring:  # measurement already running
-            self._mw.start_flow_measurement_Action.setText('Start Flowrate measurement')
+        if self._flow_logic.measuring_flowrate:  # measurement already running
+            self._mw.start_flow_measurement_Action.setText('Start flowrate measurement')
             self.sigStopFlowMeasure.emit()
         else:
-            self._mw.start_flow_measurement_Action.setText('Stop Flowrate measurement')
+            self._mw.start_flow_measurement_Action.setText('Stop flowrate measurement')
             self.sigStartFlowMeasure.emit()
 
     @QtCore.Slot(float, float)
@@ -428,11 +446,56 @@ class FluidicsGUI(GUIBase):
         self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
         self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
 
-    @QtCore.Slot(float)
-    def update_pressure_setpoint(self, pressure):
-        """ Callback of a signal emitted from logic updating the pressure setpoint display. """
-        self._mw.pressure_setpoint_DSpinBox.setValue(pressure)
+    @QtCore.Slot()
+    def measure_volume_clicked(self):
+        """ Callback of start / stop volume measurement toolbutton.
+        Handles the toolbutton state and initiates the start / stop of volume measurement.
+        """
+        if self._flow_logic.measuring_volume:  # volume measurement already running
+            self._mw.volume_measurement_Action.setText('Start volume measurement')
+            self.sigStopVolumeMeasurement.emit()
+        else:
+            target_volume = self._mw.target_volume_SpinBox.value()
+            sampling_interval = 1  # in seconds, fixed for measurement started from GUI
+            self._mw.volume_measurement_Action.setText('Stop volume measurement')
+            self.sigStartVolumeMeasurement.emit(target_volume, sampling_interval)
 
+    @QtCore.Slot(int, int)
+    def update_volume_and_time(self, total_volume, time):
+        """ Callback of a signal emitted from logic informing the GUI about the new total volume
+        and time since start of the measurement.
+        """
+        self._mw.volume_LineEdit.setText(str(total_volume))
+        self._mw.time_since_start_LineEdit.setText(str(time))  # formatting maybe in min:sec when > 60 s ??
+
+    @QtCore.Slot()
+    def reset_volume_measurement_button(self):
+        """ Callback of signal sigTargetVolumeReached from logic. Reset the action button to initial state
+        when volume measurement is stopped because target volume was reached. """
+        self._mw.volume_measurement_Action.setText('Start volume measurement')
+        self._mw.volume_measurement_Action.setChecked(False)
+
+    @QtCore.Slot()
+    def start_rinsing_clicked(self):
+        """ Callback of start / stop rinsing toolbutton.
+        Handles the toolbutton state and initiates the start / stop of needle rinsing.
+        """
+        if self._flow_logic.rinsing_enabled:
+            self._mw.rinsing_Action.setText('Start rinsing')
+            self.sigStopRinsing.emit()
+        else:
+            rinsing_time = self._mw.rinsing_time_SpinBox.value()
+            self._mw.rinsing_Action.setText('Stop rinsing')
+            self.sigStartRinsing.emit(rinsing_time)
+
+    @QtCore.Slot()
+    def reset_rinsing_action_button(self):
+        """ Callback of signal sigRinsingFinished from logic. Reset the action button to initial state
+        when rinsing is finished because target duration has elapsed. """
+        self._mw.rinsing_Action.setText('Start rinsing')
+        self._mw.rinsing_Action.setChecked(False)
+
+# maybe disable also the start rinsing button
     @QtCore.Slot()
     def disable_set_pressure_button(self):
         """ Disables set pressure toolbutton, to be used for example during tasks. """
@@ -485,7 +548,7 @@ class FluidicsGUI(GUIBase):
 
     def close_function(self):
         # stop measurement mode when window is closed
-        if self._flow_logic.measuring:
+        if self._flow_logic.measuring_flowrate:
             self.measure_flow_clicked()
             self._mw.start_flow_measurement_Action.setChecked(False)
 

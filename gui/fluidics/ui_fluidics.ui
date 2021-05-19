@@ -81,56 +81,21 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="1" column="0" colspan="2">
-      <widget class="QLabel" name="label_12">
+     <item row="9" column="0">
+      <widget class="QLabel" name="label_4">
        <property name="text">
-        <string>Pressure Setpoint: </string>
+        <string>Time since start:</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="2">
-      <widget class="QLineEdit" name="pressure_LineEdit">
+     <item row="9" column="2">
+      <widget class="QLineEdit" name="time_since_start_LineEdit">
        <property name="readOnly">
         <bool>true</bool>
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="label_13">
-       <property name="text">
-        <string>Pressure:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="2">
-      <widget class="QLineEdit" name="flowrate_LineEdit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox">
-       <property name="maximum">
-        <double>50.000000000000000</double>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="3">
-      <widget class="QLabel" name="pressure_unit_Label">
-       <property name="text">
-        <string>unit</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="3">
-      <widget class="QLabel" name="pressure_unit_Label2">
-       <property name="text">
-        <string>unit</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="2">
+     <item row="12" column="2">
       <spacer name="verticalSpacer_4">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -142,6 +107,34 @@
         </size>
        </property>
       </spacer>
+     </item>
+     <item row="1" column="3">
+      <widget class="QLabel" name="pressure_unit_Label">
+       <property name="text">
+        <string>unit</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="2">
+      <widget class="QLineEdit" name="flowrate_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="0" colspan="2">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>Rinsing duration:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="3">
+      <widget class="QLabel" name="time_since_start_unit_Label">
+       <property name="text">
+        <string>s</string>
+       </property>
+      </widget>
      </item>
      <item row="5" column="3">
       <widget class="QLabel" name="flowrate_unit_Label">
@@ -166,13 +159,6 @@
        </property>
       </spacer>
      </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="label_14">
-       <property name="text">
-        <string>Flowrate:</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="0">
       <widget class="QLabel" name="label_18">
        <property name="font">
@@ -184,6 +170,142 @@
        </property>
        <property name="text">
         <string>Flow control</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="label_14">
+       <property name="text">
+        <string>Flowrate:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox">
+       <property name="maximum">
+        <double>50.000000000000000</double>
+       </property>
+      </widget>
+     </item>
+     <item row="10" column="2">
+      <spacer name="verticalSpacer_6">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Preferred</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="11" column="3">
+      <widget class="QLabel" name="rinsing_time_unit_Label">
+       <property name="text">
+        <string>s</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="3">
+      <widget class="QLabel" name="volume_unit_Label">
+       <property name="text">
+        <string>ul</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="3">
+      <widget class="QLabel" name="pressure_unit_Label2">
+       <property name="text">
+        <string>unit</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="2">
+      <widget class="QLineEdit" name="pressure_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="0">
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>Volume:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QLabel" name="label_12">
+       <property name="text">
+        <string>Pressure setpoint: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="2">
+      <spacer name="verticalSpacer_5">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Preferred</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="8" column="2">
+      <widget class="QLineEdit" name="volume_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QLabel" name="label_13">
+       <property name="text">
+        <string>Pressure:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="2">
+      <widget class="QSpinBox" name="rinsing_time_SpinBox">
+       <property name="maximum">
+        <number>1000</number>
+       </property>
+       <property name="value">
+        <number>30</number>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="0">
+      <widget class="QLabel" name="label_19">
+       <property name="text">
+        <string>Target volume:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="3">
+      <widget class="QLabel" name="target_volume_unit_Label">
+       <property name="text">
+        <string>ul</string>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="2">
+      <widget class="QSpinBox" name="target_volume_SpinBox">
+       <property name="maximum">
+        <number>10000</number>
+       </property>
+       <property name="value">
+        <number>1500</number>
        </property>
       </widget>
      </item>
@@ -404,6 +526,9 @@
    </attribute>
    <addaction name="set_pressure_Action"/>
    <addaction name="start_flow_measurement_Action"/>
+   <addaction name="volume_measurement_Action"/>
+   <addaction name="separator"/>
+   <addaction name="rinsing_Action"/>
   </widget>
   <action name="close_MenuAction">
    <property name="text">
@@ -412,7 +537,7 @@
   </action>
   <action name="set_position1_Action">
    <property name="text">
-    <string>Set Position 1</string>
+    <string>Set position 1</string>
    </property>
   </action>
   <action name="go_to_position_Action">
@@ -420,7 +545,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Go to Target</string>
+    <string>Go to target</string>
    </property>
   </action>
   <action name="move_stage_Action">
@@ -441,7 +566,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Start Flowrate Measurement</string>
+    <string>Start flowrate measurement</string>
    </property>
   </action>
   <action name="valves_dockwidget_view_Action">
@@ -475,6 +600,22 @@
    </property>
    <property name="text">
     <string>Positioning dockwidget</string>
+   </property>
+  </action>
+  <action name="volume_measurement_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start volume measurement</string>
+   </property>
+  </action>
+  <action name="rinsing_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start rinsing</string>
    </property>
   </action>
  </widget>

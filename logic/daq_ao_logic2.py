@@ -48,6 +48,9 @@ class DAQaoLogic(GenericLogic):
     # declare connectors
     daq = Connector(interface='Base')
 
+    # signals
+    sigRinsingDurationFinished = QtCore.Signal()
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         # activate if necessary
@@ -93,6 +96,7 @@ class DAQaoLogic(GenericLogic):
 
     def stop_rinsing(self):
         self.write_to_pump_ao_channel(0.0)
+        self.sigRinsingDurationFinished.emit()
 
 
 

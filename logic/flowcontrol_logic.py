@@ -85,22 +85,30 @@ class FlowcontrolLogic(GenericLogic):
         module.Class: 'flowcontrol_logic.FlowcontrolLogic'
         connect:
             pump: 'pump_dummy'
+            daq_ao_logic: 'daq_logic.....'
     """
 
     # declare connectors
     pump = Connector(interface='MicrofluidicsPumpInterface')
+    daq_logic = Connector(interface='DAQaoLogic')
 
     # signals
     sigUpdateFlowMeasurement = QtCore.Signal(float, float)
     sigUpdatePressureSetpoint = QtCore.Signal(float)
+    sigUpdateVolumeMeasurement = QtCore.Signal(int, int)
+    sigTargetVolumeReached = QtCore.Signal()
+    sigRinsingFinished = QtCore.Signal()
     sigDisablePressureAction = QtCore.Signal()
     sigEnablePressureAction = QtCore.Signal()
 
     # attributes
-    measuring = False
+    measuring_flowrate = False
     regulating = False
+    measuring_volume = False
     total_volume = 0
+    time_since_start = 0
     target_volume_reached = True
+    rinsing_enabled = False
 
     # attributes for pid
     p_gain = 0.005
@@ -118,7 +126,11 @@ class FlowcontrolLogic(GenericLogic):
         """
         # connector
         self._pump = self.pump()
+        self._daq_logic = self.daq_logic()
         self.set_pressure(0.0)
+
+        # signals from connected logic
+        self._daq_logic.sigRinsingDurationFinished.connect(self.rinsing_finished)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -206,14 +218,14 @@ class FlowcontrolLogic(GenericLogic):
             return flowrate_unit
 
     def start_flow_measurement(self):
-        self.measuring = True
+        self.measuring_flowrate = True
         # monitor the pressure and flowrate, using a worker thread
         worker = MeasurementWorker()
         worker.signals.sigFinished.connect(self.flow_measurement_loop)
         self.threadpool.start(worker)
 
     def stop_flow_measurement(self):
-        self.measuring = False
+        self.measuring_flowrate = False
         # get once again the latest values
         pressure = self.get_pressure()
         flowrate = self.get_flowrate()
@@ -223,7 +235,7 @@ class FlowcontrolLogic(GenericLogic):
         pressure = self.get_pressure()
         flowrate = self.get_flowrate()
         self.sigUpdateFlowMeasurement.emit(pressure, flowrate)
-        if self.measuring:
+        if self.measuring_flowrate:
             # enter in a loop until measuring mode is switched off
             worker = MeasurementWorker()
             worker.signals.sigFinished.connect(self.flow_measurement_loop)
@@ -293,7 +305,9 @@ class FlowcontrolLogic(GenericLogic):
             self.threadpool.start(worker)
 
     def start_volume_measurement(self, target_volume, sampling_interval):
+        self.measuring_volume = True
         self.total_volume = 0
+        self.time_since_start = 0
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         # start summing up the total volume, using a worker thread
@@ -304,20 +318,41 @@ class FlowcontrolLogic(GenericLogic):
     def volume_measurement_loop(self, target_volume, sampling_interval):
         flowrate = self.get_flowrate()
         self.total_volume += flowrate * sampling_interval / 60  # abs(flowrate) ???
+        self.time_since_start += sampling_interval
+        self.sigUpdateVolumeMeasurement.emit(int(self.total_volume), self.time_since_start)
         print(f'Total volume: {self.total_volume:.0f} ul')
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         else:
             self.target_volume_reached = True
+            self.sigTargetVolumeReached.emit()
 
-        if not self.target_volume_reached:
+        if not self.target_volume_reached and self.measuring_volume:  # second condition is necessary to stop measurement via GUI button
             # enter in a loop until the target_volume is reached
             worker = VolumeCountWorker(target_volume, sampling_interval)
             worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
             self.threadpool.start(worker)
 
     def stop_volume_measurement(self):
-        self.target_volume_reached = True
+        self.measuring_volume = False
+        self.target_volume_reached = True  # do we need this ?
+
+
+    def start_rinsing(self, duration):
+        self.rinsing_enabled = True
+        self._daq_logic.start_rinsing(duration)
+
+    def stop_rinsing(self):
+        """ This method is used to manually stop rinsing before specified duration (in start_rinsing) has elapsed. """
+        self.rinsing_enabled = False
+        self._daq_logic.stop_rinsing()
+
+    def rinsing_finished(self):
+        """ Callback of signal sigRinsingDurationFinished from connected daq logic.
+        Inform the GUI that the rinsing time has elapsed. """
+        self.rinsing_enabled = False
+        self.sigRinsingFinished.emit()
+
 
     def disable_pressure_setting(self):
         """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
