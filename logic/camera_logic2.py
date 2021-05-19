@@ -463,7 +463,8 @@ class CameraLogic(GenericLogic):
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
 
         elif fileformat == '.fits':
-            self._save_to_fits(complete_path, image_data, metadata)
+            fits_metadata = self.convert_to_fits_metadata(metadata)
+            self._save_to_fits(complete_path, image_data, fits_metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
@@ -531,7 +532,8 @@ class CameraLogic(GenericLogic):
         elif fileformat == '.fits':
             try:
                 complete_path = path+'.fits'
-                self._add_fits_header(complete_path, metadata)
+                fits_metadata = self.convert_to_fits_metadata(metadata)
+                self._add_fits_header(complete_path, fits_metadata)
             except Exception as e:
                 self.log.warn(f'Metadata not saved: {e}.')
         else:
@@ -792,3 +794,23 @@ class CameraLogic(GenericLogic):
     def set_trigger_mode(self, mode):
         self._hardware._set_trigger_mode(mode)   # specific for andor in this version. homogenize when completing other camera's code
         # add return value for error check if needed.. _set_trigger_mode returns 0 if ok, -1 if not
+
+
+    def convert_to_fits_metadata(self, metadata):
+        """ Convert a dictionary in arbitrary format to fits compatible format.
+        :param dict metadata: dictionary to convert to fits compatible format
+        :return dict fits_metadata: dictionary converted to fits compatible format """
+        fits_metadata = {}
+        for key, value in metadata.items():
+            key = key.replace(' ', '_')
+            if isinstance(value, list):
+                for i in range(len(value)):
+                    fits_key = key[:7].upper()+str(i+1)
+                    fits_value = (value[i], key+str(i+1))
+                    fits_metadata[fits_key] = fits_value
+            else:
+                fits_key = key[:8].upper()
+                fits_value = (value, key)
+                fits_metadata[fits_key] = fits_value
+
+        return fits_metadata
