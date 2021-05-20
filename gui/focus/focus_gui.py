@@ -91,6 +91,7 @@ class FocusGUI(GUIBase):
         self._mw.centralwidget.hide()
         self.init_pid_settings_ui()
 
+        # setup specific adjustments of the GUI
         # DockWidget for the camera - for the RAMM setup, the camera is only used to check for the quality of the
         # reflexion. By default the dock widget is hidden.
         if self._focus_logic._setup == 'RAMM':
@@ -98,6 +99,9 @@ class FocusGUI(GUIBase):
             self._mw.threshold_label.hide()
             self._mw.threshold_SpinBox.hide()
             self._mw.im_display_dockWidget.hide()
+        if self._focus_logic._setup == 'PALM':
+            self._mw.find_offset_PushButton.hide()
+            self._mw.offset_lineEdit.hide()
 
         # initialize the display of the camera
         self.raw_imageitem = pg.ImageItem(axisOrder='row-major')
@@ -185,6 +189,8 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigSetpointDefined.connect(self.update_autofocus_setpoint)
         self._focus_logic.sigFocusFound.connect(self.reset_search_focus_button)
         self._focus_logic.sigPiezoPositionCorrectionFinished.connect(self.reset_position_correction_button)
+        self._focus_logic.sigDisableFocusActions.connect(self.disable_focus_toolbuttons)
+        self._focus_logic.sigEnableFocusActions.connect(self.enable_focus_toolbuttons)
 
     def on_deactivate(self):
         """ Required deactivation steps. """
@@ -322,7 +328,7 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PushButton.setChecked(True)
         self.sigCalibrateFocusStabilization.emit()
 
-    def plot_calibration(self, piezo_position, qpd_signal, fit, slope):
+    def plot_calibration(self, piezo_position, qpd_signal, fit, slope, precision):
         """ Callback of sigPlotCalibration from focus_logic. Once the calibration finished, reset the pushbutton state
         and display the calibration results in the plotwidget and display also the calculated slope. """
         # reset calibration_PushButton state
@@ -336,6 +342,7 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
+        print(f'precision: {precision}')   #replace by updating the widget to be created
         # enable the piezo position correction, focus stabilization and search focus toolbuttons
         self._mw.autofocus_Action.setDisabled(False)
         self._mw.search_focus_Action.setDisabled(False)
@@ -386,9 +393,11 @@ class FocusGUI(GUIBase):
         """
         if self._focus_logic.autofocus_enabled:
             self._mw.autofocus_Action.setText('Start focus stabilization')
+            self._mw.search_focus_Action.setDisabled(False)
             self.sigAutofocusStop.emit()
         else:
             self._mw.autofocus_Action.setText('Stop focus stabilization')
+            self._mw.search_focus_Action.setDisabled(True)  # disable incompatible action
             self.sigAutofocusStart.emit()
 
     def search_focus_clicked(self):
@@ -466,6 +475,28 @@ class FocusGUI(GUIBase):
         self._mw.start_live_Action.setText('Start live display')
         self._mw.start_live_Action.setChecked(False)
 
+    @QtCore.Slot()
+    def reset_start_focus_stabilization_button(self):
+        """ Reset the state of the start focus stabilization button, for example when live mode is stopped when closing the
+        focus window.
+        """
+        self._mw.autofocus_Action.setText('Start focus stabilization')
+        self._mw.autofocus_Action.setChecked(False)
+
+    @QtCore.Slot()
+    def disable_focus_toolbuttons(self):
+        self._mw.piezo_init_Action.setDisabled(True)
+        self._mw.piezo_position_correction_Action.setDisabled(True)
+        self._mw.autofocus_Action.setDisabled(True)
+        self._mw.search_focus_Action.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_focus_toolbuttons(self):
+        self._mw.piezo_init_Action.setDisabled(False)
+        self._mw.piezo_position_correction_Action.setDisabled(False)
+        self._mw.autofocus_Action.setDisabled(False)
+        self._mw.search_focus_Action.setDisabled(False)
+
     def close_function(self):
         # stop timetrace when window is cloded
         if self._focus_logic.timetrace_enabled:
@@ -476,4 +507,7 @@ class FocusGUI(GUIBase):
             self.start_live_clicked()
             self.reset_start_live_button()
         # stop autofocus ?
+        if self._focus_logic.autofocus_enabled:
+            self.start_focus_stabilization_clicked()
+            self.reset_start_focus_stabilization_button()
 
