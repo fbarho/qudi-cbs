@@ -9,7 +9,7 @@ This file contains a class for the PIFOC z axis positioning stage.
 It is an extension to the hardware code base of Qudi software 
 obtained from <https://github.com/Ulm-IQO/qudi/> 
 """
-
+import numpy as np
 from core.module import Base
 from interface.motor_interface import MotorInterface
 from core.configoption import ConfigOption
@@ -64,6 +64,9 @@ class PIFOC(Base, MotorInterface):
             self._axis_label = self.axes[0]  # axes is actuallly a list of length 1
             self._axis_ID = self.pidevice.GetID()
             self.log.info(f'available axis: {self._axis_label}, ID: {self._axis_ID}')
+
+            pitools.startup(self.pidevice)
+
         except Exception as e:
             self.log.error(f'Physik Instrumente PIFOC: Connection failed: {e}.')
 
@@ -109,6 +112,7 @@ class PIFOC(Base, MotorInterface):
             # potentially a list of axes. real case: list of length 1 because pifoc only has one axis
             # in case a longer param_dict is given, only the entry with the right axis label will be considered
             (axis, step) = param_dict.popitem()
+            step = np.round(step, decimals=3)
             if axis in self.axes:
                 cur_pos = position[axis]  # returns just the float value of the axis
                 # check if the position stays in allowed range after movement
@@ -136,6 +140,7 @@ class PIFOC(Base, MotorInterface):
 
         for i in range(len(param_dict)):  # potentially a list of axes. real case: list of length 1 because pifoc only has one axis
             (axis, target) = param_dict.popitem()
+            target = np.round(target, decimals=3)
             # self.log.info(f'axis: {axis}; target: {target}')
             if axis in self.axes and constraints[axis]['pos_min'] <= target <= constraints[axis]['pos_max']:  # control if the right axis is addressed
                 self.pidevice.MOV(axis, target)  # MOV has no return value
