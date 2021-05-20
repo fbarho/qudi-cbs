@@ -206,18 +206,25 @@
     <layout class="QGridLayout" name="gridLayout_2">
      <item row="0" column="0">
       <layout class="QGridLayout" name="gridLayout_8">
-       <item row="7" column="1">
-        <widget class="QLabel" name="slope_Label">
-         <property name="text">
-          <string>Slope</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignCenter</set>
-         </property>
-        </widget>
-       </item>
        <item row="7" column="0">
         <widget class="QLineEdit" name="slope_lineEdit"/>
+       </item>
+       <item row="9" column="0">
+        <widget class="QLineEdit" name="setpoint_lineEdit"/>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <layout class="QVBoxLayout" name="verticalLayout_7">
+         <item>
+          <widget class="PlotWidget" name="calibration_PlotWidget"/>
+         </item>
+        </layout>
+       </item>
+       <item row="10" column="1">
+        <widget class="QPushButton" name="find_offset_PushButton">
+         <property name="text">
+          <string>Find offset</string>
+         </property>
+        </widget>
        </item>
        <item row="5" column="0" colspan="2">
         <widget class="QPushButton" name="calibration_PushButton">
@@ -229,32 +236,38 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0" colspan="2">
-        <layout class="QVBoxLayout" name="verticalLayout_7">
-         <item>
-          <widget class="PlotWidget" name="calibration_PlotWidget"/>
-         </item>
-        </layout>
-       </item>
-       <item row="8" column="1">
+       <item row="9" column="1">
         <widget class="QPushButton" name="setpoint_PushButton">
          <property name="text">
           <string>Define setpoint</string>
          </property>
         </widget>
        </item>
-       <item row="8" column="0">
-        <widget class="QLineEdit" name="setpoint_lineEdit"/>
-       </item>
-       <item row="9" column="1">
-        <widget class="QPushButton" name="find_offset_PushButton">
+       <item row="7" column="1">
+        <widget class="QLabel" name="slope_Label">
          <property name="text">
-          <string>Find offset</string>
+          <string>Slope</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
-       <item row="9" column="0">
+       <item row="10" column="0">
         <widget class="QLineEdit" name="offset_lineEdit"/>
+       </item>
+       <item row="8" column="1">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Precision</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QLineEdit" name="precision_lineEdit"/>
        </item>
       </layout>
      </item>
