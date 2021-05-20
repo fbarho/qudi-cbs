@@ -61,6 +61,7 @@ class AutofocusLogic(GenericLogic):
     # camera attributes
     _exposure = ConfigOption('exposure', 0.001, missing='warn')
     _camera_acquiring = False
+    _threshold = None  # for compatibility with focus logic, not used
 
     # autofocus attributes
     _focus_offset = ConfigOption('focus_offset', 0, missing='warn')
@@ -156,7 +157,6 @@ class AutofocusLogic(GenericLogic):
         else:
             return pid_output
 
-    # fpga only
     def check_stabilization(self):
         """ Check for the stabilization of the focus
         """
