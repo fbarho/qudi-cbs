@@ -68,8 +68,23 @@ class Task(InterruptableTask):
         self.ref['valves'].set_valve_position('c', 2)
         self.ref['valves'].wait_for_idle()
 
+        # position the needle in the probe in case a probe is injected
+        if 'Probe' in self.buffer_dict.values():
+            # control if experiment can be started : origin defined in position logic ?
+            if not self.ref['pos'].origin:
+                self.log.warning(
+                    'No position 1 defined for injections. Experiment can not be started. Please define position 1')
+                return
+            # position the needle in the probe
+            self.ref['pos'].start_move_to_target(self.probe_list[0][0])
+
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
+        if 'Probe' in self.buffer_dict.values():
+            # go directly to cleanupTask if position 1 is not defined
+            if not self.ref['pos'].origin:
+                return False
+
         print(f'step: {self.step_counter+1}')
 
         if self.hybridization_list[self.step_counter]['product'] is not None:  # an injection step
@@ -159,10 +174,12 @@ class Task(InterruptableTask):
             with open(self.injections_path, 'r') as stream:
                 documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
                 buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+                probe_dict = documents['probes']  # example {1: 'DAPI'}, probe_dict can be empty or should contain at maximum one entry for the fluidics task (only 1 positioning step of the needle is performed)
                 self.hybridization_list = documents['hybridization list']
 
             # invert the buffer dict to address the valve by the product name as key
             self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+            self.probe_list = sorted(probe_dict)
 
         except Exception as e:
             self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
