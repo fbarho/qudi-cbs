@@ -32,28 +32,27 @@ from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
+class WorkerSignals(QtCore.QObject):
+    """ Defines the signals available from a running worker thread """
 
-# class WorkerSignals(QtCore.QObject):
-#     """ Defines the signals available from a running worker thread """
-#
-#     sigFinished = QtCore.Signal()
-#
-#
-# class Worker(QtCore.QRunnable):
-#     """ Worker thread to monitor the camera temperature every 5 seconds
-#
-#     The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
-#     display """
-#
-#     def __init__(self, *args, **kwargs):
-#         super(Worker, self).__init__()
-#         self.signals = WorkerSignals()
-#
-#     @QtCore.Slot()
-#     def run(self):
-#         """ """
-#         sleep(5)
-#         self.signals.sigFinished.emit()
+    sigFinished = QtCore.Signal()
+
+
+class LiveImageWorker(QtCore.QRunnable):
+    """ Worker thread to update the live image at the desired frame rate
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
+
+    def __init__(self, time_constant):
+        super(LiveImageWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.time_constant = time_constant
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(self.time_constant)
+        self.signals.sigFinished.emit()
 
 
 class CameraLogic(GenericLogic):
@@ -86,7 +85,7 @@ class CameraLogic(GenericLogic):
     sigDisableCameraActions = QtCore.Signal()
     sigEnableCameraActions = QtCore.Signal()
 
-    timer = None
+    # timer = None
 
     enabled = False  # indicates if the camera is currently acquiring data
     saving = False # indicates if the camera is currently saving a movie
@@ -108,8 +107,7 @@ class CameraLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        # uncomment if needed (for worker thread - temperature monitoring)
-        # self.threadpool = QtCore.QThreadPool()
+        self.threadpool = QtCore.QThreadPool()
 
         # uncomment if needed:
         # self.threadlock = Mutex()
@@ -132,9 +130,9 @@ class CameraLogic(GenericLogic):
         self.get_temperature()
 
         # timer is used for refreshing the display of the camera image at rate fps
-        self.timer = QtCore.QTimer()
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.loop)
+        # self.timer = QtCore.QTimer()
+        # self.timer.setSingleShot(True)
+        # self.timer.timeout.connect(self.loop)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -295,7 +293,10 @@ class CameraLogic(GenericLogic):
         """ Start the live display loop.
         """
         self.enabled = True
-        self.timer.start(1000*1/self._fps)
+        # self.timer.start(1000*1/self._fps)
+        worker = LiveImageWorker(1/self._fps)
+        worker.signals.sigFinished.connect(self.loop)
+        self.threadpool.start(worker)
 
         if self._hardware.support_live_acquisition():
             self._hardware.start_live_acquisition()
@@ -305,7 +306,7 @@ class CameraLogic(GenericLogic):
     def stop_loop(self):
         """ Stop the live display loop.
         """
-        self.timer.stop()
+        # self.timer.stop()
         self.enabled = False
         self._hardware.stop_acquisition()
         self.sigVideoFinished.emit()
@@ -316,7 +317,11 @@ class CameraLogic(GenericLogic):
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
         if self.enabled:
-            self.timer.start(1000 * 1 / self._fps) 
+            # self.timer.start(1000 * 1 / self._fps)
+            worker = LiveImageWorker(1/self._fps)
+            worker.signals.sigFinished.connect(self.loop)
+            self.threadpool.start(worker)
+
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
 
@@ -417,7 +422,7 @@ class CameraLogic(GenericLogic):
                 #leave the default value True when function is called from gui
         """
         if self.enabled:  # live mode is on
-            self.timer.stop()  # display is handled differently during video saving
+            # self.timer.stop()  # display is handled differently during video saving
             self._hardware.stop_acquisition()
             # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
 
@@ -484,7 +489,7 @@ class CameraLogic(GenericLogic):
         @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
         """
         if self.enabled:  # live mode is on
-            self.timer.stop()  # display is handled differently during video saving
+            # self.timer.stop()  # display is handled differently during video saving
             self._hardware.stop_acquisition()
             # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
 
@@ -720,7 +725,7 @@ class CameraLogic(GenericLogic):
         if self.enabled:  # live mode is on
 #            self.interrupt_live()  # interrupt live to allow access to camera settings
             # new version to avoid display problem 
-            self.timer.stop() 
+            # self.timer.stop()
             self._hardware.stop_acquisition()
 
         err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
@@ -736,7 +741,7 @@ class CameraLogic(GenericLogic):
     def reset_sensor_region(self):
         """ reset to full sensor size """
         if self.enabled:  # live mode is on
-            self.timer.stop() 
+            # self.timer.stop()
             self._hardware.stop_acquisition()  # interrupt live to allow access to camera settings
             
         width = self._hardware._full_width  # store the full_width in the hardware module because _width is
