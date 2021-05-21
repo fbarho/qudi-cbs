@@ -14,6 +14,7 @@ Config example pour copy-paste:
         module: 'HiM_task_dummy'
         needsmodules:
             laser: 'lasercontrol_logic'
+            bf: 'brightfield_logic'  # needs to be connected to switch brightfield off at task start if left on
             cam: 'camera_logic'
             focus: 'focus_logic'
             roi: 'roi_logic'
@@ -65,8 +66,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].disable_camera_actions()
 
         self.ref['laser'].stop_laser_output()
-        self.ref['laser'].disable_laser_actions()
-        # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
+        self.ref['bf'].led_off()
+        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
 
         self.ref['valves'].disable_valve_positioning()
         self.ref['flow'].disable_pressure_setting()
@@ -104,13 +105,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # info message
         self.probe_counter += 1
-        print(f'Probe number {self.probe_counter}')
-        self.log.info(f'Probe number {self.probe_counter}')
+        print(f'Probe number {self.probe_counter}: {self.probe_list[self.probe_counter-1][1]}')
+        self.log.info(f'Probe number {self.probe_counter}: {self.probe_list[self.probe_counter-1][1]}')
         if self.logging:
             add_log_entry(self.log_path, self.probe_counter, 0, f'Started cycle {self.probe_counter}', 'info')
 
         # position the needle in the probe
-        self.ref['pos'].start_move_to_target(self.probe_counter)
+        self.ref['pos'].start_move_to_target(self.probe_list[self.probe_counter-1][0])
 
         self.ref['pos'].disable_positioning_actions()  #
 
@@ -181,7 +182,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # iterate over all ROIs
         for item in self.roi_names:
             # create the save path for each roi ------------------------------------------------------------------------
-            cur_save_path = self.get_complete_path(self.directory, item, self.probe_dict[self.probe_counter])
+            cur_save_path = self.get_complete_path(self.directory, item, self.probe_list[self.probe_counter-1][1])
 
             # move to roi ----------------------------------------------------------------------------------------------
             self.ref['roi'].active_roi = None
@@ -307,7 +308,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if self.logging:
             add_log_entry(self.log_path, self.probe_counter, 0, f'Finished cycle {self.probe_counter}', 'info')
 
-        return self.probe_counter < len(self.probe_dict)
+        return self.probe_counter < len(self.probe_list)
 
     def pauseTask(self):
         """ """
@@ -385,15 +386,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def load_injection_parameters(self):
         """ """
-        with open(self.injections_path, 'r') as stream:
-            documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
-            buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
-            self.probe_dict = documents['probes']
-            self.hybridization_list = documents['hybridization list']
-            self.photobleaching_list = documents['photobleaching list']
+        try:
+            with open(self.injections_path, 'r') as stream:
+                documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
+                buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+                probe_dict = documents['probes']
+                self.hybridization_list = documents['hybridization list']
+                self.photobleaching_list = documents['photobleaching list']
 
-        # invert the buffer dict to address the valve by the product name as key
-        self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+            # invert the buffer dict to address the valve by the product name as key
+            self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+            # create a list out of probe_dict and order by ascending position (for example: probes in pos 2, 5, 6, 9, 10 is ok but not 10, 2, 5, 6, 9)
+            self.probe_list = sorted(probe_dict.items())
+
+        except Exception as e:
+            self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
 
     def calculate_start_position(self, centered_focal_plane):
         """
