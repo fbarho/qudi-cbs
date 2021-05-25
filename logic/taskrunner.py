@@ -349,6 +349,29 @@ class TaskRunner(GenericLogic):
         else:
             self.log.error('Task cannot be stopped: {0}'.format(task['name']))
 
+    def abortTaskByIndex(self, index):
+        """ Try aborting a task identified by its list index.
+
+        @param int index: index of task in task list
+        """
+        # print('abortTaskByIndex called')
+        task = self.model.storage[index.row()]
+        self.abortTask(task)
+
+    def abortTaskByName(self, taskname):
+        """ Try aborting a task identified by its configured name.
+
+        @param str name: name assigned to task
+        """
+        task = self.getTaskByName(taskname)
+        self.abortTask(task)
+
+    def abortTask(self, task):
+        if task['object'].can('abort'):
+            task['object'].abort()
+        else:
+            self.log.error('Task cannot be aborted: {0}'.format(task['name']))
+
     def getTaskByName(self, taskname):
         """ Get task dictionary for a given task name.
 

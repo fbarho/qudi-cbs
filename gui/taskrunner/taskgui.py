@@ -29,7 +29,7 @@ from qtpy import uic
 
 
 class TaskGui(GUIBase):
-    """ A grephical interface to mofe switches by hand and change their calibration.
+    """ A graphical interface to start, pause, stop and abort tasks.
     """
 
     # declare connectors
@@ -38,6 +38,7 @@ class TaskGui(GUIBase):
     sigRunTaskFromList = QtCore.Signal(QtCore.QModelIndex)
     sigPauseTaskFromList = QtCore.Signal(QtCore.QModelIndex)
     sigStopTaskFromList = QtCore.Signal(QtCore.QModelIndex)
+    sigAbortTaskFromList = QtCore.Signal(QtCore.QModelIndex)
 
     def on_activate(self):
         """Create all UI objects and show the window.
@@ -50,9 +51,13 @@ class TaskGui(GUIBase):
         self._mw.actionStart_Task.triggered.connect(self.manualStart)
         self._mw.actionPause_Task.triggered.connect(self.manualPause)
         self._mw.actionStop_Task.triggered.connect(self.manualStop)
+        self._mw.actionAbort_Task.triggered.connect(self.manualAbort)
         self.sigRunTaskFromList.connect(self.logic.startTaskByIndex)
         self.sigPauseTaskFromList.connect(self.logic.pauseTaskByIndex)
         self.sigStopTaskFromList.connect(self.logic.stopTaskByIndex)
+        self.sigAbortTaskFromList.connect(self.logic.abortTaskByIndex, QtCore.Qt.DirectConnection)
+        # using a direct connection here enables modification of the aborted class attribute in generic_task even
+        # while the runTaskStep method runs.
         self.logic.model.dataChanged.connect(lambda i1, i2: self.setRunToolState(None, i1))
         self.show()
 
@@ -81,6 +86,11 @@ class TaskGui(GUIBase):
         selected = self._mw.taskTableView.selectedIndexes()
         if len(selected) >= 1:
             self.sigStopTaskFromList.emit(selected[0])
+
+    def manualAbort(self):
+        selected = self._mw.taskTableView.selectedIndexes()
+        if len(selected) >= 1:
+            self.sigAbortTaskFromList.emit(selected[0])
 
     def setRunToolState(self, index, index2=None):
         selected = self._mw.taskTableView.selectedIndexes()

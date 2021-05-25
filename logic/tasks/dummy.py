@@ -33,12 +33,20 @@ class Task(InterruptableTask):
         """ Dummy start """
         print('Start')
         self.ctr = 0
+        self._result = '{0} lines printed!'.format(self.ctr)
 
     def runTaskStep(self):
         """ Dummy step """
-        time.sleep(0.1)
-        print('one task step', self.ctr)
-        self.ctr += 1
+
+        if not self.aborted:
+            time.sleep(0.5)
+            print('one task step', self.ctr)
+        if not self.aborted:
+            time.sleep(5)
+        if not self.aborted:
+            print('still in the task step', self.ctr)
+            time.sleep(0.1)
+            self.ctr += 1
         self._result = '{0} lines printed!'.format(self.ctr)
         return self.ctr < 50
 
