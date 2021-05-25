@@ -4,7 +4,7 @@ Created on Thu Mars 4 2021
 
 @author: fbarho
 
-This module contains the logic to control the positioning system for the merfish probes
+This module contains the logic to control the positioning system for the probes
 """
 from time import sleep
 from qtpy import QtCore
@@ -57,7 +57,7 @@ class zMoveWorker(QtCore.QRunnable):
 
 class PositioningLogic(GenericLogic):
     """
-    Class containing the logic to control the 3 axis positioning system for the merfish probes
+    Class containing the logic to control the 3 axis positioning system for the probes
 
     Example config for copy-paste:
 
@@ -78,7 +78,7 @@ class PositioningLogic(GenericLogic):
     # signals
     sigUpdatePosition = QtCore.Signal(tuple)  # send during movement to update coordinates on the GUI
     sigStageMoved = QtCore.Signal(tuple)  # new stage coordinates given  # tuple contains the new stage position (x, y, z)
-    sigStageMovedToTarget = QtCore.Signal(tuple, int)  # target position (number of merfish probe) given # tuple contains the new stage position (x, y, z), int is the target position
+    sigStageMovedToTarget = QtCore.Signal(tuple, int)  # target position (number of probe) given # tuple contains the new stage position (x, y, z), int is the target position
     sigOriginDefined = QtCore.Signal()
     sigStageStopped = QtCore.Signal(tuple)
     sigDisablePositioningActions = QtCore.Signal()
@@ -114,7 +114,7 @@ class PositioningLogic(GenericLogic):
         # connector
         self._stage = self.stage()
 
-        # calculate the merfish probe grid coordinates
+        # calculate the probe grid coordinates
         self._probe_coordinates_dict = self.position_to_coordinates()
 
     def on_deactivate(self):
@@ -122,7 +122,7 @@ class PositioningLogic(GenericLogic):
         pass
 
     def position_to_coordinates(self):
-        """ This method generates a mapping of merfish probe positions to x-y coordinates on a serpentine grid
+        """ This method generates a mapping of probe positions to x-y coordinates on a serpentine grid
         (just grid points, no metric coordinates):
         1: (0, 0), 2: (0, 1), 3: (0, 2), etc.. values in (x, y) order, y being the index that varies rapidly
         """
@@ -265,7 +265,7 @@ class PositioningLogic(GenericLogic):
         Then, z is moved to its specified value.
         Emits a signal when finished and sends the new position and the reached target number
 
-        @param: int target_position: number of the target merfish probe
+        @param: int target_position: number of the target probe
         """
         if not self.origin:
             self.log.warn('Move to target is not possible. Please define the origin')
@@ -307,7 +307,7 @@ class PositioningLogic(GenericLogic):
     def get_coordinates(self, target):
         """ This method returns the (x, y) grid coordinates associated to the target position
 
-        @param: int target: target position of the merfish probe
+        @param: int target: target position of the probe
         @returns: int tuple (x, y)
         """
         return self._probe_coordinates_dict[target]
@@ -327,11 +327,11 @@ class PositioningLogic(GenericLogic):
         self.sigStageStopped.emit(pos)
 
     def set_origin(self, origin):
-        """ Defines the origin = the metric coordinates of the position1 of the grid with the merfish probes.
+        """ Defines the origin = the metric coordinates of the position1 of the grid with the probes.
         Sends a signal to indicate that the origin was set.
         """
         self.origin = origin
-        # create a dictionary that allows to access the position number of the merfish probe by its metric coordinates
+        # create a dictionary that allows to access the position number of the probe by its metric coordinates
         probe_xy_position_dict = {}
         for key in self._probe_coordinates_dict:
             x_pos = self._probe_coordinates_dict[key][0] * self.delta_x + self.origin[0] + self._probe_coordinates_dict[key][1] * -0.11
