@@ -349,7 +349,7 @@ class FluidicsGUI(GUIBase):
         self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
         self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
         self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
-        # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
+        # set the current position of the injections probe to its indicator if the stage coordinates correspond to a position
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
             self._mw.probe_position_LineEdit.setText(str(self._positioning_logic._probe_xy_position_dict[xy_pos]))

@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-A module for controlling a white light source
+Qudi-CBS
+
+A module for controlling a white light source.
+
+An extension to Qudi.
+
+@author: F. Barho
+-----------------------------------------------------------------------------------
 
 Qudi is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,6 +24,7 @@ along with Qudi. If not, see <http://www.gnu.org/licenses/>.
 
 Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
 
 from core.connector import Connector
@@ -27,6 +35,7 @@ from core.util.mutex import Mutex
 
 class BrightfieldLogic(GenericLogic):
     """
+    This module controls a white light source.
 
     Example config for copy-paste:
 
@@ -42,7 +51,8 @@ class BrightfieldLogic(GenericLogic):
     # signals
     sigBrightfieldStopped = QtCore.Signal()
 
-    enabled = False  # read from current value from hardware
+    # attributes
+    enabled = False
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -50,30 +60,39 @@ class BrightfieldLogic(GenericLogic):
         # threading  # might be needed here
         # self._threadlock = Mutex()
 
-
     def on_activate(self):
-        """ Initialisation performed during activation of the module.
-        """
+        """ Initialisation performed during activation of the module. """
         self._controller = self.controller()
-        # start with led off on start
+        # led off on start
         self.led_off()
 
     def on_deactivate(self):
+        """ Required deactivation steps. """
         self.led_off()
 
-    def led_control(self, intens):
+    def led_control(self, intensity):
+        """ Output an intensity to the lightsource controller.
+        :param float intensity: intensity value
+        """
         self.enabled = True
-        self._controller.led_control(intens)
+        self._controller.led_control(intensity)
 
     def led_off(self):
+        """ Switch off the light source. """
         self.enabled = False
         self._controller.led_control(0)
-        self.sigBrightfieldStopped.emit()  # emit this signal if led_off is programmatically called to reset GUI toolbutton state
+        self.sigBrightfieldStopped.emit()
+        # emit this signal if led_off is programmatically called to reset GUI toolbutton state
 
     def led_on_max(self):
+        """ Output the maximum intensity to the lightsource controller. """
         self.enabled = True
         self.led_control(99)
+        # value may need to be read from config is this should be used for another light source than the LED controlled by ASI stage
 
     def update_intensity(self, intensity):
+        """ Output a new intensity setting to the lightsource controller in case the source is in on-state.
+        :param float intensity: new intensity value
+        """
         if self.enabled:
             self.led_control(intensity)
