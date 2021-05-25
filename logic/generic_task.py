@@ -39,6 +39,7 @@ class TaskResult(QtCore.QObject):
         self.data = data
         self.success = success
 
+
 class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
     """ This class represents a task in a module that can be safely executed by checking preconditions
         and pausing other tasks that are being executed as well.
@@ -85,7 +86,8 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
                 'onrun': self._start,
                 'onpause': self._pause,
                 'onresume': self._resume,
-                'onfinish': self._finish
+                'onfinish': self._finish,
+                'onabort': self._abort
                 }
         _stateDict = {
             'initial': 'stopped',
@@ -100,7 +102,8 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
                 {'name': 'resumingFinished',    'src': 'resuming',  'dst': 'running'},
                 {'name': 'abort',               'src': 'pausing',   'dst': 'stopped'},
                 {'name': 'abort',               'src': 'starting',  'dst': 'stopped'},
-                {'name': 'abort',               'src': 'resuming',  'dst': 'stopped'}
+                {'name': 'abort',               'src': 'resuming',  'dst': 'stopped'},
+                {'name': 'abort',               'src': 'running',   'dst': 'stopped'}   # added FB
             ],
             'callbacks': default_callbacks
         }
@@ -117,6 +120,10 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         self.runner = runner
         self.ref = references
         self.config = config
+        self.aborted = False
+        # class attribute self.aborted switches to True if self._abort is called.
+        # This attribute needs to be read in the runTaskStep method of child classes of generic Task to stop execution
+        # of a task without waiting for runTaskStep to be finished.
 
         self.sigDoStart.connect(self._doStart, QtCore.Qt.QueuedConnection)
         self.sigDoPause.connect(self._doPause, QtCore.Qt.QueuedConnection)
@@ -130,7 +137,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         Returns a logger object
         """
         return logging.getLogger("{0}.{1}".format(
-            self.__module__,self.__class__.__name__))
+            self.__module__, self.__class__.__name__))
 
     def onchangestate(self, e):
         """ Fysom callback for state transition.
@@ -145,11 +152,12 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
 
           @return bool: True if task was started, False otherwise
         """
+        self.aborted = False
         self.result = TaskResult()
         if self.checkStartPrerequisites():
-            #print('_run', QtCore.QThread.currentThreadId(), self.current)
+            # print('_run', QtCore.QThread.currentThreadId(), self.current)
             self.sigDoStart.emit()
-            #print('_runemit', QtCore.QThread.currentThreadId(), self.current)
+            # print('_runemit', QtCore.QThread.currentThreadId(), self.current)
             return True
         else:
             return False
@@ -158,7 +166,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         """ Starting prerequisites were met, now do the actual start action.
         """
         try:
-            #print('dostart', QtCore.QThread.currentThreadId(), self.current)
+            # print('dostart', QtCore.QThread.currentThreadId(), self.current)
             self.runner.pausePauseTasks(self)
             self.runner.preRunPPTasks(self)
             self.startTask()
@@ -174,16 +182,39 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         """ Check for state transitions to pause or stop and execute one step of the task work function.
         """
         try:
-            if self.runTaskStep():
-                if self.isstate('pausing') and self.checkPausePrerequisites():
-                    self.sigDoPause.emit()
-                elif self.isstate('finishing'):
-                    self.sigDoFinish.emit()
-                else:
-                    self.sigNextTaskStep.emit()
-            else:
-                self.finish()
+            # new version FB.
+            # Check state transition before doing the next taskstep.
+            # This allows to pause / stop after the task step during which pause / stop was called.
+            if self.isstate('stopped'):
+                pass
+
+            elif self.isstate('pausing') and self.checkPausePrerequisites():
+                self.sigDoPause.emit()
+
+            elif self.isstate('finishing'):
                 self.sigDoFinish.emit()
+
+            else:
+                if self.runTaskStep():
+                    self.sigNextTaskStep.emit()
+                else:
+                    self.finish()
+                    self.sigDoFinish.emit()
+
+            ##########################
+            # version from original Qudi. When pause / stop is called, the current task step as well as the following one
+            # will be completed before transitioning to pause / stop.
+
+            # if self.runTaskStep():
+            #     if self.isstate('pausing') and self.checkPausePrerequisites():
+            #         self.sigDoPause.emit()
+            #     elif self.isstate('finishing'):
+            #         self.sigDoFinish.emit()
+            #     else:
+            #         self.sigNextTaskStep.emit()
+            # else:
+            #     self.finish()
+            #     self.sigDoFinish.emit()
         except Exception as e:
             self.log.exception('Exception during task step {0}. {1}'.format(
                 self.name, e))
@@ -205,8 +236,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
             self.pausingFinished()
             self.sigPaused.emit()
         except Exception as e:
-            self.log.exception('Exception while pausing task {}. '
-                    '{}'.format(self.name, e))
+            self.log.exception('Exception while pausing task {}. {}'.format(self.name, e))
             self.result.update(None, False)
 
     def _resume(self, e):
@@ -224,8 +254,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
             self.sigResumed.emit()
             self.sigNextTaskStep.emit()
         except Exception as e:
-            self.log.exception('Exception while resuming task {}. '
-                    '{}'.format(self.name, e))
+            self.log.exception('Exception while resuming task {}. {}'.format(self.name, e))
             self.result.update(None, False)
 
     def _finish(self, e):
@@ -242,15 +271,32 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         self.finishingFinished()
         self.sigFinished.emit()
 
+    def _abort(self, e):
+        """ Abort a task by setting the class attribute aborted to True and doing the necessary steps to end the task
+        (contained in the reimplemented function cleanupTask of the child class).
+        In order to make the abort routine work properly, the value of self.aborted must be read regularly
+        during the runTaskStep method of the child class and cleanupTask should contain all necessary steps to clean up
+        a started process.
+        """
+        self.aborted = True
+        self.log.info('Task aborted')
+        self.cleanupTask()
+        self.sigFinished.emit()
+        # for debugging:
+        # stopped = self.isstate('stopped')
+        # paused = self.isstate('paused')
+        # running = self.isstate('running')
+        # print(f'stopped: {stopped}, paused: {paused}, running: {running}')
+
     def checkStartPrerequisites(self):
         """ Check whether this task can be started by checking if all tasks to be paused are either stopped or can be paused.
             Also check custom prerequisites.
 
-          @return bool: True if task can be stated, False otherwise
+            @return bool: True if task can be stated, False otherwise
         """
         for task in self.prePostTasks:
-            if not ( isinstance(self.prePostTasks[task], PrePostTask) and self.prePostTasks[task].can('prerun') ):
-                self.log('Cannot start task {0} as pre/post task {1} is not in a state to run.'.format(self.name, task), msgType='error')
+            if not (isinstance(self.prePostTasks[task], PrePostTask) and self.prePostTasks[task].can('prerun')):
+                self.log.error('Cannot start task {0} as pre/post task {1} is not in a state to run.'.format(self.name, task))
                 return False
         for task in self.pauseTasks:
             if not (isinstance(self.pauseTasks[task], InterruptableTask)
@@ -258,7 +304,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
                         self.pauseTasks[task].can('pause')
                         or self.pauseTasks[task].isstate('stopped')
                     )):
-                self.log('Cannot start task {0} as interruptable task {1} is not stopped or able to pause.'.format(self.name, task), msgType='error')
+                self.log.error('Cannot start task {0} as interruptable task {1} is not stopped or able to pause.'.format(self.name, task))
                 return False
         if not self.checkExtraStartPrerequisites():
             return False
@@ -275,12 +321,10 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
 
     def checkPausePrerequisites(self):
         """ Check if task is allowed to pause based on external state."""
-
         try:
             return self.checkExtraPausePrerequisites()
         except Exception as e:
-            self.log.exception('Exception while checking pause '
-                    'prerequisites for task {}. {}'.format(self.name, e))
+            self.log.exception('Exception while checking pause prerequisites for task {}. {}'.format(self.name, e))
             return False
 
     def checkExtraPausePrerequisites(self):
@@ -326,6 +370,7 @@ class InterruptableTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
             It is called after a task has finished.
         """
         pass
+
 
 class PrePostTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
     """ Represents a task that creates the necessary conditions for a different task
@@ -373,7 +418,7 @@ class PrePostTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
         Returns a logger object
         """
         return logging.getLogger("{0}.{1}".format(
-            self.__module__,self.__class__.__name__))
+            self.__module__, self.__class__.__name__))
 
     def onchangestate(self, e):
         """ Fysom callback for all state transitions.
@@ -424,4 +469,3 @@ class PrePostTask(QtCore.QObject, Fysom, metaclass=TaskMetaclass):
                 self.name, e))
 
         self.sigPostExecFinish.emit()
-
