@@ -56,20 +56,15 @@ class Task(InterruptableTask):
 
         # disable actions on Fluidics GUI (except from measurement mode)
         self.ref['valves'].disable_valve_positioning()
-        self.ref['flow'].disable_pressure_setting()
+        self.ref['flow'].disable_flowcontrol_actions()
         self.ref['pos'].disable_positioning_actions()
 
         # load user parameters
         self.load_user_parameters()
         self.step_counter = 0
 
-        self.ref['valves'].set_valve_position('b', 2)
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('c', 2)
-        self.ref['valves'].wait_for_idle()
-
         # position the needle in the probe in case a probe is injected
-        if 'Probe' in self.buffer_dict.values():
+        if 'Probe' in self.buffer_dict.keys():
             # control if experiment can be started : origin defined in position logic ?
             if not self.ref['pos'].origin:
                 self.log.warning(
@@ -78,9 +73,14 @@ class Task(InterruptableTask):
             # position the needle in the probe
             self.ref['pos'].start_move_to_target(self.probe_list[0][0])
 
+        self.ref['valves'].set_valve_position('b', 2)
+        self.ref['valves'].wait_for_idle()
+        self.ref['valves'].set_valve_position('c', 2)
+        self.ref['valves'].wait_for_idle()
+
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
-        if 'Probe' in self.buffer_dict.values():
+        if 'Probe' in self.buffer_dict.keys():
             # go directly to cleanupTask if position 1 is not defined
             if not self.ref['pos'].origin:
                 return False
@@ -132,12 +132,6 @@ class Task(InterruptableTask):
 
     def cleanupTask(self):
         """ Cleanup """
-
-        # enable actions on Fluidics GUI
-        self.ref['valves'].enable_valve_positioning()
-        self.ref['flow'].enable_pressure_setting()
-        self.ref['pos'].enable_positioning_actions()
-
         self.ref['flow'].set_pressure(0.0)
         self.ref['valves'].set_valve_position('b', 1)
         self.ref['valves'].wait_for_idle()
@@ -145,6 +139,11 @@ class Task(InterruptableTask):
         self.ref['valves'].wait_for_idle()
         self.ref['valves'].set_valve_position('c', 1)
         self.ref['valves'].wait_for_idle()
+
+        # enable actions on Fluidics GUI
+        self.ref['valves'].enable_valve_positioning()
+        self.ref['flow'].enable_flowcontrol_actions()
+        self.ref['pos'].enable_positioning_actions()
 
         self.log.info('Cleanup task finished')
 
@@ -179,7 +178,7 @@ class Task(InterruptableTask):
 
             # invert the buffer dict to address the valve by the product name as key
             self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
-            self.probe_list = sorted(probe_dict)
+            self.probe_list = sorted(probe_dict.items())
 
         except Exception as e:
             self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
