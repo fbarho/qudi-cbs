@@ -182,7 +182,7 @@ class FluidicsGUI(GUIBase):
         self.pressure_data = []
         # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
         self._mw.flowrate_PlotWidget.setLabel('left', 'Flowrate', units='ul/min')
-        # self._mw.flowrate_PlotWidget.setLabel('left', 'Pressure', units='mbar/1000')
+        # self._mw.flowrate_PlotWidget.setLabel('left', 'Pressure', units='mbar')
         self._mw.flowrate_PlotWidget.setLabel('bottom', 'Time', units='s')
         self._mw.flowrate_PlotWidget.addLegend()
         self._flowrate_timetrace = self._mw.flowrate_PlotWidget.plot(self.flowrate_data, pen=(255, 0, 0), name='flowrate')
@@ -217,8 +217,8 @@ class FluidicsGUI(GUIBase):
         self._flow_logic.sigUpdateVolumeMeasurement.connect(self.update_volume_and_time)
         self._flow_logic.sigTargetVolumeReached.connect(self.reset_volume_measurement_button)
         self._flow_logic.sigRinsingFinished.connect(self.reset_rinsing_action_button)
-        self._flow_logic.sigDisablePressureAction.connect(self.disable_set_pressure_button)
-        self._flow_logic.sigEnablePressureAction.connect(self.enable_set_pressure_button)
+        self._flow_logic.sigDisableFlowActions.connect(self.disable_flowcontrol_buttons)
+        self._flow_logic.sigEnableFlowActions.connect(self.enable_flowcontrol_buttons)
 
     def init_positioning(self):
         """ Initialize the indicators on the positioning dockwidget and the toolbar actions. """
@@ -472,7 +472,7 @@ class FluidicsGUI(GUIBase):
         # self.flowrate_data[:-1] = self.flowrate_data[1:]  # shift data one position to the left ..
         # self.flowrate_data[-1] = flowrate
         self.flowrate_data.append(flowrate)
-        self.pressure_data.append(pressure * 1000)  # to make it the same order of magnitude as typical flowrates to avoid having to set up 2 y axes
+        self.pressure_data.append(pressure)
 
         # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
         self._flowrate_timetrace.setData(self.flowrate_data)
@@ -530,16 +530,22 @@ class FluidicsGUI(GUIBase):
         self._mw.rinsing_Action.setChecked(False)
         self._mw.rinsing_time_SpinBox.setDisabled(False)
 
-# maybe disable also the start rinsing button
     @QtCore.Slot()
-    def disable_set_pressure_button(self):
-        """ Disables set pressure toolbutton, to be used for example during tasks. """
+    def disable_flowcontrol_buttons(self):
+        """ Disables set pressure toolbutton, start volume measurement toolbutton and start rinsing toolbutton,
+        to be used for example during tasks. """
         self._mw.set_pressure_Action.setDisabled(True)
+        self._mw.volume_measurement_Action.setDisabled(True)
+        self._mw.rinsing_Action.setDisabled(True)
+        self._mw.target_volume_SpinBox.hide()
 
     @QtCore.Slot()
-    def enable_set_pressure_button(self):
-        """ Enables set pressure toolbutton. """
+    def enable_flowcontrol_buttons(self):
+        """ Enables flowcontrol toolbuttons. """
         self._mw.set_pressure_Action.setDisabled(False)
+        self._mw.volume_measurement_Action.setDisabled(False)
+        self._mw.rinsing_Action.setDisabled(False)
+        self._mw.target_volume_SpinBox.setVisible(True)
 
 
     # slots related to valve dockwidget
