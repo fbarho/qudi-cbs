@@ -121,7 +121,7 @@ class FocusGUI(GUIBase):
         # data for timetrace initialization
         self.y_data = np.zeros(100)
         # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
-        self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data)
+        self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data, pen=(0, 255, 0))
 
         # toolbutton state
         self._mw.piezo_init_Action.setChecked(False)
