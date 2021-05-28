@@ -98,8 +98,10 @@ class FlowcontrolLogic(GenericLogic):
     sigUpdateVolumeMeasurement = QtCore.Signal(int, int)
     sigTargetVolumeReached = QtCore.Signal()
     sigRinsingFinished = QtCore.Signal()
-    sigDisablePressureAction = QtCore.Signal()
-    sigEnablePressureAction = QtCore.Signal()
+    # sigDisablePressureAction = QtCore.Signal()
+    # sigEnablePressureAction = QtCore.Signal()
+    sigDisableFlowActions = QtCore.Signal()
+    sigEnableFlowActions = QtCore.Signal()
 
     # attributes
     measuring_flowrate = False
@@ -353,13 +355,23 @@ class FlowcontrolLogic(GenericLogic):
         self.sigRinsingFinished.emit()
 
 
-    def disable_pressure_setting(self):
-        """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
-        self.sigDisablePressureAction.emit()
+    # def disable_pressure_setting(self):
+    #     """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
+    #     self.sigDisablePressureAction.emit()
+    #
+    # def enable_pressure_setting(self):
+    #     """ This method resets set pressure button on GUI to callable state, for example after Tasks. """
+    #     self.sigEnablePressureAction.emit()
 
-    def enable_pressure_setting(self):
-        """ This method resets set pressure button on GUI to callable state, for example after Tasks. """
-        self.sigEnablePressureAction.emit()
+
+    def disable_flowcontrol_actions(self):
+        """ This method provides a security to avoid using the set pressure, start volume measurement and start rinsing
+        button on GUI, for example during Tasks. """
+        self.sigDisableFlowActions.emit()
+
+    def enable_flowcontrol_actions(self):
+        """ This method resets flowcontrol action buttons on GUI to callable state, for example after Tasks. """
+        self.sigEnableFlowActions.emit()
 
 
 
