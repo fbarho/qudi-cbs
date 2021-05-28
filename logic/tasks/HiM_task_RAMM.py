@@ -48,9 +48,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
         # for logging:
-        self.status_dict_path = 'C:/Users/sCMOS-1/hi_m_log/current_status.yaml'    # maybe read from config
-        self.log_path = 'C:/Users/sCMOS-1/hi_m_log/log_hi_m.csv'   # maybe read from config
-        self.logging = False
+        self.status_dict_path = 'Z:/DATA/JB/hi_m_log/current_status.yaml'    # maybe read from config
+        self.log_path = 'Z:/DATA/JB/hi_m_log/log_hi_m.csv'   # maybe read from config
+        self.logging = True
 
     def startTask(self):
         """ """
@@ -77,7 +77,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
 
         self.ref['valves'].disable_valve_positioning()
-        self.ref['flow'].disable_pressure_setting()
+        self.ref['flow'].disable_flowcontrol_actions()
         self.ref['pos'].disable_positioning_actions()
 
         # control if experiment can be started : origin defined in position logic ?
@@ -235,7 +235,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
                 # create the save path for each roi --------------------------------------------------------------------
                 cur_save_path = self.get_complete_path(self.directory, item, self.probe_list[self.probe_counter - 1][1])
-                self.log.info(f'current save path: {cur_save_path}')
 
                 # move to roi ------------------------------------------------------------------------------------------
                 self.ref['roi'].active_roi = None
@@ -469,7 +468,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
         self.ref['valves'].enable_valve_positioning()
-        self.ref['flow'].enable_pressure_setting()
+        self.ref['flow'].enable_flowcontrol_actions()
         self.ref['pos'].enable_positioning_actions()
 
         total = time.time() - self.start
