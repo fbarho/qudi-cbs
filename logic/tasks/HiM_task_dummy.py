@@ -14,6 +14,7 @@ Config example pour copy-paste:
         module: 'HiM_task_dummy'
         needsmodules:
             laser: 'lasercontrol_logic'
+            bf: 'brightfield_logic'  # needs to be connected to switch brightfield off at task start if left on
             cam: 'camera_logic'
             focus: 'focus_logic'
             roi: 'roi_logic'
@@ -29,6 +30,7 @@ import numpy as np
 import pandas as pd
 import os
 import time
+from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -44,13 +46,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
-        self.log_path = '/home/barho/log_for_hi_m_dummy_task.csv'
-        self.logging = False
+        # for logging:
+        self.status_dict_path = '/home/barho/hi_m_log/current_status.yaml'
+        self.log_path = '/home/barho/hi_m_log/log_for_hi_m_dummy_task.csv'
+        self.logging = True
 
     def startTask(self):
         """ """
         self.start = time.time()
         if self.logging:
+            # initialize the status dict yaml file
+            self.status_dict = {'cycle_no': None, 'process': None, 'start_time': self.start, 'cycle_start_time': None}
+            write_status_dict_to_file(self.status_dict_path, self.status_dict)
             # initialize the log file
             log = {'timestamp': [], 'cycle_no': [], 'process': [], 'event': [], 'level': []}
             df = pd.DataFrame(log, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
@@ -65,8 +72,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].disable_camera_actions()
 
         self.ref['laser'].stop_laser_output()
-        self.ref['laser'].disable_laser_actions()
-        # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
+        self.ref['bf'].led_off()
+        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
 
         self.ref['valves'].disable_valve_positioning()
         self.ref['flow'].disable_pressure_setting()
@@ -102,212 +109,247 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if not self.ref['pos'].origin:
             return False
 
-        # info message
-        self.probe_counter += 1
-        print(f'Probe number {self.probe_counter}')
-        self.log.info(f'Probe number {self.probe_counter}')
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 0, f'Started cycle {self.probe_counter}', 'info')
+        if not self.aborted:   # need to add regularly check if the aborted variable was set to True
+            now = time.time()
+            # info message
+            self.probe_counter += 1
+            self.log.info(f'Probe number {self.probe_counter}: {self.probe_list[self.probe_counter-1][1]}')
+            if self.logging:
+                self.status_dict['cycle_no'] = self.probe_counter
+                self.status_dict['cycle_start_time'] = now
+                write_status_dict_to_file(self.status_dict_path, self.status_dict)
+                add_log_entry(self.log_path, self.probe_counter, 0, f'Started cycle {self.probe_counter}', 'info')
 
-        # position the needle in the probe
-        self.ref['pos'].start_move_to_target(self.probe_counter)
-
-        self.ref['pos'].disable_positioning_actions()  #
+            # position the needle in the probe
+            self.ref['pos'].start_move_to_target(self.probe_list[self.probe_counter-1][0])
+            self.ref['pos'].disable_positioning_actions()  # to disable again the move stage button
 
         # ------------------------------------------------------------------------------------------
         # Hybridization
         # ------------------------------------------------------------------------------------------
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 1, 'Started Hybridization', 'info')
-        # position the valves for hybridization sequence
-        self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('c', 2)  # Syringe valve: towards pump
-        self.ref['valves'].wait_for_idle()
-
-        # iterate over the steps in the hybridization sequence
-        for step in range(len(self.hybridization_list)):
-            print(f'Hybridisation step {step+1}')
-            self.log.info(f'Hybridisation step {step+1}')
+        if not self.aborted:
             if self.logging:
-                add_log_entry(self.log_path, self.probe_counter, 1, f'Started injection {step + 1}')
+                self.status_dict['process'] = 'Hybridization'
+                write_status_dict_to_file(self.status_dict_path, self.status_dict)
+                add_log_entry(self.log_path, self.probe_counter, 1, 'Started Hybridization', 'info')
 
-            if self.hybridization_list[step]['product'] is not None:  # an injection step
-                # set the 8 way valve to the position corresponding to the product
-                product = self.hybridization_list[step]['product']
-                valve_pos = self.buffer_dict[product]
-                self.ref['valves'].set_valve_position('a', valve_pos)
-                self.ref['valves'].wait_for_idle()
+            # position the valves for hybridization sequence
+            self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('c', 2)  # Syringe valve: towards pump
+            self.ref['valves'].wait_for_idle()
 
-                print(f'Injection of {product} ... ')
-                self.log.info(f'Injection of {product} ... ')
-                time.sleep(1)
+            # iterate over the steps in the hybridization sequence
+            for step in range(len(self.hybridization_list)):
+                if self.aborted:
+                    break
 
-                # add here simulated data for pressure value and total volume
+                self.log.info(f'Hybridisation step {step+1}')
+                if self.logging:
+                    add_log_entry(self.log_path, self.probe_counter, 1, f'Started injection {step + 1}')
 
-            else:  # an incubation step
-                t = self.hybridization_list[step]['time']
-                print(f'Incubation time.. {t} s')
-                self.log.info(f'Incubation time.. {t} s')
-                self.ref['valves'].set_valve_position('c', 1)
-                self.ref['valves'].wait_for_idle()
-                time.sleep(self.hybridization_list[step]['time'])
-                # maybe it is better to split into small intervals to keep the thread responsive ?????
-                self.ref['valves'].set_valve_position('c', 2)
-                self.ref['valves'].wait_for_idle()
-                print('Incubation time finished')
-                self.log.info('Incubation time finished')
+                if self.hybridization_list[step]['product'] is not None:  # an injection step
+                    # set the 8 way valve to the position corresponding to the product
+                    product = self.hybridization_list[step]['product']
+                    valve_pos = self.buffer_dict[product]
+                    self.ref['valves'].set_valve_position('a', valve_pos)
+                    self.ref['valves'].wait_for_idle()
+
+                    self.log.info(f'Injection of {product} ... ')
+                    time.sleep(1)
+
+                    # add here simulated data for pressure value and total volume
+
+                else:  # an incubation step
+                    t = self.hybridization_list[step]['time']
+                    self.log.info(f'Incubation time.. {t} s')
+                    self.ref['valves'].set_valve_position('c', 1)
+                    self.ref['valves'].wait_for_idle()
+
+                    # allow abort by splitting the waiting time into small intervals of 30 s
+                    num_steps = t // 30
+                    remainder = t % 30
+                    for i in range(num_steps):
+                        if not self.aborted:
+                            time.sleep(30)
+                    time.sleep(remainder)
+
+                    self.ref['valves'].set_valve_position('c', 2)
+                    self.ref['valves'].wait_for_idle()
+                    self.log.info('Incubation time finished')
+
+                if self.logging:
+                    add_log_entry(self.log_path, self.probe_counter, 1, f'Finished injection {step + 1}')
+
+            # set valves to default positions
+            self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
+            self.ref['valves'].wait_for_idle()
 
             if self.logging:
-                add_log_entry(self.log_path, self.probe_counter, 1, f'Finished injection {step + 1}')
-
-        # set valves to default positions
-        self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
-        self.ref['valves'].wait_for_idle()
-
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 1, 'Finished Hybridization', 'info')
+                add_log_entry(self.log_path, self.probe_counter, 1, 'Finished Hybridization', 'info')
         # Hybridization finished ---------------------------------------------------------------------------------------
 
         # ------------------------------------------------------------------------------------------
         # Imaging for all ROI
         # ------------------------------------------------------------------------------------------
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 2, 'Started Imaging', 'info')
-        # iterate over all ROIs
-        for item in self.roi_names:
-            # create the save path for each roi ------------------------------------------------------------------------
-            cur_save_path = self.get_complete_path(self.directory, item, self.probe_dict[self.probe_counter])
-
-            # move to roi ----------------------------------------------------------------------------------------------
-            self.ref['roi'].active_roi = None
-            self.ref['roi'].set_active_roi(name=item)
-            self.ref['roi'].go_to_roi()
-            self.log.info('Moved to {}'.format(item))
-            time.sleep(1)  # replace maybe by wait for idle
+        if not self.aborted:
             if self.logging:
-                add_log_entry(self.log_path, self.probe_counter, 2, f'Moved to {item}')
+                self.status_dict['process'] = 'Imaging'
+                write_status_dict_to_file(self.status_dict_path, self.status_dict)
+                add_log_entry(self.log_path, self.probe_counter, 2, 'Started Imaging', 'info')
+            # iterate over all ROIs
+            for item in self.roi_names:
+                if self.aborted:
+                    break
 
-            # autofocus ------------------------------------------------------------------------------------------------
-            # self.ref['focus'].search_focus()
-            reference_position = self.ref['focus'].get_position() + np.random.normal() # save it to go back to this plane after imaging
-            # for simulatied task only
-            self.ref['focus'].go_to_position(reference_position)
-            start_position = self.calculate_start_position(self.centered_focal_plane)
+                # create the save path for each roi ------------------------------------------------------------------------
+                cur_save_path = self.get_complete_path(self.directory, item, self.probe_list[self.probe_counter-1][1])
 
-            # imaging sequence -----------------------------------------------------------------------------------------
-            # self.ref['cam'].stop_acquisition()   # for safety
-            # self.ref['cam'].start_acquisition()
+                # move to roi ----------------------------------------------------------------------------------------------
+                self.ref['roi'].active_roi = None
+                self.ref['roi'].set_active_roi(name=item)
+                self.ref['roi'].go_to_roi()
+                self.log.info('Moved to {}'.format(item))
+                time.sleep(1)  # replace maybe by wait for idle
+                if self.logging:
+                    add_log_entry(self.log_path, self.probe_counter, 2, f'Moved to {item}')
 
-            z_target_positions = []
-            z_actual_positions = []
+                # autofocus ------------------------------------------------------------------------------------------------
+                # self.ref['focus'].search_focus()
+                reference_position = self.ref['focus'].get_position() + np.random.normal() # save it to go back to this plane after imaging
+                # for simulatied task only
+                self.ref['focus'].go_to_position(reference_position)
+                start_position = self.calculate_start_position(self.centered_focal_plane)
 
-            # iterate over all planes in z
-            for plane in range(self.num_z_planes):
-                print(f'plane number {plane + 1}')
+                # imaging sequence -----------------------------------------------------------------------------------------
+                # self.ref['cam'].stop_acquisition()   # for safety
+                # self.ref['cam'].start_acquisition()
 
-                # position the piezo
-                position = start_position + plane * self.z_step
-                self.ref['focus'].go_to_position(position)
-                print(f'target position: {position} um')
-                time.sleep(0.03)
-                cur_pos = self.ref['focus'].get_position()
-                print(f'current position: {cur_pos} um')
-                z_target_positions.append(position)
-                z_actual_positions.append(cur_pos)
+                z_target_positions = []
+                z_actual_positions = []
 
-            self.ref['focus'].go_to_position(reference_position)
+                # iterate over all planes in z
+                for plane in tqdm(range(self.num_z_planes)):
+                    # print(f'plane number {plane + 1}')
 
-            # data handling --------------------------------------------------------------------------------------------
-            image_data = np.random.normal(size=(self.num_frames, 125, 125))  # self.ref['cam'].get_acquired_data()
+                    # position the piezo
+                    position = start_position + plane * self.z_step
+                    self.ref['focus'].go_to_position(position)
+                    # print(f'target position: {position} um')
+                    time.sleep(0.03)
+                    cur_pos = self.ref['focus'].get_position()
+                    # print(f'current position: {cur_pos} um')
+                    z_target_positions.append(position)
+                    z_actual_positions.append(cur_pos)
 
-            if self.file_format == 'fits':
-                metadata = {} # self.get_fits_metadata()
-                self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
-            else:  # use tiff as default format
-                self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
-                metadata = self.get_metadata()
-                file_path = cur_save_path.replace('tiff', 'yaml', 1)
-                self.save_metadata_file(metadata, file_path)
-                # save file with z positions
+                self.ref['focus'].go_to_position(reference_position)
+
+                # data handling --------------------------------------------------------------------------------------------
+                image_data = np.random.normal(size=(self.num_frames, 125, 125))  # self.ref['cam'].get_acquired_data()
+
+                if self.file_format == 'fits':
+                    metadata = self.get_fits_metadata()
+                    self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
+                else:  # use tiff as default format
+                    self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
+                    metadata = self.get_metadata()
+                    file_path = cur_save_path.replace('tiff', 'yaml', 1)
+                    self.save_metadata_file(metadata, file_path)
+
+                # save file with z positions (same procedure for either file format)
                 file_path = os.path.join(os.path.split(cur_save_path)[0], 'z_positions.yaml')
                 self.save_z_positions_to_file(z_target_positions, z_actual_positions, file_path)
 
-            if self.logging:  # to modify: check if data saved correctly before writing this log entry
-                add_log_entry(self.log_path, self.probe_counter, 2, 'Image data saved', 'info')
+                if self.logging:  # to modify: check if data saved correctly before writing this log entry
+                    add_log_entry(self.log_path, self.probe_counter, 2, 'Image data saved', 'info')
 
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 2, 'Finished Imaging', 'info')
+            # go back to first ROI (to avoid a long displacement just before restarting imaging)
+            self.ref['roi'].set_active_roi(name=self.roi_names[0])
+            self.ref['roi'].go_to_roi_xy()
+
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 2, 'Finished Imaging', 'info')
         # Imaging (for all ROIs) finished ------------------------------------------------------------------------------
 
         # ------------------------------------------------------------------------------------------
         # Photobleaching
         # ------------------------------------------------------------------------------------------
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 3, 'Started Photobleaching', 'info')
-        # position the valves for photobleaching sequence
-        self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: inject probe
-        self.ref['valves'].wait_for_idle()
-        # to add: do the rinsing of the needle
-
-        self.ref['valves'].set_valve_position('c', 2)  # Syringe valve: towards pump
-        self.ref['valves'].wait_for_idle()
-
-        # iterate over the steps in the photobleaching sequence
-        for step in range(len(self.photobleaching_list)):
-            print(f'Photobleaching step {step+1}')
-            self.log.info(f'Photobleaching step {step+1}')
+        if not self.aborted:
             if self.logging:
-                add_log_entry(self.log_path, self.probe_counter, 3, f'Started injection {step + 1}')
+                self.status_dict['process'] = 'Photobleaching'
+                write_status_dict_to_file(self.status_dict_path, self.status_dict)
+                add_log_entry(self.log_path, self.probe_counter, 3, 'Started Photobleaching', 'info')
 
-            if self.photobleaching_list[step]['product'] is not None:  # an injection step
-                # set the 8 way valve to the position corresponding to the product
-                product = self.photobleaching_list[step]['product']
-                valve_pos = self.buffer_dict[product]
-                self.ref['valves'].set_valve_position('a', valve_pos)
-                self.ref['valves'].wait_for_idle()
+            # position the valves for photobleaching sequence
+            self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: rinse needle
+            self.ref['valves'].wait_for_idle()
+            # self.ref['daq'].start_rinsing(60)
 
-                print(f'Injection of {product} ... ')
-                self.log.info(f'Injection of {product} ... ')
-                time.sleep(1)
-                # add here simulated data for pressure value and total volume
+            self.ref['valves'].set_valve_position('c', 2)  # Syringe valve: towards pump
+            self.ref['valves'].wait_for_idle()
 
-            else:  # an incubation step
-                t = self.photobleaching_list[step]['time']
-                print(f'Incubation time.. {t} s')
-                self.log.info(f'Incubation time .. {t} s')
-                self.ref['valves'].set_valve_position('c', 1)
-                self.ref['valves'].wait_for_idle()
-                time.sleep(self.photobleaching_list[step]['time'])
-                # maybe it is better to split into small intervals to keep the thread responsive ?????
-                self.ref['valves'].set_valve_position('c', 2)
-                self.ref['valves'].wait_for_idle()
-                print('Incubation time finished')
-                self.log.info('Incubation time finished')
+            # iterate over the steps in the photobleaching sequence
+            for step in range(len(self.photobleaching_list)):
+                if self.aborted:
+                    break
+
+                self.log.info(f'Photobleaching step {step+1}')
+                if self.logging:
+                    add_log_entry(self.log_path, self.probe_counter, 3, f'Started injection {step + 1}')
+
+                if self.photobleaching_list[step]['product'] is not None:  # an injection step
+                    # set the 8 way valve to the position corresponding to the product
+                    product = self.photobleaching_list[step]['product']
+                    valve_pos = self.buffer_dict[product]
+                    self.ref['valves'].set_valve_position('a', valve_pos)
+                    self.ref['valves'].wait_for_idle()
+
+                    self.log.info(f'Injection of {product} ... ')
+                    time.sleep(1)
+                    # add here simulated data for pressure value and total volume
+
+                else:  # an incubation step
+                    t = self.photobleaching_list[step]['time']
+                    self.log.info(f'Incubation time .. {t} s')
+                    self.ref['valves'].set_valve_position('c', 1)
+                    self.ref['valves'].wait_for_idle()
+
+                    # allow abort by splitting the waiting time into small intervals of 30 s
+                    num_steps = t // 30
+                    remainder = t % 30
+                    for i in range(num_steps):
+                        if not self.aborted:
+                            time.sleep(30)
+                    time.sleep(remainder)
+
+                    self.ref['valves'].set_valve_position('c', 2)
+                    self.ref['valves'].wait_for_idle()
+                    self.log.info('Incubation time finished')
+
+                if self.logging:
+                    add_log_entry(self.log_path, self.probe_counter, 3, f'Finished injection {step + 1}')
+
+            # set valves to default positions
+            self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
+            self.ref['valves'].wait_for_idle()
 
             if self.logging:
-                add_log_entry(self.log_path, self.probe_counter, 3, f'Finished injection {step + 1}')
-
-        # set valves to default positions
-        self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
-        self.ref['valves'].wait_for_idle()
-        self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
-        self.ref['valves'].wait_for_idle()
-
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 3, 'Finished Photobleaching', 'info')
+                add_log_entry(self.log_path, self.probe_counter, 3, 'Finished Photobleaching', 'info')
         # Photobleaching finished --------------------------------------------------------------------------------------
 
-        if self.logging:
-            add_log_entry(self.log_path, self.probe_counter, 0, f'Finished cycle {self.probe_counter}', 'info')
+        if not self.aborted:
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 0, f'Finished cycle {self.probe_counter}', 'info')
 
-        return self.probe_counter < len(self.probe_dict)
+        return self.probe_counter < len(self.probe_list)
 
     def pauseTask(self):
         """ """
@@ -320,6 +362,25 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+        if self.logging:
+            self.status_dict = {}
+            write_status_dict_to_file(self.status_dict_path, self.status_dict)
+
+        if self.aborted:  # some extra actions to reset a proper state in case abort was called
+            if self.logging:
+                add_log_entry(self.log_path, self.probe_counter, 0, 'Task was aborted.', level='warning')
+            # in real experiment: stop the pressure regulation  and set pressure to 0
+            # set valves to default positions
+            self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('b', 1)  # RT rinsing valve: Rinse needle
+            self.ref['valves'].wait_for_idle()
+            self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
+            self.ref['valves'].wait_for_idle()
+
+        # # go back to first ROI
+        # self.ref['roi'].set_active_roi(name=self.roi_names[0])
+        # self.ref['roi'].go_to_roi_xy()
 
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
@@ -385,15 +446,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def load_injection_parameters(self):
         """ """
-        with open(self.injections_path, 'r') as stream:
-            documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
-            buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
-            self.probe_dict = documents['probes']
-            self.hybridization_list = documents['hybridization list']
-            self.photobleaching_list = documents['photobleaching list']
+        try:
+            with open(self.injections_path, 'r') as stream:
+                documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
+                buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+                probe_dict = documents['probes']
+                self.hybridization_list = documents['hybridization list']
+                self.photobleaching_list = documents['photobleaching list']
 
-        # invert the buffer dict to address the valve by the product name as key
-        self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+            # invert the buffer dict to address the valve by the product name as key
+            self.buffer_dict = dict([(value, key) for key, value in buffer_dict.items()])
+            # create a list out of probe_dict and order by ascending position (for example: probes in pos 2, 5, 6, 9, 10 is ok but not 10, 2, 5, 6, 9)
+            self.probe_list = sorted(probe_dict.items())
+
+        except Exception as e:
+            self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
 
     def calculate_start_position(self, centered_focal_plane):
         """
@@ -475,14 +542,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         metadata['Exposure time (s)'] = self.exposure
         metadata['Scan step length (um)'] = self.z_step
         metadata['Scan total length (um)'] = self.z_step * self.num_z_planes
-        # metadata['Filter'] = 'filtername'  # or without this entry ???
         metadata['Number laserlines'] = self.num_laserlines
         for i in range(self.num_laserlines):
             metadata[f'Laser line {i+1}'] = self.imaging_sequence[i][0]
             metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
-        # to check where the problem comes from :
-        # metadata['x position'] = self.ref['roi'].stage_position[0]
-        # metadata['y position'] = self.ref['roi'].stage_position[1]
         # pixel size ???
         return metadata
 
@@ -522,7 +585,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 # helper functions for bokeh app display  (put this in a separate file later and import)
 # ------------------------------------------------------------------------------------------
 
+def write_status_dict_to_file(path, status_dict):
+    """ Write the current status dictionary to a yaml file.
+    :param: dict status_dict: dictionary containing a summary describing the current state of the experiment.
+    """
+    with open(path, 'w') as outfile:
+        yaml.safe_dump(status_dict, outfile, default_flow_style=False)
+
 def add_log_entry(path, cycle, process, event, level='info'):
+    """ Append a log entry to the log.csv file.
+    :param: str path: complete path to the log file
+    :param: int cycle: number of the current cycle, or 0 if not in a cycle
+    :param int process: number of the process, encoded using Hybridization: 1, Imaging: 2, Photobleaching: 3
+    :param str event: message describing the logged event
+    :param: str level: 'info', 'warning', 'error'
+    """
     timestamp = datetime.now()
     entry = {'timestamp': [timestamp], 'cycle_no': [cycle], 'process': [process], 'event': [event], 'level': [level]}
     df_line = pd.DataFrame(entry, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
@@ -530,7 +607,12 @@ def add_log_entry(path, cycle, process, event, level='info'):
         df_line.to_csv(file, index=False, header=False)
 
 
-# to do: validate metadata saving
-# use this to explore how to handle the live / laser on / tracking mode states for the other guis if activated
 # use for integration with bokeh app
+
+
+
+
+
+
+
 

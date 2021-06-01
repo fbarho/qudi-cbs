@@ -69,7 +69,7 @@ class FocusLogic(GenericLogic):
 
     # Config options
     _setup = ConfigOption('setup', missing='error')
-    _rescue_autofocus_possible = ConfigOption('rescue_autofocus_possible', False)
+    _rescue_autofocus_possible = ConfigOption('rescue_autofocus_possible', False, missing='warn')
 
     # signals
     sigStepChanged = QtCore.Signal(float)

@@ -121,7 +121,7 @@ class FocusGUI(GUIBase):
         # data for timetrace initialization
         self.y_data = np.zeros(100)
         # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
-        self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data)
+        self._timetrace = self._mw.timetrace_PlotWidget.plot(self.y_data, pen=(0, 255, 0))
 
         # toolbutton state
         self._mw.piezo_init_Action.setChecked(False)
@@ -342,7 +342,7 @@ class FocusGUI(GUIBase):
         self._mw.calibration_PlotWidget.setLabel('bottom', 'piezo position (nm)')
         self._mw.calibration_PlotWidget.setLabel('left', 'autofocus signal')
         self._mw.slope_lineEdit.setText("{:.2f}".format(slope))
-        print(f'precision: {precision}')   #replace by updating the widget to be created
+        self._mw.precision_lineEdit.setText("{:.2f}".format(precision))
         # enable the piezo position correction, focus stabilization and search focus toolbuttons
         self._mw.autofocus_Action.setDisabled(False)
         self._mw.search_focus_Action.setDisabled(False)
@@ -414,7 +414,6 @@ class FocusGUI(GUIBase):
         self._mw.search_focus_Action.setChecked(False)
         self._mw.search_focus_Action.setText('Search focus')
         self._mw.search_focus_Action.setDisabled(False)
-
 
     def autofocus_stopped(self):
         """ Callback of sigAutofocusStopped or sigAutofocusError sent from focus_logic.

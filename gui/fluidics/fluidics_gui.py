@@ -9,6 +9,7 @@ from qtpy import QtGui
 from qtpy import QtWidgets
 from qtpy import uic
 from functools import partial
+import numpy as np
 
 from gui.guibase import GUIBase
 from core.connector import Connector
@@ -176,6 +177,20 @@ class FluidicsGUI(GUIBase):
 
     def init_flowcontrol(self):
         """ Initialize the labels on the flowcontrol dockwidget and the toolbar actions. """
+        # data for flowrate plot initialization
+        self.flowrate_data = []
+        self.pressure_data = []
+        # create a reference to the line object (this is returned when calling plot method of pg.PlotWidget)
+        self._mw.flowrate_PlotWidget.setLabel('left', 'Flowrate', units='ul/min')
+        # self._mw.flowrate_PlotWidget.setLabel('left', 'Pressure', units='mbar')
+        self._mw.flowrate_PlotWidget.setLabel('bottom', 'Time', units='s')
+        self._mw.flowrate_PlotWidget.addLegend()
+        self._flowrate_timetrace = self._mw.flowrate_PlotWidget.plot(self.flowrate_data, pen=(255, 0, 0), name='flowrate')
+        self._pressure_timetrace = self._mw.flowrate_PlotWidget.plot(self.pressure_data, pen=(0, 0, 255), name='pressure')
+
+
+
+
         # set text to unit labels
         self._mw.pressure_unit_Label.setText(self._flow_logic.get_pressure_unit())
         self._mw.pressure_unit_Label2.setText(self._flow_logic.get_pressure_unit())
@@ -202,8 +217,8 @@ class FluidicsGUI(GUIBase):
         self._flow_logic.sigUpdateVolumeMeasurement.connect(self.update_volume_and_time)
         self._flow_logic.sigTargetVolumeReached.connect(self.reset_volume_measurement_button)
         self._flow_logic.sigRinsingFinished.connect(self.reset_rinsing_action_button)
-        self._flow_logic.sigDisablePressureAction.connect(self.disable_set_pressure_button)
-        self._flow_logic.sigEnablePressureAction.connect(self.enable_set_pressure_button)
+        self._flow_logic.sigDisableFlowActions.connect(self.disable_flowcontrol_buttons)
+        self._flow_logic.sigEnableFlowActions.connect(self.enable_flowcontrol_buttons)
 
     def init_positioning(self):
         """ Initialize the indicators on the positioning dockwidget and the toolbar actions. """
@@ -334,7 +349,7 @@ class FluidicsGUI(GUIBase):
         self._mw.x_axis_position_LineEdit.setText('{:.3f}'.format(position[0]))
         self._mw.y_axis_position_LineEdit.setText('{:.3f}'.format(position[1]))
         self._mw.z_axis_position_LineEdit.setText('{:.3f}'.format(position[2]))
-        # set the current position of the merfish probe to its indicator if the stage coordinates correspond to a position
+        # set the current position of the injections probe to its indicator if the stage coordinates correspond to a position
         xy_pos = (position[0], position[1])
         if xy_pos in self._positioning_logic._probe_xy_position_dict.keys():
             self._mw.probe_position_LineEdit.setText(str(self._positioning_logic._probe_xy_position_dict[xy_pos]))
@@ -437,6 +452,8 @@ class FluidicsGUI(GUIBase):
             self.sigStopFlowMeasure.emit()
         else:
             self._mw.start_flow_measurement_Action.setText('Stop flowrate measurement')
+            self.flowrate_data = []
+            self.pressure_data = []
             self.sigStartFlowMeasure.emit()
 
     @QtCore.Slot(float, float)
@@ -445,6 +462,21 @@ class FluidicsGUI(GUIBase):
         """
         self._mw.pressure_LineEdit.setText('{:.2f}'.format(pressure))
         self._mw.flowrate_LineEdit.setText('{:.2f}'.format(flowrate))
+        self.update_pressure_and_flowrate_timetrace(pressure, flowrate)
+
+    def update_pressure_and_flowrate_timetrace(self, pressure, flowrate):
+        """ Add a new data point to the flowrate timetrace. """
+        # t data not needed, only if it is wanted that the axis labels move also. then see variant 2 from pyqtgraph.examples scrolling plot
+        # self.t_data[:-1] = self.t_data[1:] # shift data in the array one position to the left, keeping same array size
+        # self.t_data[-1] += 1 # add the new last element
+        # self.flowrate_data[:-1] = self.flowrate_data[1:]  # shift data one position to the left ..
+        # self.flowrate_data[-1] = flowrate
+        self.flowrate_data.append(flowrate)
+        self.pressure_data.append(pressure)
+
+        # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
+        self._flowrate_timetrace.setData(self.flowrate_data)
+        self._pressure_timetrace.setData(self.pressure_data)
 
     @QtCore.Slot()
     def measure_volume_clicked(self):
@@ -482,9 +514,11 @@ class FluidicsGUI(GUIBase):
         """
         if self._flow_logic.rinsing_enabled:
             self._mw.rinsing_Action.setText('Start rinsing')
+            self._mw.rinsing_time_SpinBox.setDisabled(False)
             self.sigStopRinsing.emit()
         else:
             rinsing_time = self._mw.rinsing_time_SpinBox.value()
+            self._mw.rinsing_time_SpinBox.setDisabled(True)  # do not allow to modify time when rinsing starts
             self._mw.rinsing_Action.setText('Stop rinsing')
             self.sigStartRinsing.emit(rinsing_time)
 
@@ -494,17 +528,24 @@ class FluidicsGUI(GUIBase):
         when rinsing is finished because target duration has elapsed. """
         self._mw.rinsing_Action.setText('Start rinsing')
         self._mw.rinsing_Action.setChecked(False)
+        self._mw.rinsing_time_SpinBox.setDisabled(False)
 
-# maybe disable also the start rinsing button
     @QtCore.Slot()
-    def disable_set_pressure_button(self):
-        """ Disables set pressure toolbutton, to be used for example during tasks. """
+    def disable_flowcontrol_buttons(self):
+        """ Disables set pressure toolbutton, start volume measurement toolbutton and start rinsing toolbutton,
+        to be used for example during tasks. """
         self._mw.set_pressure_Action.setDisabled(True)
+        self._mw.volume_measurement_Action.setDisabled(True)
+        self._mw.rinsing_Action.setDisabled(True)
+        self._mw.target_volume_SpinBox.hide()
 
     @QtCore.Slot()
-    def enable_set_pressure_button(self):
-        """ Enables set pressure toolbutton. """
+    def enable_flowcontrol_buttons(self):
+        """ Enables flowcontrol toolbuttons. """
         self._mw.set_pressure_Action.setDisabled(False)
+        self._mw.volume_measurement_Action.setDisabled(False)
+        self._mw.rinsing_Action.setDisabled(False)
+        self._mw.target_volume_SpinBox.setVisible(True)
 
 
     # slots related to valve dockwidget
@@ -551,5 +592,11 @@ class FluidicsGUI(GUIBase):
         if self._flow_logic.measuring_flowrate:
             self.measure_flow_clicked()
             self._mw.start_flow_measurement_Action.setChecked(False)
+        if self._flow_logic.measuring_volume:
+            self.measure_volume_clicked()
+            self._mw.volume_measurement_Action.setChecked(False)
+        if self._flow_logic.rinsing_enabled:
+            self.start_rinsing_clicked()
+            self._mw.rinsing_Action.setChecked(False)
 
 

@@ -1019,7 +1019,6 @@ class BasicGUI(GUIBase):
         self.brightfield_on_Action.setText('Brightfield On')
         self.brightfield_on_Action.setChecked(False)
 
-
     @QtCore.Slot()
     def disable_laser_toolbuttons(self):
         """ disables all toolbuttons of the laser toolbar"""
@@ -1101,7 +1100,6 @@ class BasicGUI(GUIBase):
         """ enables filter combobox """
         self._mw.filter_ComboBox.setDisabled(False)
 
-
     def close_function(self):
         # stop live mode when window is closed
         if self._camera_logic.enabled:
@@ -1111,5 +1109,10 @@ class BasicGUI(GUIBase):
         if self._laser_logic.enabled:
             self._laser_logic.voltage_off()
             self.reset_laser_toolbutton()
+        # switch brightfield off when window is closed
+        if self.brightfield_control:
+            if self._brightfield_logic.enabled:
+                self._brightfield_logic.led_off()
+                self.reset_brightfield_toolbutton()
 
 

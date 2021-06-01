@@ -14,6 +14,7 @@ Config example pour copy-paste:
         module: 'roi_multicolor_scan_task_RAMM'
         needsmodules:
             laser: 'lasercontrol_logic'
+            bf: 'brightfield_logic'  # needs to be connected to switch brightfield off at task start if left on
             cam: 'camera_logic'
             daq: 'nidaq_6259_logic'
             focus: 'focus_logic'
@@ -56,9 +57,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].disable_camera_actions()
 
         self.ref['laser'].stop_laser_output()
-        self.ref['laser'].disable_laser_actions()
-
-        # brightfield off in case it is on ?? then connection to brightfield logic needs to be established as well
+        self.ref['bf'].led_off()
+        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
