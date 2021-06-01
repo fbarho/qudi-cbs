@@ -26,7 +26,8 @@ import numpy as np
 import yaml
 from datetime import datetime
 import os
-from time import sleep
+import time
+from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -86,6 +87,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
+        #
+        start_time = time.time()
+
         # create a save path for the current iteration
         cur_save_path = self.get_complete_path(self.directory, self.counter+1)  # replace roi by relevant quantity for timelapse
         print(cur_save_path)
@@ -106,112 +110,117 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['roi'].set_active_roi(name=item)
             self.ref['roi'].go_to_roi_xy()
             self.log.info(f'Moved to {item} xy position')
-            sleep(1)  # replace maybe by wait for idle
+            # time.sleep(1)  # replace maybe by wait for idle
+            self.ref['roi'].stage_wait_for_idle()
 
-        #     for i in range(len(self.imaging_sequence)):  # loop over all laser lines specified in the user config
-        #
-        #         # set the filter to the specified position
-        #         filter_pos = self.imaging_sequence[i]['filter_pos']
-        #         self.ref['filter'].set_position(filter_pos)
-        #
-        #         # wait until filter position set
-        #         pos = self.ref['filter'].get_position()
-        #         while not pos == filter_pos:
-        #             sleep(1)
-        #             pos = self.ref['filter'].get_position()
-        #
-        #         # autofocus
-        #         # eventually using a setpoint defined per laser line
-        #
-        #         # self.ref['focus'].search_focus()
-        #         # initial_position = self.ref['focus'].get_position()  # until we have the autofocus
-        #         # print(f'initial position: {initial_position}')
-        #         # start_position = self.calculate_start_position(self.centered_focal_plane)
-        #         # print(f'start position: {start_position}')
-        #         initial_position = self.ref['focus'].get_position()  # first draft version only
-        #         start_position = self.ref['focus'].get_position()  # first draft version only
-        #
-        #         num_z_planes = self.imaging_sequence[i]['num_z_planes']
-        #         z_step = self.imaging_sequence[i]['z_step']
-        #         for plane in range(num_z_planes):
-        #
-        #             print(f'plane number {plane + 1}')  # replace by tqdm package when piezo positioning problem is solved
-        #
-        #             # position the piezo
-        #             position = np.round(start_position + plane * z_step, decimals=3)
-        #             self.ref['focus'].go_to_position(position)
-        #             print(f'target position: {position} um')
-        #             sleep(0.03)
-        #             cur_pos = self.ref['focus'].get_position()
-        #             print(f'current position: {cur_pos} um')
-        #
-        #             # prepare the light source output
-        #             laserline = self.imaging_sequence[i]['laserline']
-        #             intensity = self.imaging_sequence[i]['intensity']
-        #             # reset the intensity dict to zero
-        #             self.ref['daq'].reset_intensity_dict()
-        #             # prepare the output value for the specified channel
-        #             self.ref['daq'].update_intensity_dict(laserline, intensity)
-        #             # waiting time for stability of the synchronization
-        #             sleep(0.05)
-        #
-        #             # use a while loop to catch the exception when a trigger is missed and repeat the missed image
-        #             j = 0
-        #             while j < 1:  # take one image of the plane
-        #                 # switch the laser on and send the trigger to the camera
-        #                 self.ref['daq'].apply_voltage()
-        #                 err = self.ref['daq'].send_trigger_and_control_ai()
-        #
-        #                 # read fire signal of camera and switch off when the signal is low
-        #                 ai_read = self.ref['daq'].read_ai_channel()
-        #
-        #                 count = 0
-        #                 while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
-        #                     sleep(0.001)  # read every ms
-        #                     ai_read = self.ref['daq'].read_ai_channel()
-        #                     count += 1  # can be used for control and debug
-        #                 self.ref['daq'].voltage_off()
-        #                 # self.log.debug(f'iterations of read analog in - while loop: {count}')
-        #
-        #                 # waiting time for stability
-        #                 sleep(0.05)
-        #
-        #                 # repeat the last step if the trigger was missed
-        #                 if err < 0:
-        #                     self.err_count += 1  # control value to check how often a trigger was missed
-        #                     i = 0  # then the last iteration will be repeated
-        #                 else:
-        #                     i = 1  # increment to continue with the next plane
-        #
-        #         # go back to the initial plane position
-        #         self.ref['focus'].go_to_position(initial_position)
-        #         print(f'initial_position: {initial_position}')
-        #         sleep(0.5)
-        #         position = self.ref['focus'].get_position()
-        #         print(f'position reset to {position}')
-        #
-        # # ------------------------------------------------------------------------------------------
-        # # metadata saving
-        # # ------------------------------------------------------------------------------------------
+            for i in range(len(self.imaging_sequence)):  # loop over all laser lines specified in the user config
+
+                # set the filter to the specified position
+                filter_pos = self.imaging_sequence[i]['filter_pos']
+                self.ref['filter'].set_position(filter_pos)
+
+                # wait until filter position set
+                pos = self.ref['filter'].get_position()
+                while not pos == filter_pos:
+                    time.sleep(1)
+                    pos = self.ref['filter'].get_position()
+
+                # autofocus
+                # eventually using a setpoint defined per laser line
+                num_z_planes = self.imaging_sequence[i]['num_z_planes']
+                z_step = self.imaging_sequence[i]['z_step']
+
+                # self.ref['focus'].search_focus()
+                initial_position = self.ref['focus'].get_position()  # first draft version only  until we have the autofocus
+                print(f'initial position: {initial_position}')
+                start_position = self.calculate_start_position(self.centered_focal_plane, num_z_planes, z_step)
+                print(f'start position: {start_position}')
+
+                # prepare the light source output
+                laserline = self.imaging_sequence[i]['laserline']
+                intensity = self.imaging_sequence[i]['intensity']
+                # reset the intensity dict to zero
+                self.ref['daq'].reset_intensity_dict()
+                # prepare the output value for the specified channel
+                self.ref['daq'].update_intensity_dict(laserline, intensity)
+                # waiting time for stability of the synchronization
+                # time.sleep(0.05)  # might not be needed here - to test
+
+                for plane in tqdm(range(num_z_planes)):
+
+                    # print(f'plane number {plane + 1}')  # replace by tqdm package when piezo positioning problem is solved
+
+                    # position the piezo
+                    position = np.round(start_position + plane * z_step, decimals=3)
+                    self.ref['focus'].go_to_position(position)
+                    # print(f'target position: {position} um')
+                    time.sleep(0.03)
+                    cur_pos = self.ref['focus'].get_position()
+                    # print(f'current position: {cur_pos} um')
+
+                    # use a while loop to catch the exception when a trigger is missed and repeat the missed image
+                    j = 0
+                    while j < 1:  # take one image of the plane
+                        # switch the laser on and send the trigger to the camera
+                        self.ref['daq'].apply_voltage()
+                        err = self.ref['daq'].send_trigger_and_control_ai()
+
+                        # read fire signal of camera and switch off when the signal is low
+                        ai_read = self.ref['daq'].read_ai_channel()
+
+                        count = 0
+                        while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
+                            time.sleep(0.001)  # read every ms
+                            ai_read = self.ref['daq'].read_ai_channel()
+                            count += 1  # can be used for control and debug
+                        self.ref['daq'].voltage_off()
+                        # self.log.debug(f'iterations of read analog in - while loop: {count}')
+
+                        # waiting time for stability
+                        time.sleep(0.05)
+
+                        # repeat the last step if the trigger was missed
+                        if err < 0:
+                            self.err_count += 1  # control value to check how often a trigger was missed
+                            j = 0  # then the last iteration will be repeated
+                        else:
+                            j = 1  # increment to continue with the next plane
+
+                # go back to the initial plane position
+                self.ref['focus'].go_to_position(initial_position)
+                print(f'initial_position: {initial_position}')
+                time.sleep(0.5)
+                position = self.ref['focus'].get_position()
+                print(f'piezo position reset to {position}')
+
+        # ------------------------------------------------------------------------------------------
+        # metadata saving
+        # ------------------------------------------------------------------------------------------
         self.ref['camera'].abort_acquisition()  # after this, temperature can be retrieved for metadata
-        # if self.file_format == 'fits':
-        #     metadata = self.get_fits_metadata()
-        #     self.ref['camera']._add_fits_header(cur_save_path, metadata)
-        # else:  # save metadata in a txt file
-        #     metadata = self.get_metadata()
-        #     file_path = cur_save_path.replace('tiff', 'txt', 1)
-        #     self.save_metadata_file(metadata, file_path)
-        #
+        if self.file_format == 'fits':
+            metadata = self.get_fits_metadata()
+            self.ref['camera']._add_fits_header(cur_save_path, metadata)
+        else:  # save metadata in a txt file
+            metadata = self.get_metadata()
+            file_path = cur_save_path.replace('tiff', 'txt', 1)
+            self.save_metadata_file(metadata, file_path)
+
         # go back to first ROI
         self.ref['roi'].set_active_roi(name=self.roi_names[0])
         self.ref['roi'].go_to_roi_xy()
-        sleep(1)  # replace by wait for idle ?
-
-        print(f'finished step {self.counter+1}')
-
-        # add here the calculation of the waiting time that needs to be done here before moving to the next iteration
+        # time.sleep(1)  # replace by wait for idle ?
+        self.ref['roi'].stage_wait_for_idle()
 
         self.counter += 1
+
+        # waiting time before going to next step
+        finish_time = time.time()
+        duration = finish_time - start_time
+        wait = self.time_step - duration
+        print(f'Finished step in {duration} s. Waiting {wait} s.')
+        if wait > 0:
+            time.sleep(wait)
+
         return self.counter < self.num_iterations
 
     def pauseTask(self):
@@ -277,18 +286,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             with open(self.user_config_path, 'r') as stream:
                 self.user_param_dict = yaml.safe_load(stream)
 
-                self.sample_name = 'Mysample' # self.user_param_dict['sample_name']
-                self.exposure = 0.05 #  self.user_param_dict['exposure']  # or should this be defined for each laser line ?
-                self.gain = 0  # self.user_param_dict['gain']
-                self.centered_focal_plane = False #  self.user_param_dict['centered_focal_plane']
-                self.save_path = 'E:\\' # self.user_param_dict['save_path']
+                self.sample_name = self.user_param_dict['sample_name']
+                self.exposure = self.user_param_dict['exposure']  # or should this be defined for each laser line ?
+                self.gain = self.user_param_dict['gain']
+                self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
+                self.save_path = self.user_param_dict['save_path']
                 self.imaging_sequence = [{'laserline': '488 nm', 'intensity': 5, 'num_z_planes': 3, 'z_step': 0.25, 'filter_pos': 1},
-                                         {'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 1},
-                                         {'laserline': '641 nm', 'intensity': 10, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 1}]
-                self.file_format = 'tiff'  # self.user_param_dict['file_format']
-                self.roi_list_path = 'C:\\Users\\admin\\qudi_files\\qudi_roi_lists\\roilist_20210601_1356_45_351775.json'    # self.user_param_dict['roi_list_path']
-                self.num_iterations = 5  #  self.user_param_dict['num_iterations']
-                self.time_step = 30  # self.user_param_dict['time_step']
+                                         {'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 2},
+                                         {'laserline': '641 nm', 'intensity': 10, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 3}]
+                self.file_format = self.user_param_dict['file_format']
+                self.roi_list_path = self.user_param_dict['roi_list_path']
+                self.num_iterations = self.user_param_dict['num_iterations']
+                self.time_step = self.user_param_dict['time_step']
 
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
@@ -299,16 +308,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['roi'].load_roi_list(self.roi_list_path)
         # get the list of the roi names
         self.roi_names = self.ref['roi'].roi_names
-        print(self.roi_names)
 
         # translate the laser lines indicated in user config to required format
         lightsource_dict = {'405 nm': 'laser1', '488 nm': 'laser2', '561 nm': 'laser3', '641 nm': 'laser4'}
         for i in range(len(self.imaging_sequence)):
             self.imaging_sequence[i]['laserline'] = lightsource_dict[self.imaging_sequence[i]['laserline']]
 
-        print(self.imaging_sequence)
-
-    def calculate_start_position(self, centered_focal_plane):
+    def calculate_start_position(self, centered_focal_plane, num_z_planes, z_step):
         """
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
         """
@@ -316,11 +322,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
-            if self.num_z_planes % 2 == 0:
-                start_pos = current_pos - self.num_z_planes / 2 * self.z_step  # focal plane is the first one of the upper half of the number of planes
+            if num_z_planes % 2 == 0:
+                start_pos = current_pos - num_z_planes / 2 * z_step  # focal plane is the first one of the upper half of the number of planes
             # odd number of planes:
             else:
-                start_pos = current_pos - (self.num_z_planes - 1) / 2 * self.z_step
+                start_pos = current_pos - (num_z_planes - 1) / 2 * z_step
             return start_pos
         else:
             return current_pos  # the scan starts at the current position and moves up
