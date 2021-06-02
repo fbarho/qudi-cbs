@@ -268,18 +268,11 @@ class AutofocusLogic(GenericLogic):
         self._stage.move_rel({'z': step})
 
     def do_position_correction(self, step):
-        # self.stage_move_z(step)
-        # # self._stage.wait_for_idle()  # not on motor interface
-        # sleep(1)
-        # stage_z_pos = self._stage.get_pos()['z']
-        # print(f'stage z position: {stage_z_pos}')
-        # self.sigStageMoved.emit()
-
-        # new version
-        print('do position correction called')
-        self._stage.set_velocity({'z': 2})
+        self._stage.set_velocity({'z': 0.01})
+        sleep(1)
         self.stage_move_z(step)
-        sleep(2)
+        self._stage.wait_for_idle()
+        self._stage.set_velocity({'z': 1.9})
         self.sigStageMoved.emit()
 
 # ----------------to be completed----------------------------------

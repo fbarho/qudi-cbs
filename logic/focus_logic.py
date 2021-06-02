@@ -114,6 +114,8 @@ class FocusLogic(GenericLogic):
 
     autofocus_enabled = False
 
+    piezo_correction_running = False
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self.rescue = self._rescue_autofocus_possible
@@ -516,49 +518,38 @@ class FocusLogic(GenericLogic):
         If the piezo is close to the lower limit (<5µm for example) it is moved to 25µm. If the piezo is too
         close to the upper limit (>70µm for example), it is moved back to 50µm.
         """
-        # # start autofocus if not yet started
-        # enabled = self.autofocus_enabled  # to reset the inital state at the end of this method
-        # if not self.autofocus_enabled:
-        #     self.start_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically started
-        # # get the piezo position
-        # piezo_pos = self.get_position()
-        # print(f'piezo_position: {piezo_pos}')
-        # if (piezo_pos < 25) or (piezo_pos > 50):
-        #     if self._autofocus_lost:
-        #         self.log.warning('Autofocus lost!')
-        #     else:
-        #         if piezo_pos < 25:
-        #             self.sigDoStageMovement.emit(0.5)
-        #         else:
-        #             self.sigDoStageMovement.emit(-0.5)
-        # if not enabled:
-        #     self.stop_autofocus()  # maybe add a signal to tell the gui that autofocus was programmatically stopped
+        self.piezo_correction_running = True
+        success = True
 
-        # little test version
-        # print('doing piezo position correction ..')
-        # sleep(2)
-        # self.sigPiezoPositionCorrectionFinished.emit()
 
-        # start autofocus if not yet started
-        # if not self.autofocus_enabled:
-        #     self.start_autofocus()
-            # add a signal to inform the GUI that autofocus was programmatically started
-        # get the piezo position
-        piezo_pos = self.get_position()
-        if piezo_pos < 25:
-            # calculate the relative movement necessary to move piezo to 25 um
-            step = 25 - piezo_pos
-            print(step)
-            self.sigDoStageMovement.emit(step)
-        elif piezo_pos > 50:
-            step = piezo_pos - 50
-            print(step)
-            self.sigDoStageMovement.emit(-step)
+        if not self._autofocus_logic.autofocus_check_signal():
+            success = self.rescue_autofocus()
+
+        if success:
+            # get the piezo position
+            piezo_pos = self.get_position()
+
+            if (piezo_pos < 10) or (piezo_pos > 50):
+                # start autofocus if not yet started
+                if not self.autofocus_enabled:
+                    self.start_autofocus()
+                    # add a signal to inform the GUI that autofocus was programmatically started
+
+                # calculate the relative movement necessary to move piezo to 25 um
+                step = np.round(25 - piezo_pos, decimals=3)
+                print(step)
+                self.sigDoStageMovement.emit(step)
+            else:
+                pass
+
         else:
-            pass
+            self.log.warning('Position correction could not be done because autofocus signal not found!')
 
     def finish_piezo_position_correction(self):
+        self.stop_autofocus()
+        self.piezo_correction_running = False
         self.sigPiezoPositionCorrectionFinished.emit()
+
 
     def start_search_focus(self):
         """ Search the IR reflection signal on a reference plane at a distance 'offset' from the current position.
@@ -583,7 +574,6 @@ class FocusLogic(GenericLogic):
             sleep(1)
         self._stage_is_positioned = True
         self.sigFocusFound.emit()
-
 
     def disable_focus_actions(self):
         """ This method provides a security to avoid all focus / autofocus related toolbar actions from GUI,
