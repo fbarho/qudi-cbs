@@ -869,6 +869,9 @@ class RoiLogic(GenericLogic):
     def enable_roi_actions(self):
         self.sigEnableRoiActions.emit()
 
+    def stage_wait_for_idle(self):  # needed in tasks
+        self.stage().wait_for_idle()  # not (yet) on the motor interface
+
 
 
 
