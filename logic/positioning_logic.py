@@ -285,17 +285,17 @@ class PositioningLogic(GenericLogic):
                 z = self.z_safety_pos
                 position = (x, y, z)
 
-            if self.grid == 'polar':
-                axis_label = ('r', 'phi', 'z')
-            else:
-                axis_label = ('x', 'y', 'z')  # 'cartesian' as default case
+            # if self.grid == 'polar':
+            #     axis_label = ('r', 'phi', 'z')
+            # else:
+            axis_label = ('x', 'y', 'z')  # 'cartesian' as default case
 
             pos_dict = dict([*zip(axis_label, position)])
             # separate movement into xy and z movements for safety
-            if self.grid == 'polar':
-                pos_dict_xy = {key: pos_dict[key] for key in ['r', 'phi']}
-            else:
-                pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
+            # if self.grid == 'polar':
+            #     pos_dict_xy = {key: pos_dict[key] for key in ['r', 'phi']}
+            # else:
+            pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
             pos_dict_z = {key: pos_dict[key] for key in ['z']}
             self._stage.move_abs({'z': self.z_safety_pos})  # move to z safety position before making the xy movement
             ready = self._stage.get_status('z')['z']
@@ -340,16 +340,16 @@ class PositioningLogic(GenericLogic):
         y_pos = inv_probe_xy_position_dict[target_position][1]
         z_pos = self.origin[2]
         position = (x_pos, y_pos, z_pos)
-        if self.grid == 'polar':
-            axis_label = ('r', 'phi', 'z')
-        else:
-            axis_label = ('x', 'y', 'z')
+        # if self.grid == 'polar':
+        #     axis_label = ('r', 'phi', 'z')
+        # else:
+        axis_label = ('x', 'y', 'z')
         pos_dict = dict([*zip(axis_label, position)])
         # separate into in-plane and z movements
-        if self.grid == 'polar':
-            pos_dict_xy = {key: pos_dict[key] for key in ['r', 'phi']}
-        else:
-            pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
+        # if self.grid == 'polar':
+        #     pos_dict_xy = {key: pos_dict[key] for key in ['r', 'phi']}
+        # else:
+        pos_dict_xy = {key: pos_dict[key] for key in ['x', 'y']}
         pos_dict_z = {key: pos_dict[key] for key in ['z']}
 
         # do the z safety movement
@@ -376,8 +376,7 @@ class PositioningLogic(GenericLogic):
         self.sigUpdatePosition.emit(new_position)
 
         if self.moving:  # make sure that movement has not been aborted
-            # if x_pos != pos_dict_xy['x'] or y_pos != pos_dict_xy['y']:
-            if (abs(x_pos - pos_dict_xy['x']) > 0.001) or (abs(y_pos - pos_dict_xy['y']) > 0.001):
+            if (abs(x_pos - pos_dict_xy['x']) > 0.005) or (abs(y_pos - pos_dict_xy['y']) > 0.005):
                 # enter in a loop until xy position reached
                 worker = xyMoveWorker(pos_dict_xy, pos_dict_z)
                 worker.signals.sigxyStepFinished.connect(self.move_xy_stage_loop)
@@ -387,6 +386,7 @@ class PositioningLogic(GenericLogic):
                 self.start_move_z_stage(pos_dict_z)
 
     def start_move_z_stage(self, pos_dict_z):
+        self.log.info('move z started')
         # start the z movement of the translation stage
         self._stage.move_abs(pos_dict_z)
 
