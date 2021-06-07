@@ -71,10 +71,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # ------------------------------------------------------------------------------------------
         # activate lightsource
         # ------------------------------------------------------------------------------------------
+        # all laser lines at once
         for item in self.imaging_sequence:
-            self.ref['laser'].apply_voltage_single_channel(item[1], item[0])  #  param: intensity, channel
-            sleep(self.illumination_time)
-            self.ref['laser'].apply_voltage_single_channel(0, item[0])
+            self.ref['laser'].update_intensity_dict(item[0], item[1])  # key (register in fpga bitfile), value (intensity in %)
+        self.ref['laser'].apply_voltage()
+        sleep(self.illumination_time)
+        self.ref['laser'].voltage_off()
+
+        # version with individual laser lines
+        # for item in self.imaging_sequence:
+        #     self.ref['laser'].apply_voltage_single_channel(item[1], item[0])  #  param: intensity, channel
+        #     sleep(self.illumination_time)
+        #     self.ref['laser'].apply_voltage_single_channel(0, item[0])
 
         self.roi_counter += 1
         return self.roi_counter < len(self.roi_names)
@@ -94,8 +102,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
         # for safety, make sure all lasers are off
-        for item in self.imaging_sequence:
-            self.ref['laser'].apply_voltage_single_channel(0, item[0])
+        # for item in self.imaging_sequence:
+        #     self.ref['laser'].apply_voltage_single_channel(0, item[0])
+
+        # new version
+        self.ref['laser'].voltage_off()
+
 
         # enable gui actions
         # roi gui
@@ -120,7 +132,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             with open(self.user_config_path, 'r') as stream:
                 self.user_param_dict = yaml.safe_load(stream)
 
-                self.illumination_time = self.user_param_dict['illumination_time']
+                self.illumination_time = self.user_param_dict['illumination_time'] * 60   # illumination time is given in min and needs to be converted to seconds
                 imaging_sequence = self.user_param_dict['imaging_sequence']
                 self.roi_list_path = self.user_param_dict['roi_list_path']
 

@@ -24,6 +24,7 @@ class PIMotorStage(Base, MotorInterface):
 
     pi_stage:
         module.Class: 'motor.motor_pi_3axis_stage.PIMotorStage'
+        daisychain_connection: True
         serialnumber_master:  '0019550121'
         first_axis_controllername: 'C-863'
         second_axis_controllername: 'C-863'
@@ -35,16 +36,19 @@ class PIMotorStage(Base, MotorInterface):
         second_axis_daisychain_id: 3
         third_axis_daisychain_id: 1
     """
+    _daisychain_connection = ConfigOption('daisychain_connection', missing='error')
     _serialnum_master = ConfigOption('serialnumber_master', missing='error')
+    _serialnum_second_axis = ConfigOption('serialnumber_second_axis')  # optional; only needed if individual connections
+    _serialnum_third_axis = ConfigOption('serialnumber_third_axis')  # optional; only needed if individual connections
     _first_axis_controllername = ConfigOption('first_axis_controllername', missing='error')
     _second_axis_controllername = ConfigOption('second_axis_controllername', missing='error')
     _third_axis_controllername = ConfigOption('third_axis_controllername', missing='error')
     _first_axis_label = ConfigOption('first_axis_label', missing='error')
     _second_axis_label = ConfigOption('second_axis_label', missing='error')
     _third_axis_label = ConfigOption('third_axis_label', missing='error')
-    _first_axis_daisychain_id = ConfigOption('first_axis_daisychain_id', missing='error')
-    _second_axis_daisychain_id = ConfigOption('second_axis_daisychain_id', missing='error')
-    _third_axis_daisychain_id = ConfigOption('third_axis_daisychain_id', missing='error')
+    _first_axis_daisychain_id = ConfigOption('first_axis_daisychain_id')  # optional; only needed if daisychain connection
+    _second_axis_daisychain_id = ConfigOption('second_axis_daisychain_id')  # optional; only needed if daisychain connection
+    _third_axis_daisychain_id = ConfigOption('third_axis_daisychain_id')   # optional; only needed if daisychain connection
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -58,20 +62,28 @@ class PIMotorStage(Base, MotorInterface):
             self.second_axis_label = self._second_axis_label
             self.third_axis_label = self._third_axis_label
 
-            # open the daisy chain connection
-            self.pidevice_1st_axis = GCSDevice(self._first_axis_controllername)  # 1st axis controller # master device
+            self.pidevice_1st_axis = GCSDevice(self._first_axis_controllername)  # 1st axis controller # master device if daisy chain
             self.pidevice_2nd_axis = GCSDevice(self._second_axis_controllername)  # 2nd axis controller
             self.pidevice_3rd_axis = GCSDevice(self._third_axis_controllername)  # 3rd axis controller
 
-            self.pidevice_1st_axis.OpenUSBDaisyChain(description=self._serialnum_master)
-            self.daisychainid = self.pidevice_1st_axis.dcid
-            print(f'Daisychainid: {self.daisychainid}')
-            # controllers are ordered with increasing serial number in the daisy chain
-            # this is why z is connected as first
-            # do we need to programmatically sort by nth_axis_daisychain id ??
-            self.pidevice_3rd_axis.ConnectDaisyChainDevice(self._third_axis_daisychain_id, self.daisychainid)  # SN 019550119
-            self.pidevice_1st_axis.ConnectDaisyChainDevice(self._first_axis_daisychain_id, self.daisychainid)  # SN 019550121
-            self.pidevice_2nd_axis.ConnectDaisyChainDevice(self._second_axis_daisychain_id, self.daisychainid)  # SN 019550124
+            if self._daisychain_connection:
+                # open the daisy chain connection
+                self.pidevice_1st_axis.OpenUSBDaisyChain(description=self._serialnum_master)
+                self.daisychainid = self.pidevice_1st_axis.dcid
+                print(f'Daisychainid: {self.daisychainid}')
+                # controllers are ordered with increasing serial number in the daisy chain
+                # this is why z is connected as first
+                # do we need to programmatically sort by nth_axis_daisychain id ??
+                self.pidevice_3rd_axis.ConnectDaisyChainDevice(self._third_axis_daisychain_id, self.daisychainid)  # SN 019550119
+                self.pidevice_1st_axis.ConnectDaisyChainDevice(self._first_axis_daisychain_id, self.daisychainid)  # SN 019550121
+                self.pidevice_2nd_axis.ConnectDaisyChainDevice(self._second_axis_daisychain_id, self.daisychainid)  # SN 019550124
+
+            else:
+                # version with individual connections
+                self.pidevice_1st_axis.ConnectUSB(serialnum=self._serialnum_master)
+                self.pidevice_2nd_axis.ConnectUSB(serialnum=self._serialnum_second_axis)
+                self.pidevice_3rd_axis.ConnectUSB(serialnum=self._serialnum_third_axis)
+
             print('\n{}:\n{}'.format(self.pidevice_1st_axis.GetInterfaceDescription(), self.pidevice_1st_axis.qIDN()))
             print('\n{}:\n{}'.format(self.pidevice_2nd_axis.GetInterfaceDescription(), self.pidevice_2nd_axis.qIDN()))
             print('\n{}:\n{}'.format(self.pidevice_3rd_axis.GetInterfaceDescription(), self.pidevice_3rd_axis.qIDN()))
@@ -93,19 +105,9 @@ class PIMotorStage(Base, MotorInterface):
             # print(self.third_axis_ID)
 
             self.calibrate()
-            # RON:
-            # FNL: fast move to negative limit
-            # self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
-            # self.pidevice_1st_axis.FNL(self.first_axis_ID)
-            # self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-            # self.pidevice_2nd_axis.FNL(self.second_axis_ID)
-            # self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
-            # self.pidevice_3rd_axis.FNL(self.third_axis_ID)
-            # pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
-            # pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
-            # pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
+
         except Exception as e:
-            self.log.error(f'Physik Instrumente 3-axes stage: Connection failed: {e}. Check if device is switched on.')
+            self.log.error(f'Physik Instrumente 3-axes stage: Connection failed: {e}.')
 
     def on_deactivate(self):
         """ Required deactivation steps
@@ -120,8 +122,14 @@ class PIMotorStage(Base, MotorInterface):
         pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
         pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
 
-        self.pidevice_1st_axis.CloseDaisyChain()  # check if connection always done with controller corresponing to 1st axis
-        self.pidevice_1st_axis.CloseConnection()
+        if self._daisychain_connection:
+            self.pidevice_1st_axis.CloseDaisyChain()  # check if connection always done with controller corresponing to 1st axis
+            self.pidevice_1st_axis.CloseConnection()
+
+        else:
+            self.pidevice_1st_axis.CloseConnection()
+            self.pidevice_2nd_axis.CloseConnection()
+            self.pidevice_3rd_axis.CloseConnection()
 
     def get_constraints(self):
         """ Retrieve the hardware constrains from the motor device.
@@ -391,6 +399,9 @@ class PIMotorStage(Base, MotorInterface):
         zero point for the passed axis. The calibration procedure will be
         different for each stage.
         """
+        # RON:
+        # FNL: fast move to negative limit
+
         if not param_list:
             # 3rd axis is typically z. Calibrate and move first z to negative limit
             self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
@@ -400,7 +411,8 @@ class PIMotorStage(Base, MotorInterface):
             self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
             self.pidevice_1st_axis.FNL(self.first_axis_ID)
             self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-            self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+            if not self.second_axis_label == 'phi':  # maybe try a more flexible solution to handle the case of rotational axis
+                self.pidevice_2nd_axis.FNL(self.second_axis_ID)  # not possible for rotation axis
             pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
             pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
 
@@ -412,7 +424,8 @@ class PIMotorStage(Base, MotorInterface):
                     pitools.waitontarget(self.pidevice_1st_axis, axes=self.first_axis_ID)
                 elif item == self.second_axis_label:
                     self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-                    self.pidevice_2nd_axis.FNL(self.second_axis_ID)
+                    if not self.second_axis_label == 'phi':  # maybe try a more flexible solution to handle the case of rotational axis
+                        self.pidevice_2nd_axis.FNL(self.second_axis_ID)  # not possible for rotation axis
                     pitools.waitontarget(self.pidevice_2nd_axis, axes=self.second_axis_ID)
                 elif item == self.third_axis_label:
                     self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)

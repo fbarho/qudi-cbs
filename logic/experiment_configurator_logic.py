@@ -309,7 +309,7 @@ class ExpConfigLogic(GenericLogic):
         self.config_dict['illumination_time'] = value
         self.sigConfigDictUpdated.emit()
 
-    @QtCore.Slot(str, int)
+    @QtCore.Slot(str, float)
     def add_entry_to_imaging_list(self, lightsource, intensity):
         # Access the list via the model.
         self.img_sequence_model.items.append((lightsource, intensity))

@@ -53,7 +53,7 @@ class ExpConfiguratorGUI(GUIBase):
     sigSaveConfig = QtCore.Signal(str, str, str)
     sigSaveConfigCopy = QtCore.Signal(str)
     sigLoadConfig = QtCore.Signal(str)
-    sigAddEntry = QtCore.Signal(str, int)
+    sigAddEntry = QtCore.Signal(str, float)
     sigDeleteEntry = QtCore.Signal(QtCore.QModelIndex)
 
     def __init__(self, config, **kwargs):
@@ -157,6 +157,8 @@ class ExpConfiguratorGUI(GUIBase):
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self._mw.save_config_Action.setDisabled(False)
         self._mw.save_config_copy_Action.setDisabled(False)
+        self._mw.laser_ComboBox.clear()  # reset content of laser selection to default state because it could have been modified (see 'Photobleaching' experiment)
+        self._mw.laser_ComboBox.addItems(self._exp_logic.lasers)
         if experiment == 'Select your experiment..':
             self._mw.formWidget.hide()
             self._mw.save_config_Action.setDisabled(True)
@@ -287,6 +289,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.injections_list_Label.setVisible(False)
             self._mw.injections_list_LineEdit.setVisible(False)
             self._mw.load_injections_PushButton.setVisible(False)
+            self._mw.laser_ComboBox.removeItem(0)  # do not allow the UV laser (405 nm typically)
 
         else:
             pass
@@ -334,7 +337,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.imaging_sequence_Label.setVisible(visible)
         self._mw.imaging_sequence_ListView.setVisible(visible)
         self._mw.laser_ComboBox.setVisible(visible)
-        self._mw.laser_intensity_SpinBox.setVisible(visible)
+        self._mw.laser_intensity_DSpinBox.setVisible(visible)
         self._mw.delete_entry_PushButton.setVisible(visible)
         self._mw.add_entry_PushButton.setVisible(visible)
         self._mw.delete_all_PushButton.setVisible(visible)
@@ -424,7 +427,7 @@ class ExpConfiguratorGUI(GUIBase):
     def add_entry_clicked(self):
         """ callback from pushbutton inserting an item into the imaging sequence list"""
         lightsource = self._mw.laser_ComboBox.currentText()  # or replace by current index
-        intensity = self._mw.laser_intensity_SpinBox.value()
+        intensity = self._mw.laser_intensity_DSpinBox.value()
         self.sigAddEntry.emit(lightsource, intensity)
 
     def update_listview(self):
