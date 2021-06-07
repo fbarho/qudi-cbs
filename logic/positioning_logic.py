@@ -4,7 +4,7 @@ Created on Thu Mars 4 2021
 
 @author: fbarho
 
-This module contains the logic to control the positioning system for the merfish probes
+This module contains the logic to control the positioning system for the probes
 """
 from time import sleep
 from qtpy import QtCore
@@ -57,7 +57,7 @@ class zMoveWorker(QtCore.QRunnable):
 
 class PositioningLogic(GenericLogic):
     """
-    Class containing the logic to control the 3 axis positioning system for the merfish probes
+    Class containing the logic to control the 3 axis positioning system for the probes
 
     Example config for copy-paste:
 
@@ -66,6 +66,9 @@ class PositioningLogic(GenericLogic):
         z_safety_position: 0
         num_x: 10
         num_y: 10
+        first_axis: 'X axis'
+        second_axis: 'Y axis'
+        third_axis: 'Z axis'
         connect:
             stage: 'motor_dummy'
     """
@@ -75,9 +78,11 @@ class PositioningLogic(GenericLogic):
     # signals
     sigUpdatePosition = QtCore.Signal(tuple)  # send during movement to update coordinates on the GUI
     sigStageMoved = QtCore.Signal(tuple)  # new stage coordinates given  # tuple contains the new stage position (x, y, z)
-    sigStageMovedToTarget = QtCore.Signal(tuple, int)  # target position (number of merfish probe) given # tuple contains the new stage position (x, y, z), int is the target position
+    sigStageMovedToTarget = QtCore.Signal(tuple, int)  # target position (number of probe) given # tuple contains the new stage position (x, y, z), int is the target position
     sigOriginDefined = QtCore.Signal()
     sigStageStopped = QtCore.Signal(tuple)
+    sigDisablePositioningActions = QtCore.Signal()
+    sigEnablePositioningActions = QtCore.Signal()
 
     # attributes
     move_stage = False  # flag
@@ -90,6 +95,9 @@ class PositioningLogic(GenericLogic):
     delta_x = 14.9  # in mm # to be defined by config later
     delta_y = 14.9  # in mm # to be defined by config later
     z_safety_pos = ConfigOption('z_safety_position', 0, missing='warn')
+    first_axis_label = ConfigOption('first_axis', 'X axis')
+    second_axis_label = ConfigOption('second_axis', 'Y axis')
+    third_axis_label = ConfigOption('third_axis', 'Z axis')
     # num_x = ConfigOption('num_x', 10, missing='warn')  # number of available probe positions in x direction
     # num_y = ConfigOption('num_y', 10, missing='warn')  # number of available probe positions in y direction
 
@@ -106,7 +114,7 @@ class PositioningLogic(GenericLogic):
         # connector
         self._stage = self.stage()
 
-        # calculate the merfish probe grid coordinates
+        # calculate the probe grid coordinates
         self._probe_coordinates_dict = self.position_to_coordinates()
 
     def on_deactivate(self):
@@ -114,7 +122,7 @@ class PositioningLogic(GenericLogic):
         pass
 
     def position_to_coordinates(self):
-        """ This method generates a mapping of merfish probe positions to x-y coordinates on a serpentine grid
+        """ This method generates a mapping of probe positions to x-y coordinates on a serpentine grid
         (just grid points, no metric coordinates):
         1: (0, 0), 2: (0, 1), 3: (0, 2), etc.. values in (x, y) order, y being the index that varies rapidly
         """
@@ -164,6 +172,16 @@ class PositioningLogic(GenericLogic):
         else:
             self.move_stage = True  # flag indicating later on that the translation stage movement was initiated by start_move_stage method
             self.moving = True
+
+            # do not allow descending z below safety position when operating by move stage (x y z coordinates given instead of target position)
+            if position[2] > self.z_safety_pos:
+                self.log.warning('z movement will not be made. z out of allowed range.')
+                # redefine position using the z safety position instead of the user defined z position
+                x = position[0]
+                y = position[1]
+                z = self.z_safety_pos
+                position = (x, y, z)
+
             axis_label = ('x', 'y', 'z')
             pos_dict = dict([*zip(axis_label, position)])
             # separate movement into xy and z movements for safety
@@ -228,7 +246,7 @@ class PositioningLogic(GenericLogic):
             else:
                 self.moving = False
                 new_pos = self.get_position()
-                self.log.info(new_pos)
+                # self.log.info(new_pos)
 
                 # send the signal to the GUI depending on which button triggered the stage movement
                 if self.move_stage:
@@ -247,8 +265,12 @@ class PositioningLogic(GenericLogic):
         Then, z is moved to its specified value.
         Emits a signal when finished and sends the new position and the reached target number
 
-        @param: int target_position: number of the target merfish probe
+        @param: int target_position: number of the target probe
         """
+        if not self.origin:
+            self.log.warn('Move to target is not possible. Please define the origin')
+            return
+
         self.go_to_target = True  # flag indicating later on that the translation stage movement was initiated by start_move_to_target method
         self.target_position = target_position  # keep this variable accessible until movement is finished
         self.moving = True
@@ -285,7 +307,7 @@ class PositioningLogic(GenericLogic):
     def get_coordinates(self, target):
         """ This method returns the (x, y) grid coordinates associated to the target position
 
-        @param: int target: target position of the merfish probe
+        @param: int target: target position of the probe
         @returns: int tuple (x, y)
         """
         return self._probe_coordinates_dict[target]
@@ -305,11 +327,11 @@ class PositioningLogic(GenericLogic):
         self.sigStageStopped.emit(pos)
 
     def set_origin(self, origin):
-        """ Defines the origin = the metric coordinates of the position1 of the grid with the merfish probes.
+        """ Defines the origin = the metric coordinates of the position1 of the grid with the probes.
         Sends a signal to indicate that the origin was set.
         """
         self.origin = origin
-        # create a dictionary that allows to access the position number of the merfish probe by its metric coordinates
+        # create a dictionary that allows to access the position number of the probe by its metric coordinates
         probe_xy_position_dict = {}
         for key in self._probe_coordinates_dict:
             x_pos = self._probe_coordinates_dict[key][0] * self.delta_x + self.origin[0] + self._probe_coordinates_dict[key][1] * -0.11
@@ -321,5 +343,11 @@ class PositioningLogic(GenericLogic):
         self._probe_xy_position_dict = inv_dict
         self.sigOriginDefined.emit()
 
-# add the default values for position 1
+    def disable_positioning_actions(self):
+        """ This method provides a security to avoid using the positioning action buttons on GUI, for example during Tasks. """
+        self.sigDisablePositioningActions.emit()
+
+    def enable_positioning_actions(self):
+        """ This method resets positioning action button on GUI to callable state, for example after Tasks. """
+        self.sigEnablePositioningActions.emit()
 

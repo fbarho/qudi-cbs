@@ -8,6 +8,7 @@ This module contains the logic to control the microfluidics pump and flowrate me
 """
 from time import sleep
 import math
+from simple_pid import PID
 
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
@@ -84,19 +85,38 @@ class FlowcontrolLogic(GenericLogic):
         module.Class: 'flowcontrol_logic.FlowcontrolLogic'
         connect:
             pump: 'pump_dummy'
+            daq_ao_logic: 'daq_logic.....'
     """
 
     # declare connectors
     pump = Connector(interface='MicrofluidicsPumpInterface')
+    daq_logic = Connector(interface='DAQaoLogic')
 
     # signals
     sigUpdateFlowMeasurement = QtCore.Signal(float, float)
+    sigUpdatePressureSetpoint = QtCore.Signal(float)
+    sigUpdateVolumeMeasurement = QtCore.Signal(int, int)
+    sigTargetVolumeReached = QtCore.Signal()
+    sigRinsingFinished = QtCore.Signal()
+    # sigDisablePressureAction = QtCore.Signal()
+    # sigEnablePressureAction = QtCore.Signal()
+    sigDisableFlowActions = QtCore.Signal()
+    sigEnableFlowActions = QtCore.Signal()
 
     # attributes
-    measuring = False
+    measuring_flowrate = False
     regulating = False
+    measuring_volume = False
     total_volume = 0
+    time_since_start = 0
     target_volume_reached = True
+    rinsing_enabled = False
+
+    # attributes for pid
+    p_gain = 0.005
+    i_gain = 0.001
+    d_gain = 0
+    pid_sample_time =  0.1 # in s, frequency for the PID update
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -108,10 +128,15 @@ class FlowcontrolLogic(GenericLogic):
         """
         # connector
         self._pump = self.pump()
+        self._daq_logic = self.daq_logic()
+        self.set_pressure(0.0)
+
+        # signals from connected logic
+        self._daq_logic.sigRinsingDurationFinished.connect(self.rinsing_finished)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
-        pass
+        self.set_pressure(0.0)
 
     def get_pressure(self, channels=None):
         """
@@ -124,9 +149,10 @@ class FlowcontrolLogic(GenericLogic):
         else:
             return pressure
 
-    def set_pressure(self, pressures, channels=None):
+    def set_pressure(self, pressures, log_entry=True, channels=None):
         """
         @param: float or float list pressures: pressure to be set to a given channel
+        @param: bool log_entry: make log entry optional, for example to avoid overloading logger while running a pressure regulation loop
         @param: int list channels: optional, needed in case more than one pressure channel is available
         """
         if not channels:
@@ -137,7 +163,9 @@ class FlowcontrolLogic(GenericLogic):
                 param_dict[0] = pressures  # maybe modify in case another pump has a different way of addressing its channel (adapt by config; default_channel_ID ?)
                 unit = self.get_pressure_unit()
                 self._pump.set_pressure(param_dict)
-                self.log.info(f'Pressure set to {pressures} {unit}')
+                if log_entry:
+                    self.log.info(f'Pressure set to {pressures} {unit}')
+                self.sigUpdatePressureSetpoint.emit(pressures)
         else:
             param_dict = dict(zip(channels, pressures))
             self._pump.set_pressure(param_dict)
@@ -192,14 +220,14 @@ class FlowcontrolLogic(GenericLogic):
             return flowrate_unit
 
     def start_flow_measurement(self):
-        self.measuring = True
+        self.measuring_flowrate = True
         # monitor the pressure and flowrate, using a worker thread
         worker = MeasurementWorker()
         worker.signals.sigFinished.connect(self.flow_measurement_loop)
         self.threadpool.start(worker)
 
     def stop_flow_measurement(self):
-        self.measuring = False
+        self.measuring_flowrate = False
         # get once again the latest values
         pressure = self.get_pressure()
         flowrate = self.get_flowrate()
@@ -209,42 +237,58 @@ class FlowcontrolLogic(GenericLogic):
         pressure = self.get_pressure()
         flowrate = self.get_flowrate()
         self.sigUpdateFlowMeasurement.emit(pressure, flowrate)
-        if self.measuring:
+        if self.measuring_flowrate:
             # enter in a loop until measuring mode is switched off
             worker = MeasurementWorker()
             worker.signals.sigFinished.connect(self.flow_measurement_loop)
             self.threadpool.start(worker)
 
+    def init_pid(self, setpoint):
+        pid = PID(self.p_gain, self.i_gain, self.d_gain, setpoint=setpoint)
+        pid.output_limits = (0, 15)
+        pid.sample_time = self.pid_sample_time
+        return pid
 
-    def regulate_pressure(self, target_flowrate, sensor_channel=None, pressure_channel=None):
-        """
-        @param: float target_flowrate
-        @param: int sensor_channel: ID of the sensor channel
-        (use this method only for a single channel so that flowrate is returned as float and not as float list,
-        but you can indicate which channel in case there are more than one)
-        @param: int pressure_channel: ID of the pressure channel
-        (use this method only for a single channel so that pressure is returned as float and not as float list,
-        but you can indicate which channel in case there are more than one)
-        """
-        flowrate = self.get_flowrate(sensor_channel)
-        print(f'flowrate {flowrate}')
-        # if 10 != abs(flowrate - target_flowrate):  # which precision ?   #use math.isclose function instead when precision defined
-        if not math.isclose(flowrate, target_flowrate, rel_tol=0.1, abs_tol=0):  # allow 10 % tolerance
-            diff = target_flowrate - flowrate
-            print(f'relative error: {abs(diff)/max(flowrate, target_flowrate)}')
-            pressure = self.get_pressure(pressure_channel)
-            const = 1  # which proportionality constant do we need ?
-            new_pressure = max(min(50.0, pressure + const * diff), 0.0)
-            print(f'new_pressure {new_pressure}')
-            self.set_pressure(new_pressure, pressure_channel)
-        else:
-            pass
-        # rajouter I de 0.01 (min)
+    # def regulate_pressure(self, target_flowrate, sensor_channel=None, pressure_channel=None):
+    #     """
+    #     @param: float target_flowrate
+    #     @param: int sensor_channel: ID of the sensor channel
+    #     (use this method only for a single channel so that flowrate is returned as float and not as float list,
+    #     but you can indicate which channel in case there are more than one)
+    #     @param: int pressure_channel: ID of the pressure channel
+    #     (use this method only for a single channel so that pressure is returned as float and not as float list,
+    #     but you can indicate which channel in case there are more than one)
+    #     """
+    #     flowrate = self.get_flowrate(sensor_channel)
+    #     print('flowrate {:.0f}'.format(flowrate))
+    #     # if 10 != abs(flowrate - target_flowrate):  # which precision ?   #use math.isclose function instead when precision defined
+    #     if not math.isclose(flowrate, target_flowrate, rel_tol=0.05, abs_tol=0):  # allow 5 % tolerance
+    #         diff = target_flowrate - flowrate
+    #         print('relative error: {:.2f}'.format(abs(diff)/max(flowrate, target_flowrate)))
+    #         pressure = self.get_pressure(pressure_channel)
+    #         const = 0.005  # which proportionality constant do we need ?
+    #         new_pressure = max(min(15.0, pressure + const * diff), 0.0)
+    #         print(f'new_pressure {new_pressure}')
+    #         self.set_pressure(new_pressure, pressure_channel)
+    #     else:
+    #         pass
+    #     # rajouter I de 0.01 (min)
+
+    def regulate_pressure_pid(self):  # maybe add channel as argument later
+        flowrate = self.get_flowrate()
+        print('flowrate {:.0f}'.format(flowrate))
+        new_pressure = float(self.pid(flowrate))
+        print(f'new_pressure {new_pressure}')
+        self.set_pressure(new_pressure, log_entry=False)
 
 # first tests with a simple version where the channels are not specified (we would need signal overloading in the worker thread... to be explored later)
     def start_pressure_regulation_loop(self, target_flowrate):
         self.regulating = True
-        self.regulate_pressure(target_flowrate)
+        # self.regulate_pressure(target_flowrate)
+
+        # new version with simple pid
+        self.pid = self.init_pid(setpoint=target_flowrate)
+
         # regulate the pressure, using a worker thread
         worker = RegulationWorker(target_flowrate)
         worker.signals.sigRegulationWaitFinished.connect(self.pressure_regulation_loop)
@@ -253,8 +297,9 @@ class FlowcontrolLogic(GenericLogic):
     def stop_pressure_regulation_loop(self):
         self.regulating = False
 
-    def pressure_regulation_loop(self, target_flowrate):
-        self.regulate_pressure(target_flowrate)
+    def pressure_regulation_loop(self, target_flowrate):  # if simple pid works well, the target flowrate argument can be removed because not needed
+        # self.regulate_pressure(target_flowrate)
+        self.regulate_pressure_pid()
         if self.regulating:
             # enter in a loop until the regulating mode is stopped
             worker = RegulationWorker(target_flowrate)
@@ -262,7 +307,9 @@ class FlowcontrolLogic(GenericLogic):
             self.threadpool.start(worker)
 
     def start_volume_measurement(self, target_volume, sampling_interval):
+        self.measuring_volume = True
         self.total_volume = 0
+        self.time_since_start = 0
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         # start summing up the total volume, using a worker thread
@@ -273,20 +320,58 @@ class FlowcontrolLogic(GenericLogic):
     def volume_measurement_loop(self, target_volume, sampling_interval):
         flowrate = self.get_flowrate()
         self.total_volume += flowrate * sampling_interval / 60  # abs(flowrate) ???
-        print(self.total_volume)
+        self.time_since_start += sampling_interval
+        self.sigUpdateVolumeMeasurement.emit(int(self.total_volume), self.time_since_start)
+        print(f'Total volume: {self.total_volume:.0f} ul')
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         else:
             self.target_volume_reached = True
+            self.sigTargetVolumeReached.emit()
 
-        if not self.target_volume_reached:
+        if not self.target_volume_reached and self.measuring_volume:  # second condition is necessary to stop measurement via GUI button
             # enter in a loop until the target_volume is reached
             worker = VolumeCountWorker(target_volume, sampling_interval)
             worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
             self.threadpool.start(worker)
 
     def stop_volume_measurement(self):
-        self.target_volume_reached = True
+        self.measuring_volume = False
+        self.target_volume_reached = True  # do we need this ?
+
+    def start_rinsing(self, duration):
+        self.rinsing_enabled = True
+        self._daq_logic.start_rinsing(duration)
+
+    def stop_rinsing(self):
+        """ This method is used to manually stop rinsing before specified duration (in start_rinsing) has elapsed. """
+        self.rinsing_enabled = False
+        self._daq_logic.stop_rinsing()
+
+    def rinsing_finished(self):
+        """ Callback of signal sigRinsingDurationFinished from connected daq logic.
+        Inform the GUI that the rinsing time has elapsed. """
+        self.rinsing_enabled = False
+        self.sigRinsingFinished.emit()
+
+
+    # def disable_pressure_setting(self):
+    #     """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
+    #     self.sigDisablePressureAction.emit()
+    #
+    # def enable_pressure_setting(self):
+    #     """ This method resets set pressure button on GUI to callable state, for example after Tasks. """
+    #     self.sigEnablePressureAction.emit()
+
+
+    def disable_flowcontrol_actions(self):
+        """ This method provides a security to avoid using the set pressure, start volume measurement and start rinsing
+        button on GUI, for example during Tasks. """
+        self.sigDisableFlowActions.emit()
+
+    def enable_flowcontrol_actions(self):
+        """ This method resets flowcontrol action buttons on GUI to callable state, for example after Tasks. """
+        self.sigEnableFlowActions.emit()
 
 
 

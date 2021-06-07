@@ -26,6 +26,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 from enum import Enum
 from ctypes import *
 import numpy as np
+from time import sleep
 
 from core.module import Base
 from core.configoption import ConfigOption
@@ -172,21 +173,24 @@ class IxonUltra(Base, CameraInterface):
     def on_activate(self):
         """ Initialisation performed during activation of the module.
          """
-        self.dll = cdll.LoadLibrary(self._dll_location)
-        self.dll.Initialize()
-        nx_px, ny_px = c_int(), c_int()
-        self._get_detector(nx_px, ny_px)
-        self._width, self._height = nx_px.value, ny_px.value
-        self._full_width, self._full_height = self._width, self._height
-        self._set_read_mode(self._read_mode)
-        self._set_trigger_mode(self._trigger_mode)
-        self._set_exposuretime(self._exposure)
-        self._set_acquisition_mode(self._acquisition_mode)
-        # start cooler if specified in config (otherwise it must be done via the console)
-        self._set_cooler(self._cooler_on)
-        self.set_temperature(self._default_temperature)
-        # set the preamp gain (it is not accessible by the user interface)
-        # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
+        try:
+            self.dll = cdll.LoadLibrary(self._dll_location)
+            self.dll.Initialize()
+            nx_px, ny_px = c_int(), c_int()
+            self._get_detector(nx_px, ny_px)
+            self._width, self._height = nx_px.value, ny_px.value
+            self._full_width, self._full_height = self._width, self._height
+            self._set_read_mode(self._read_mode)
+            self._set_trigger_mode(self._trigger_mode)
+            self._set_exposuretime(self._exposure)
+            self._set_acquisition_mode(self._acquisition_mode)
+            # start cooler if specified in config (otherwise it must be done via the console)
+            self._set_cooler(self._cooler_on)
+            self.set_temperature(self._default_temperature)
+            # set the preamp gain (it is not accessible by the user interface)
+            # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
+        except Exception as e:
+            self.log.error(f'Andor iXon Ultra 897 Camera: Connection failed: {e}.')
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -1144,5 +1148,43 @@ class IxonUltra(Base, CameraInterface):
         if ERROR_DICT[error_code] != 'DRV_SUCCESS':
             self.log.info('non-acquisition event occured')
         return ERROR_DICT[error_code]
-            
+    
+    # new interface functions
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
+        self._abort_acquisition()  # as safety 
+        self._set_acquisition_mode('KINETICS')
+        self._set_trigger_mode('EXTERNAL')        
+        # add eventually other settings .. frame transfer etc. 
+        # ..
+        self.set_gain(gain)
+        self.set_exposure(exposure) 
+        
+        # set the number of frames
+        self._set_number_kinetics(frames)  
+
+        # set spooling
+        if file_format == 'fits':
+            self._set_spool(1, 5, save_path, 10)
+        else:  # use 'tiff' as default case # add other options if needed
+            self._set_spool(1, 7, save_path, 10)
+        
+        # open the shutter
+        if self._shutter == 'closed':
+            msg = self._set_shutter(0, 1, 0.1, 0.1)
+            if msg == 'DRV_SUCCESS':
+                self._shutter = 'open'
+            else:
+                self.log.error('shutter did non open. {}'.format(msg))
+        sleep(1.5)  # wait until shutter is opened
+        
+        # start the acquisition. Camera waits for trigger
+        self._start_acquisition()
+        
+        
+    def reset_camera_after_multichannel_imaging(self):
+        self._abort_acquisition()
+        self._set_spool(0, 7, '', 10)
+        self._set_acquisition_mode('RUN_TILL_ABORT')
+        self._set_trigger_mode('INTERNAL') 
+
         

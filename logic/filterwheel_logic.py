@@ -25,6 +25,8 @@ class FilterwheelLogic(GenericLogic):
     # signals
     sigNewFilterSetting = QtCore.Signal(int)  # if position changed using the iPython console, use this signal to update GUI
     sigDeactivateLaserControl = QtCore.Signal()
+    sigDisableFilterActions = QtCore.Signal()
+    sigEnableFilterActions = QtCore.Signal()
 
     filter_dict = {}
 
@@ -73,3 +75,13 @@ class FilterwheelLogic(GenericLogic):
         filter_dict = self.wheel().get_filter_dict()
         self.filter_dict = filter_dict
         return filter_dict
+
+    def disable_filter_actions(self):
+        """ This method provides a security to avoid chaning filter from GUI, for example during Tasks. """
+        self.sigDisableFilterActions.emit()
+
+    def enable_filter_actions(self):
+        """ This method resets filter selection from GUI to callable state, for example after Tasks. """
+        self.sigEnableFilterActions.emit()
+
+

@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
-
 """
-This file contains the Interface for the control of a white light source
+Qudi-CBS
 
+This module contains the interface for the control of a white light source.
+
+An extension to Qudi.
+
+@author: F. Barho
+-----------------------------------------------------------------------------------
 
 Qudi is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,14 +24,15 @@ along with Qudi. If not, see <http://www.gnu.org/licenses/>.
 
 Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
-
 from core.interface import abstract_interface_method
 from core.meta import InterfaceMetaclass
 
 
 class BrightfieldInterface(metaclass=InterfaceMetaclass):
     """
+    This module contains the interface for the control of a white light source.
     """
 
     @abstract_interface_method

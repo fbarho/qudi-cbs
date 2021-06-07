@@ -32,28 +32,27 @@ from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from qtpy import QtCore
 
+class WorkerSignals(QtCore.QObject):
+    """ Defines the signals available from a running worker thread """
 
-# class WorkerSignals(QtCore.QObject):
-#     """ Defines the signals available from a running worker thread """
-#
-#     sigFinished = QtCore.Signal()
-#
-#
-# class Worker(QtCore.QRunnable):
-#     """ Worker thread to monitor the camera temperature every 5 seconds
-#
-#     The worker handles only the waiting time, and emits a signal that serves to trigger the update of the temperature
-#     display """
-#
-#     def __init__(self, *args, **kwargs):
-#         super(Worker, self).__init__()
-#         self.signals = WorkerSignals()
-#
-#     @QtCore.Slot()
-#     def run(self):
-#         """ """
-#         sleep(5)
-#         self.signals.sigFinished.emit()
+    sigFinished = QtCore.Signal()
+
+
+class LiveImageWorker(QtCore.QRunnable):
+    """ Worker thread to update the live image at the desired frame rate
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
+
+    def __init__(self, time_constant):
+        super(LiveImageWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.time_constant = time_constant
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(self.time_constant)
+        self.signals.sigFinished.emit()
 
 
 class CameraLogic(GenericLogic):
@@ -82,7 +81,11 @@ class CameraLogic(GenericLogic):
 
     sigUpdateCamStatus = QtCore.Signal(str, str, str, str)
 
-    timer = None
+    sigLiveStopped = QtCore.Signal()  # informs the GUI that live mode was stopped programatically
+    sigDisableCameraActions = QtCore.Signal()
+    sigEnableCameraActions = QtCore.Signal()
+
+    # timer = None
 
     enabled = False  # indicates if the camera is currently acquiring data
     saving = False # indicates if the camera is currently saving a movie
@@ -104,8 +107,7 @@ class CameraLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
-        # uncomment if needed (for worker thread - temperature monitoring)
-        # self.threadpool = QtCore.QThreadPool()
+        self.threadpool = QtCore.QThreadPool()
 
         # uncomment if needed:
         # self.threadlock = Mutex()
@@ -128,9 +130,9 @@ class CameraLogic(GenericLogic):
         self.get_temperature()
 
         # timer is used for refreshing the display of the camera image at rate fps
-        self.timer = QtCore.QTimer()
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.loop)
+        # self.timer = QtCore.QTimer()
+        # self.timer.setSingleShot(True)
+        # self.timer.timeout.connect(self.loop)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
@@ -246,42 +248,44 @@ class CameraLogic(GenericLogic):
         self._hardware.stop_acquisition()  # this in needed to reset the acquisition mode to default
         self.sigAcquisitionFinished.emit()
         
-    ### low level methods for tasks ###       # specific to andor camera for the moment
-    def start_acquisition(self):  # just call the hardware action, do not wait for data  # for task 
-        # need to think of how to organize this and how this method should be called .. 
-        self._hardware._start_acquisition()
-        
-    def set_acquisition_mode(self, mode):
-        self._hardware._set_acquisition_mode(mode)
+    def stop_live_mode(self):  # might be included directly in prepare_camera_for_multichannel_imaging
+        """ Allows to stop the live mode programmatically, for example in the preparation steps of a task
+        where live mode would interfere with the new camera settings. """
+        if self.enabled:
+            self.stop_loop()
+            self.sigLiveStopped.emit()  # to inform the GUI that live mode has been stopped programmatically
 
-    #to be modified later # homogenize lowlevel methods or address directly hardware when running tasks
-    def set_acquisition_mode_hcam(self, mode, num_frames):
-       self._hardware._set_acquisition_mode(mode, num_frames)
-        
-    def get_acquired_data(self):
-        return self._hardware.get_acquired_data()
-    
-    def wait_for_acquisition(self):
-        self._hardware.wait_for_acquisition()
-        
-    def abort_acquisition(self):
-        self._hardware._abort_acquisition()
-    
-    def set_number_kinetics(self, n_frames):
-        self._hardware._set_number_kinetics(n_frames)
-        
-    def set_spool(self, active, method, path, framebuffersize): 
-        self._hardware._set_spool(active, method, path, framebuffersize)  
-    
+    # make these interface functions and remove the low level functions instead
+    def prepare_camera_for_multichannel_imaging(self, frames, exposure, gain, save_path, file_format):
+        self._hardware.prepare_camera_for_multichannel_imaging(frames, exposure, gain, save_path, file_format)
+
+    def reset_camera_after_multichannel_imaging(self):
+        self._hardware.reset_camera_after_multichannel_imaging()
+
     def get_progress(self):
         return self._hardware.get_progress()
-    
-    def set_shutter(self, typ, mode, closingtime, openingtime):
-        self._hardware._set_shutter(typ, mode, closingtime, openingtime)
+
+    def get_acquired_data(self):
+        return self._hardware.get_acquired_data()
 
     def stop_acquisition(self):
         self._hardware.stop_acquisition()
+
+    def start_acquisition(self):
+        self._hardware._start_acquisition()
         
+    def abort_acquisition(self):
+        self._hardware._abort_acquisition()
+
+    def disable_camera_actions(self):
+        """ This method provides a security to avoid all camera related actions from GUI, for example during Tasks. """
+        self.sigDisableCameraActions.emit()
+
+    def enable_camera_actions(self):
+        """ This method resets all camera related actions from GUI to callable state, for example after Tasks. """
+        self.sigEnableCameraActions.emit()
+
+
     ##########################
 
 # the following functions concern the live display
@@ -289,7 +293,10 @@ class CameraLogic(GenericLogic):
         """ Start the live display loop.
         """
         self.enabled = True
-        self.timer.start(1000*1/self._fps)
+        # self.timer.start(1000*1/self._fps)
+        worker = LiveImageWorker(1/self._fps)
+        worker.signals.sigFinished.connect(self.loop)
+        self.threadpool.start(worker)
 
         if self._hardware.support_live_acquisition():
             self._hardware.start_live_acquisition()
@@ -299,7 +306,7 @@ class CameraLogic(GenericLogic):
     def stop_loop(self):
         """ Stop the live display loop.
         """
-        self.timer.stop()
+        # self.timer.stop()
         self.enabled = False
         self._hardware.stop_acquisition()
         self.sigVideoFinished.emit()
@@ -310,7 +317,11 @@ class CameraLogic(GenericLogic):
         self._last_image = self._hardware.get_acquired_data()
         self.sigUpdateDisplay.emit()
         if self.enabled:
-            self.timer.start(1000 * 1 / self._fps) 
+            # self.timer.start(1000 * 1 / self._fps)
+            worker = LiveImageWorker(1/self._fps)
+            worker.signals.sigFinished.connect(self.loop)
+            self.threadpool.start(worker)
+
             if not self._hardware.support_live_acquisition():
                 self._hardware.start_single_acquisition()  # the hardware has to check it's not busy
 
@@ -411,7 +422,7 @@ class CameraLogic(GenericLogic):
                 #leave the default value True when function is called from gui
         """
         if self.enabled:  # live mode is on
-            self.timer.stop()  # display is handled differently during video saving
+            # self.timer.stop()  # display is handled differently during video saving
             self._hardware.stop_acquisition()
             # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
 
@@ -457,7 +468,8 @@ class CameraLogic(GenericLogic):
             self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
 
         elif fileformat == '.fits':
-            self._save_to_fits(complete_path, image_data, metadata)
+            fits_metadata = self.convert_to_fits_metadata(metadata)
+            self._save_to_fits(complete_path, image_data, fits_metadata)
         else:
             self.log.info(f'Your fileformat {fileformat} is currently not covered')
         if emit_signal:
@@ -477,7 +489,7 @@ class CameraLogic(GenericLogic):
         @param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
         """
         if self.enabled:  # live mode is on
-            self.timer.stop()  # display is handled differently during video saving
+            # self.timer.stop()  # display is handled differently during video saving
             self._hardware.stop_acquisition()
             # we cannot simply call stop_loop because self.enabled must be left in its state and the signal VideoFinished must not be emitted.
 
@@ -525,7 +537,8 @@ class CameraLogic(GenericLogic):
         elif fileformat == '.fits':
             try:
                 complete_path = path+'.fits'
-                self._add_fits_header(complete_path, metadata)
+                fits_metadata = self.convert_to_fits_metadata(metadata)
+                self._add_fits_header(complete_path, fits_metadata)
             except Exception as e:
                 self.log.warn(f'Metadata not saved: {e}.')
         else:
@@ -542,7 +555,7 @@ class CameraLogic(GenericLogic):
     def _create_generic_filename(self, filenamestem, folder, file, fileformat, addfile):
         """ helper function that creates a generic filename using the following format:
 
-        filenamestem/000_folder/file.tiff example: /home/barho/images/2020-12-16/samplename/000_Movie/movie.tiff
+        filenamestem/001_folder/file.tiff example: /home/barho/images/2020-12-16/samplename/000_Movie/movie.tiff
 
         filenamestem is typically generated by the save settings dialog in basic gui but can also entered manually if
         function is called in console
@@ -567,7 +580,7 @@ class CameraLogic(GenericLogic):
         number_dirs = len(dir_list)
         if addfile:
             number_dirs -= 1
-        prefix = str(number_dirs).zfill(3)
+        prefix = str(number_dirs+1).zfill(3)
         folder_name = prefix + folder
         path = os.path.join(filenamestem, folder_name)
         # now create this folder
@@ -712,7 +725,7 @@ class CameraLogic(GenericLogic):
         if self.enabled:  # live mode is on
 #            self.interrupt_live()  # interrupt live to allow access to camera settings
             # new version to avoid display problem 
-            self.timer.stop() 
+            # self.timer.stop()
             self._hardware.stop_acquisition()
 
         err = self._hardware.set_image(hbin, vbin, hstart, hend, vstart, vend)
@@ -728,7 +741,7 @@ class CameraLogic(GenericLogic):
     def reset_sensor_region(self):
         """ reset to full sensor size """
         if self.enabled:  # live mode is on
-            self.timer.stop() 
+            # self.timer.stop()
             self._hardware.stop_acquisition()  # interrupt live to allow access to camera settings
             
         width = self._hardware._full_width  # store the full_width in the hardware module because _width is
@@ -786,3 +799,23 @@ class CameraLogic(GenericLogic):
     def set_trigger_mode(self, mode):
         self._hardware._set_trigger_mode(mode)   # specific for andor in this version. homogenize when completing other camera's code
         # add return value for error check if needed.. _set_trigger_mode returns 0 if ok, -1 if not
+
+
+    def convert_to_fits_metadata(self, metadata):
+        """ Convert a dictionary in arbitrary format to fits compatible format.
+        :param dict metadata: dictionary to convert to fits compatible format
+        :return dict fits_metadata: dictionary converted to fits compatible format """
+        fits_metadata = {}
+        for key, value in metadata.items():
+            key = key.replace(' ', '_')
+            if isinstance(value, list):
+                for i in range(len(value)):
+                    fits_key = key[:7].upper()+str(i+1)
+                    fits_value = (value[i], key+str(i+1))
+                    fits_metadata[fits_key] = fits_value
+            else:
+                fits_key = key[:8].upper()
+                fits_value = (value, key)
+                fits_metadata[fits_key] = fits_value
+
+        return fits_metadata

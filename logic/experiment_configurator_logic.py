@@ -41,6 +41,7 @@ class ExpConfigLogic(GenericLogic):
         module.Class: 'experiment_configurator_logic.ExpConfigLogic'
         experiments:
             - 'Multichannel imaging'
+            - 'Multichannel scan PALM'
             - 'Dummy experiment'
         supported fileformats:
             - 'tiff'
@@ -61,11 +62,12 @@ class ExpConfigLogic(GenericLogic):
     # signals
     sigConfigDictUpdated = QtCore.Signal()
     sigImagingListChanged = QtCore.Signal()
+    sigConfigLoaded = QtCore.Signal()
 
     # attributes
     experiments = ConfigOption('experiments')
     supported_fileformats = ConfigOption('supported fileformats')
-    default_path = ConfigOption('default path')
+    default_path_images = ConfigOption('default path imagedata')
 
     config_dict = {}
 
@@ -94,7 +96,7 @@ class ExpConfigLogic(GenericLogic):
         """ Perform required deactivation. """
         pass
 
-    def save_to_exp_config_file(self, path, filename):
+    def save_to_exp_config_file(self, path, experiment, filename=None):
         """ Saves the current config_dict to a txt file using yaml style
 
         @param: str path: path to directory where the config file is saved
@@ -107,10 +109,60 @@ class ExpConfigLogic(GenericLogic):
                 os.makedirs(path)  # recursive creation of all directories on the path
             except Exception as e:
                 self.log.error(f'Error {e}.')
-                
+
+        config_dict = {}
+
+        try:
+            if experiment == 'Multicolor imaging':
+                if not filename:
+                    filename = 'multicolor_imaging_task_PALM.yaml'
+                keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'imaging_sequence', 'file_format']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'Multicolor scan PALM':
+                if not filename:
+                    filename = 'multicolor_scan_task_PALM.yaml'
+                keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'Multicolor scan RAMM':
+                if not filename:
+                    filename = 'multicolor_scan_task_RAMM.yaml'
+                keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'ROI multicolor scan PALM':
+                if not filename:
+                    filename = 'ROI_multicolor_scan_task_PALM.yaml'
+                keys_to_extract = ['sample_name', 'filter_pos', 'exposure', 'gain', 'num_frames', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane', 'roi_list_path']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'ROI multicolor scan':  # maybe modify into ROI multicolor scan RAMM
+                if not filename:
+                    filename = 'ROI_multicolor_scan_task_RAMM.yaml'
+                keys_to_extract = ['sample_name', 'dapi', 'rna', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'roi_list_path', 'centered_focal_plane']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'Fluidics':
+                if not filename:
+                    filename = 'fluidics_task_RAMM.yaml'
+                keys_to_extract = ['injections_path']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'Hi-M':
+                if not filename:
+                    filename = 'hi_m_task_RAMM.yaml'
+                keys_to_extract = ['sample_name', 'exposure', 'save_path', 'file_format', 'imaging_sequence', 'num_z_planes', 'z_step', 'centered_focal_plane', 'roi_list_path', 'injections_path']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            elif experiment == 'Photobleaching':
+                if not filename:
+                    filename = 'photobleaching_task_RAMM.yaml'
+                keys_to_extract = ['imaging_sequence', 'roi_list_path', 'illumination_time']
+                config_dict = {key: self.config_dict[key] for key in keys_to_extract}
+            else:
+                pass
+        except KeyError as e:
+            self.log.warning(f'Experiment configuration not saved. Missing information {e}.')
+            return
+
+        config_dict['experiment'] = experiment
         complete_path = os.path.join(path, filename)
         with open(complete_path, 'w') as file:
-            yaml.safe_dump(self.config_dict, file, default_flow_style=False)  # yaml file. can use suffix .txt. change if .yaml preferred.
+            yaml.safe_dump(config_dict, file, default_flow_style=False)  # yaml file. can use suffix .txt.
         self.log.info('Saved experiment configuration to {}'.format(complete_path))
 
     def load_config_file(self, path):
@@ -120,28 +172,68 @@ class ExpConfigLogic(GenericLogic):
         with open(path, 'r') as stream:
             data_dict = yaml.safe_load(stream)
 
-        for key in self.config_dict:
-            if key in data_dict:
-                self.config_dict[key] = data_dict[key]
-            else:
-                self.config_dict[key] = None  # should the config_dict always contain all entries, even those that are non applicable for the experiment in question ?
-        # synchronize the listviewmodel with the config_dict['imaging_sequence'] entry
-        self.img_sequence_model.items = self.config_dict['imaging_sequence']
-        self.sigConfigDictUpdated.emit()
+        self.config_dict = data_dict
+
+        # safety check: is at least the key 'experiment' contained in the file ?
+        if not 'experiment' in self.config_dict.keys():
+            self.log.warning('The loaded files does not contain necessary parameters. Configuration not loaded.')
+            return
+        else:
+            self.log.info(f'Configuration loaded from {path}')
+
+        if 'imaging_sequence' in self.config_dict.keys():
+            # synchronize the listviewmodel with the config_dict['imaging_sequence'] entry
+            self.img_sequence_model.items = self.config_dict['imaging_sequence']
+
+        self.sigConfigLoaded.emit()
 
     def init_default_config_dict(self):
         """ Initialize the entries of the dictionary with some default values,
         to set entries to the form displayed on the GUI on startup.
         """
+        self.config_dict = {}
+        self.config_dict['dapi'] = False
+        self.config_dict['rna'] = False
         self.config_dict['exposure'] = 0.05
         self.config_dict['gain'] = 0
         self.config_dict['num_frames'] = 1
         self.config_dict['filter_pos'] = 1
-        self.config_dict['imaging_sequence'] = []
-        self.config_dict['save_path'] = self.default_path
+        self.img_sequence_model.items = []
+        self.config_dict['save_path'] = self.default_path_images
+        self.config_dict['file_format'] = 'tiff'
+        self.config_dict['num_z_planes'] = 1
+        self.config_dict['centered_focal_plane'] = False
         self.sigConfigDictUpdated.emit()
 
     # methods for updating dict entries on change of associated element on GUI
+    @QtCore.Slot(str)
+    def update_sample_name(self, name):
+        """ Updates the dictionary entry 'sample_name' """
+        self.config_dict['sample_name'] = name
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_is_dapi(self, state):
+        """ Updates the dictionary entry 'dapi' (needed for the roi multicolor scan task, is this the imaging experiment
+        after dapi injection, and should the generated filename contain the label DAPI.
+        """
+        if state == 2:  # Enum Qt::CheckState Checked = 2
+            self.config_dict['dapi'] = True
+        elif state == 0:  # Unchecked = 0
+            self.config_dict['dapi'] = False
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_is_rna(self, state):
+        """ Updates the dictionary entry 'dapi' (needed for the roi multicolor scan task, is this the imaging experiment
+        after dapi injection, and should the generated filename contain the label DAPI.
+        """
+        if state == 2:  # Enum Qt::CheckState Checked = 2
+            self.config_dict['rna'] = True
+        elif state == 0:  # Unchecked = 0
+            self.config_dict['rna'] = False
+        self.sigConfigDictUpdated.emit()
+
     @QtCore.Slot(float)
     def update_exposure(self, value):
         """ Updates the dictionary entry 'exposure'"""
@@ -151,28 +243,70 @@ class ExpConfigLogic(GenericLogic):
 
     @QtCore.Slot(int)
     def update_gain(self, value):
-        """ Updates the dictionary entry 'gain'"""
+        """ Updates the dictionary entry 'gain'. """
         self.config_dict['gain'] = value
-        # update the gui in case this method was called from the ipython console
         self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(int)
     def update_frames(self, value):
-        """ Updates the dictionary entry 'num_frames' (number of frames per channel)"""
+        """ Updates the dictionary entry 'num_frames' (number of frames per channel). """
         self.config_dict['num_frames'] = value
-
-    @QtCore.Slot(str)
-    def update_save_path(self, path):
-        """ Updates the dictionary entry 'save_path' (path where image data is saved to)"""
-        self.config_dict['save_path'] = path
-        # update the gui in case this method was called from the ipython console
         self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(int)
     def update_filterpos(self, index):
         """ Updates the dictionary entry 'filter_pos'"""
         self.config_dict['filter_pos'] = index + 1  # zero indexing !
-        # update the gui in case this method was called from the ipython console
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(str)
+    def update_save_path(self, path):
+        """ Updates the dictionary entry 'save_path' (path where image data is saved to). """
+        self.config_dict['save_path'] = path
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(str)
+    def update_fileformat(self, entry):
+        self.config_dict['file_format'] = entry
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_num_z_planes(self, value):
+        """ Updates the dictionary entry 'num_z_planes' (number of planes in a z stack for scan experiments). """
+        self.config_dict['num_z_planes'] = value
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(float)
+    def update_z_step(self, value):
+        """ Updates the dictionary entry 'z_step' (step between two planes in a z stack). """
+        self.config_dict['z_step'] = value
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(int)
+    def update_centered_focal_plane(self, state):
+        """ Updates the dictionary entry 'centered_focal_plane' (z stack starting at bottom plane if False, or taking current plane as center plane if True). """
+        if state == 2:  # Enum Qt::CheckState Checked = 2
+            self.config_dict['centered_focal_plane'] = True
+        elif state == 0:  # Unchecked = 0
+            self.config_dict['centered_focal_plane'] = False
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(str)
+    def update_roi_path(self, path):
+        """ Updates the dictionary entry 'roi_list_path' (path to the roi list). """
+        self.config_dict['roi_list_path'] = path
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(str)
+    def update_injections_path(self, path):
+        """ Updates the dictionary entry 'injections_path' (path to the injections list). """
+        self.config_dict['injections_path'] = path
+        self.sigConfigDictUpdated.emit()
+
+    @QtCore.Slot(float)
+    def update_illumination_time(self, value):
+        """ Updates the dictionary entry 'illumination_time' (laser-on time for photobleaching). """
+        self.config_dict['illumination_time'] = value
         self.sigConfigDictUpdated.emit()
 
     @QtCore.Slot(str, int)
@@ -196,8 +330,12 @@ class ExpConfigLogic(GenericLogic):
         # Trigger refresh of the livtview on the GUI
         self.sigImagingListChanged.emit()
 
+    @QtCore.Slot()
+    def delete_imaging_list(self):
+        self.img_sequence_model.items = []
+        self.sigImagingListChanged.emit()
 
-    # retrieving current values from instruments
+    # retrieving current values from devices
     def get_exposure(self):
         exposure = self._camera_logic.get_exposure()
         self.config_dict['exposure'] = exposure
@@ -212,5 +350,6 @@ class ExpConfigLogic(GenericLogic):
         filterpos = self._filterwheel_logic.get_position()
         self.config_dict['filter_pos'] = filterpos
         self.sigConfigDictUpdated.emit()
+
 
 

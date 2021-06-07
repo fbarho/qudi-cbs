@@ -33,6 +33,9 @@
     <property name="title">
      <string>View</string>
     </property>
+    <addaction name="valves_dockwidget_view_Action"/>
+    <addaction name="flowcontrol_dockwidget_view_Action"/>
+    <addaction name="positioning_dockwidget_view_Action"/>
    </widget>
    <addaction name="menuMenu"/>
    <addaction name="menuView"/>
@@ -46,36 +49,6 @@
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <layout class="QFormLayout" name="formLayout">
-       <item row="1" column="0">
-        <widget class="QLabel" name="valve1_Label">
-         <property name="text">
-          <string>Valve 1</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QComboBox" name="valve1_ComboBox"/>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="valve2_Label">
-         <property name="text">
-          <string>Valve 2</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QComboBox" name="valve2_ComboBox"/>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="valve3_Label">
-         <property name="text">
-          <string>Valve 3</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QComboBox" name="valve3_ComboBox"/>
-       </item>
        <item row="0" column="0">
         <widget class="QLabel" name="label_16">
          <property name="font">
@@ -89,19 +62,6 @@
           <string>Valve settings</string>
          </property>
         </widget>
-       </item>
-       <item row="4" column="0">
-        <spacer name="verticalSpacer_5">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
        </item>
        <item row="0" column="1">
         <widget class="QLabel" name="label_17">
@@ -121,15 +81,49 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="1" column="0" colspan="2">
-      <widget class="QLabel" name="label_12">
+     <item row="11" column="0">
+      <widget class="QLabel" name="label_4">
        <property name="text">
-        <string>Pressure Setpoint: </string>
+        <string>Time since start:</string>
        </property>
       </widget>
      </item>
      <item row="4" column="2">
       <widget class="QLineEdit" name="pressure_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="2">
+      <widget class="QSpinBox" name="target_volume_SpinBox">
+       <property name="maximum">
+        <number>10000</number>
+       </property>
+       <property name="value">
+        <number>1500</number>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="3">
+      <widget class="QLabel" name="rinsing_time_unit_Label">
+       <property name="text">
+        <string>s</string>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="2">
+      <widget class="QSpinBox" name="rinsing_time_SpinBox">
+       <property name="maximum">
+        <number>1000</number>
+       </property>
+       <property name="value">
+        <number>30</number>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="2">
+      <widget class="QLineEdit" name="time_since_start_LineEdit">
        <property name="readOnly">
         <bool>true</bool>
        </property>
@@ -142,47 +136,33 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="2">
-      <widget class="QLineEdit" name="flowrate_LineEdit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox"/>
-     </item>
-     <item row="1" column="3">
-      <widget class="QLabel" name="pressure_unit_Label">
-       <property name="text">
-        <string>unit</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="3">
-      <widget class="QLabel" name="pressure_unit_Label2">
-       <property name="text">
-        <string>unit</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="2">
-      <spacer name="verticalSpacer_4">
+     <item row="12" column="2">
+      <spacer name="verticalSpacer_6">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Preferred</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>40</height>
+         <height>20</height>
         </size>
        </property>
       </spacer>
      </item>
-     <item row="5" column="3">
-      <widget class="QLabel" name="flowrate_unit_Label">
+     <item row="11" column="3">
+      <widget class="QLabel" name="time_since_start_unit_Label">
        <property name="text">
-        <string>unit</string>
+        <string>s</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="3">
+      <widget class="QLabel" name="target_volume_unit_Label">
+       <property name="text">
+        <string>ul</string>
        </property>
       </widget>
      </item>
@@ -202,10 +182,102 @@
        </property>
       </spacer>
      </item>
+     <item row="1" column="0" colspan="2">
+      <widget class="QLabel" name="label_12">
+       <property name="text">
+        <string>Pressure setpoint: </string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="2">
+      <widget class="QLineEdit" name="flowrate_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="3">
+      <widget class="QLabel" name="pressure_unit_Label">
+       <property name="text">
+        <string>unit</string>
+       </property>
+      </widget>
+     </item>
+     <item row="14" column="2">
+      <spacer name="verticalSpacer_4">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="4" column="3">
+      <widget class="QLabel" name="pressure_unit_Label2">
+       <property name="text">
+        <string>unit</string>
+       </property>
+      </widget>
+     </item>
      <item row="5" column="0">
       <widget class="QLabel" name="label_14">
        <property name="text">
         <string>Flowrate:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="3">
+      <widget class="QLabel" name="flowrate_unit_Label">
+       <property name="text">
+        <string>unit</string>
+       </property>
+      </widget>
+     </item>
+     <item row="10" column="2">
+      <widget class="QLineEdit" name="volume_LineEdit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="0">
+      <widget class="QLabel" name="label_19">
+       <property name="text">
+        <string>Target volume:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="10" column="0">
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>Volume:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="2">
+      <spacer name="verticalSpacer_5">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Preferred</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="10" column="3">
+      <widget class="QLabel" name="volume_unit_Label">
+       <property name="text">
+        <string>ul</string>
        </property>
       </widget>
      </item>
@@ -222,6 +294,39 @@
         <string>Flow control</string>
        </property>
       </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QDoubleSpinBox" name="pressure_setpoint_DSpinBox">
+       <property name="maximum">
+        <double>50.000000000000000</double>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="0" colspan="2">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>Rinsing duration:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="2">
+      <spacer name="verticalSpacer_7">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Preferred</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>30</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="7" column="0" colspan="3">
+      <widget class="PlotWidget" name="flowrate_PlotWidget"/>
      </item>
     </layout>
    </widget>
@@ -270,7 +375,7 @@
       </spacer>
      </item>
      <item row="2" column="0">
-      <widget class="QLabel" name="label">
+      <widget class="QLabel" name="first_axis_Label">
        <property name="text">
         <string>X axis</string>
        </property>
@@ -284,7 +389,7 @@
       </widget>
      </item>
      <item row="4" column="0">
-      <widget class="QLabel" name="label_5">
+      <widget class="QLabel" name="third_axis_Label">
        <property name="text">
         <string>Z axis</string>
        </property>
@@ -305,7 +410,7 @@
       </widget>
      </item>
      <item row="3" column="0">
-      <widget class="QLabel" name="label_4">
+      <widget class="QLabel" name="second_axis_Label">
        <property name="text">
         <string>Y axis</string>
        </property>
@@ -440,6 +545,9 @@
    </attribute>
    <addaction name="set_pressure_Action"/>
    <addaction name="start_flow_measurement_Action"/>
+   <addaction name="volume_measurement_Action"/>
+   <addaction name="separator"/>
+   <addaction name="rinsing_Action"/>
   </widget>
   <action name="close_MenuAction">
    <property name="text">
@@ -448,7 +556,7 @@
   </action>
   <action name="set_position1_Action">
    <property name="text">
-    <string>Set Position 1</string>
+    <string>Set position 1</string>
    </property>
   </action>
   <action name="go_to_position_Action">
@@ -456,7 +564,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Go to Target</string>
+    <string>Go to target</string>
    </property>
   </action>
   <action name="move_stage_Action">
@@ -477,10 +585,163 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Start Flowrate Measurement</string>
+    <string>Start flowrate measurement</string>
+   </property>
+  </action>
+  <action name="valves_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Valves dockwidget</string>
+   </property>
+  </action>
+  <action name="flowcontrol_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Flowcontrol dockwidget</string>
+   </property>
+  </action>
+  <action name="positioning_dockwidget_view_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Positioning dockwidget</string>
+   </property>
+  </action>
+  <action name="volume_measurement_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start volume measurement</string>
+   </property>
+  </action>
+  <action name="rinsing_Action">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Start rinsing</string>
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QGraphicsView</extends>
+   <header location="global">pyqtgraph</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>flowcontrol_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>pump_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>995</x>
+     <y>455</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pump_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>flowcontrol_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>995</x>
+     <y>455</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>positioning_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>positioning_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>184</x>
+     <y>615</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>positioning_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>positioning_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>184</x>
+     <y>615</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>valves_dockwidget_view_Action</sender>
+   <signal>triggered(bool)</signal>
+   <receiver>valves_DockWidget</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>184</x>
+     <y>210</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>valves_DockWidget</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>valves_dockwidget_view_Action</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>184</x>
+     <y>210</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

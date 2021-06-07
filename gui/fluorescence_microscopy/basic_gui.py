@@ -75,6 +75,16 @@ class BasicWindow(QtWidgets.QMainWindow):
 
         self.show()
 
+class BasicWindowCE(BasicWindow):
+    """ Basic Window child class that allows to stop the live mode when window is closed. """
+    def __init__(self, close_function):
+        super().__init__()
+        self.close_function = close_function
+
+    def closeEvent(self, event):
+        self.close_function()
+        event.accept()
+
 
 class BasicGUI(GUIBase):
     """ Main window containing the basic tools for the fluorescence microscopy setup
@@ -142,7 +152,7 @@ class BasicGUI(GUIBase):
     imageitem = None
     spinbox_list = None
 
-    # flags that enable to reuse the save settings dialog for both save video and save long video (=spooling)
+    # flags that enable to reuse the save settings dialog for both save video and spooling
     _video = False
     _spooling = False
 
@@ -167,7 +177,8 @@ class BasicGUI(GUIBase):
             self._brightfield_logic = self.brightfield_logic()
 
         # Windows
-        self._mw = BasicWindow()
+        self._mw = BasicWindowCE(self.close_function)  #
+
         self._mw.centralwidget.hide()  # everything is in dockwidgets
         # self._mw.setDockNestingEnabled(True)
         self.init_camera_settings_ui()
@@ -237,7 +248,7 @@ class BasicGUI(GUIBase):
         self._mw.save_path_LineEdit.setText(self.default_path)
         # add validators to the sample name and the default path lineedits
         self._mw.save_path_LineEdit.setValidator(NameValidator(path=True))
-        self._mw.samplename_LineEdit.setValidator(NameValidator(empty_allowed=True))
+        self._mw.samplename_LineEdit.setValidator(NameValidator(empty_allowed=False))
         # synchronize the samplename_LineEdit with the LineEdit in the save settings dialog
         self._mw.samplename_LineEdit.textChanged[str].connect(self.update_sample_name)
 
@@ -263,6 +274,9 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigExposureChanged.connect(self.update_exposure)
         self._camera_logic.sigGainChanged.connect(self.update_gain)
         self._camera_logic.sigTemperatureChanged.connect(self.update_temperature)
+        self._camera_logic.sigLiveStopped.connect(self.reset_start_video_button)
+        self._camera_logic.sigDisableCameraActions.connect(self.disable_camera_toolbuttons)
+        self._camera_logic.sigEnableCameraActions.connect(self.enable_camera_toolbuttons)
 
         # camera toolbar
         # configure the toolbar action buttons and connect internal signals
@@ -277,16 +291,8 @@ class BasicGUI(GUIBase):
         self._mw.save_last_image_Action.triggered.connect(self.save_last_image_clicked)
 
         self._mw.save_video_Action.setEnabled(True)
-        self._mw.save_video_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
+        self._mw.save_video_Action.setChecked(self._camera_logic.saving)
         self._mw.save_video_Action.triggered.connect(self.save_video_clicked)
-
-        # spooling action only available for andor iXon Ultra camera
-        if not self._camera_logic.get_name() == 'iXon Ultra 897':
-            self._mw.spooling_Action.setEnabled(False)
-        else:
-            self._mw.spooling_Action.setEnabled(True)
-            self._mw.spooling_Action.setChecked(self._camera_logic.saving)  # maybe replace by saving attribute instead
-        self._mw.spooling_Action.triggered.connect(self.set_spooling_clicked)
 
         self._mw.video_quickstart_Action.triggered.connect(self.video_quickstart_clicked)
 
@@ -311,7 +317,7 @@ class BasicGUI(GUIBase):
         self._camera_logic.sigAcquisitionFinished.connect(self.acquisition_finished)  # for single acquisition
         self._camera_logic.sigVideoFinished.connect(self.enable_camera_toolbuttons)
         self._camera_logic.sigVideoSavingFinished.connect(self.video_saving_finished)
-        self._camera_logic.sigSpoolingFinished.connect(self.spooling_finished)
+        self._camera_logic.sigSpoolingFinished.connect(self.video_saving_finished)
         self._camera_logic.sigCleanStatusbar.connect(self.clean_statusbar)
 
     def init_camera_status_dockwidget(self):
@@ -357,8 +363,8 @@ class BasicGUI(GUIBase):
         # add brightfield control widgets if applicable
         if self.brightfield_control:
             self.bf_Label = QtWidgets.QLabel('BF')
-            self.bf_control_SpinBox = QtWidgets.QSpinBox()
-            self._mw.formLayout_3.addRow(self.bf_Label, self.bf_control_SpinBox)
+            self.bf_control_DSpinBox = QtWidgets.QDoubleSpinBox()
+            self._mw.formLayout_3.addRow(self.bf_Label, self.bf_control_DSpinBox)
 
             self.brightfield_on_Action = self._mw.toolBar_2.addAction('Brightfield on')
             self.brightfield_on_Action.setCheckable(True)
@@ -370,7 +376,9 @@ class BasicGUI(GUIBase):
             self.sigBFOff.connect(self._brightfield_logic.led_off)
 
             # update the physical output when the spinbox value is changed
-            self.bf_control_SpinBox.valueChanged.connect(self._brightfield_logic.update_intensity)
+            self.bf_control_DSpinBox.valueChanged.connect(self._brightfield_logic.update_intensity)
+
+            self._brightfield_logic.sigBrightfieldStopped.connect(self.reset_brightfield_toolbutton)
 
         # toolbar actions
         self._mw.laser_on_Action.setEnabled(True)
@@ -386,21 +394,21 @@ class BasicGUI(GUIBase):
         self.sigLaserOff.connect(self._laser_logic.voltage_off)
 
         # actions on changing laser spinbox values
-        self.spinbox_list = [self._mw.laser1_control_SpinBox, self._mw.laser2_control_SpinBox,
-                             self._mw.laser3_control_SpinBox, self._mw.laser4_control_SpinBox]
+        self.spinbox_list = [self._mw.laser1_control_DSpinBox, self._mw.laser2_control_DSpinBox,
+                             self._mw.laser3_control_DSpinBox, self._mw.laser4_control_DSpinBox]
         # actualize the laser intensity dictionary
-        self._mw.laser1_control_SpinBox.valueChanged.connect(
+        self._mw.laser1_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser1']['label'],
-                                                             self._mw.laser1_control_SpinBox.value()))
-        self._mw.laser2_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser1_control_DSpinBox.value()))
+        self._mw.laser2_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser2']['label'],
-                                                             self._mw.laser2_control_SpinBox.value()))
-        self._mw.laser3_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser2_control_DSpinBox.value()))
+        self._mw.laser3_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser3']['label'],
-                                                             self._mw.laser3_control_SpinBox.value()))
-        self._mw.laser4_control_SpinBox.valueChanged.connect(
+                                                             self._mw.laser3_control_DSpinBox.value()))
+        self._mw.laser4_control_DSpinBox.valueChanged.connect(
             lambda: self._laser_logic.update_intensity_dict(self._laser_logic._laser_dict['laser4']['label'],
-                                                             self._mw.laser4_control_SpinBox.value()))
+                                                             self._mw.laser4_control_DSpinBox.value()))
         # lambda function is used to pass in an additional argument. See also the decorator @QtCore.Slot(str, int).
         # in case lambda does not work well on runtime, check functools.partial
         # or signal mapper ? to explore ..
@@ -408,6 +416,9 @@ class BasicGUI(GUIBase):
         # Signals from logic
         # update GUI when intensity is changed programatically
         self._laser_logic.sigIntensityChanged.connect(self.update_laser_spinbox)
+        self._laser_logic.sigLaserStopped.connect(self.reset_laser_toolbutton)
+        self._laser_logic.sigDisableLaserActions.connect(self.disable_laser_toolbuttons)
+        self._laser_logic.sigEnableLaserActions.connect(self.enable_laser_toolbuttons)
 
     def init_filter_dockwidget(self):
         """ initializes the filter selection combobox and connects signals"""
@@ -430,6 +441,8 @@ class BasicGUI(GUIBase):
         # signals from logic
         # update GUI when filter was manually changed
         self._filterwheel_logic.sigNewFilterSetting.connect(self.update_filter_display)
+        self._filterwheel_logic.sigDisableFilterActions.connect(self.disable_filter_selection)
+        self._filterwheel_logic.sigEnableFilterActions.connect(self.enable_filter_selection)
 
     # Initialisation of the camera settings windows in the options menu
     def init_camera_settings_ui(self):
@@ -462,8 +475,9 @@ class BasicGUI(GUIBase):
         # interrupt live display if it is on
         if self._camera_logic.enabled:  # camera is acquiring
             self.sigInterruptLive.emit()
-        self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
+        # this is executed too fast and is not taken into account because live seems not yet to be interrupted. This is why kinetic time indicator is not updated when live is on.
         self._camera_logic.set_gain(self._cam_sd.gain_spinBox.value())
+        self._camera_logic.set_exposure(self._cam_sd.exposure_doubleSpinBox.value())
         self._camera_logic.set_temperature(int(self._cam_sd.temp_spinBox.value()))
         self._mw.temp_setpoint_LineEdit.setText(str(self._cam_sd.temp_spinBox.value()))
         if self._camera_logic.enabled:
@@ -522,7 +536,7 @@ class BasicGUI(GUIBase):
         """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         path = os.path.join(default_path, today, folder_name)
         fileformat = '.'+str(self._save_sd.file_format_ComboBox.currentText())
 
@@ -532,8 +546,8 @@ class BasicGUI(GUIBase):
 
         metadata = self._create_metadata_dict()
 
-        # we need a case structure here: if the dialog was called from save video button, sigVideoSavingStart must be
-        # emitted, if it was called from save long video (=spooling) sigSpoolingStart must be emitted
+        # we need a case structure here: if the dialog was on a system with Andor iXon Ultra camera, sigSpoolingStart
+        # must be emitted, else, sigVideoSavingStart must be emitted.
         if self._video:
             self.sigVideoSavingStart.emit(path, fileformat, n_frames, display, metadata)
         elif self._spooling:
@@ -562,7 +576,7 @@ class BasicGUI(GUIBase):
         displayed below the folder name specified by the user """
         folder_name = self._save_sd.foldername_LineEdit.text()
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         path = os.path.join(default_path, today, folder_name)  #
         self._save_sd.complete_path_Label.setText('Save to: {}'.format(path))
 
@@ -654,6 +668,14 @@ class BasicGUI(GUIBase):
         self.imageitem.getViewBox().rbScaleBox.hide()  # hide the rubberband tool used for roi selection on sensor
 
     @QtCore.Slot()
+    def reset_start_video_button(self):
+        """ Callback of the signal sigLiveStopped from logic, emitted when live mode is programmatically stopped
+        (for example to prepare a task). """
+        self._mw.start_video_Action.setText('Live')
+        self._mw.start_video_Action.setToolTip('Start live video')
+        self._mw.start_video_Action.setChecked(False)
+
+    @QtCore.Slot()
     def update_data(self):
         """ Callback of sigUpdateDisplay in the camera_logic module.
         Get the image data from the logic and print it on the window
@@ -688,29 +710,30 @@ class BasicGUI(GUIBase):
         """
         # save data
         default_path = self._mw.save_path_LineEdit.text()
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y_%m_%d')
         folder_name = self._mw.samplename_LineEdit.text()
         filenamestem = os.path.join(default_path, today, folder_name)
         metadata = self._create_metadata_dict()
         self._camera_logic.save_last_image(filenamestem, metadata)
 
-    @QtCore.Slot()
-    def save_video_clicked(self):
-        """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
-        # disable camera related toolbuttons
-        self.disable_camera_toolbuttons()
-        # set the flag to True so that the dialog knows that is was called from save video button
-        self._video = True
-        # open the save settings window
-        self.open_save_settings()
-        # hide the rubberband tool used for roi selection on sensor
-        self.imageitem.getViewBox().rbScaleBox.hide()
+    # @QtCore.Slot()
+    # def save_video_clicked(self):
+    #     """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
+    #     # disable camera related toolbuttons
+    #     self.disable_camera_toolbuttons()
+    #     # set the flag to True so that the dialog knows that is was called from save video button
+    #     self._video = True
+    #     # open the save settings window
+    #     self.open_save_settings()
+    #     # hide the rubberband tool used for roi selection on sensor
+    #     self.imageitem.getViewBox().rbScaleBox.hide()
 
     @QtCore.Slot()
     def video_saving_finished(self):
         """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
-        # reset the flag
+        # reset the flags
         self._video = False
+        self._spooling = False
         # toolbuttons
         self.enable_camera_toolbuttons()
         self._mw.save_video_Action.setChecked(False)
@@ -718,27 +741,19 @@ class BasicGUI(GUIBase):
         self._mw.progress_label.setText('')
 
     @QtCore.Slot()
-    def set_spooling_clicked(self):
-        """ callback of spooling_Action. Handles toolbutton state, and opens the save settings dialog"""
+    def save_video_clicked(self):
+        """ callback of save_video_Action. Handles toolbutton state, and opens the save settings dialog"""
         # disable camera related toolbuttons
         self.disable_camera_toolbuttons()
-        # set the flag to True so that the dialog nows that is was called from save video button
-        self._spooling = True
-        # open the save settings dialog
+        # set the flag to True so that the dialog knows that is was called from save video button
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            self._spooling = True
+        else:
+            self._video = True
+        # open the save settings window
         self.open_save_settings()
         # hide the rubberband tool used for roi selection on sensor
         self.imageitem.getViewBox().rbScaleBox.hide()
-
-    @QtCore.Slot()
-    def spooling_finished(self):
-        """ resets the toolbuttons to callable state and clear up the flag and statusbar"""
-        # reset the flag
-        self._spooling = False
-        # enable the toolbuttons
-        self.enable_camera_toolbuttons()
-        self._mw.spooling_Action.setChecked(False)
-        # clear the statusbar
-        self._mw.progress_label.setText('')
 
     @QtCore.Slot()
     def video_quickstart_clicked(self):
@@ -774,8 +789,8 @@ class BasicGUI(GUIBase):
 
         Sets the camera toolbuttons to callable state, and unchecks them"""
         self.enable_camera_toolbuttons()
-        self._mw.save_video_Action.setChecked(False)  # simply uncheck both independent of which one was checked before
-        self._mw.spooling_Action.setChecked(False)
+        self._mw.save_video_Action.setChecked(False)
+
 
     def disable_camera_toolbuttons(self):
         """ disables all toolbuttons of the camera toolbar"""
@@ -783,7 +798,6 @@ class BasicGUI(GUIBase):
         self._mw.start_video_Action.setDisabled(True)
         self._mw.save_last_image_Action.setDisabled(True)
         self._mw.save_video_Action.setDisabled(True)
-        self._mw.spooling_Action.setDisabled(True)
         self._mw.video_quickstart_Action.setDisabled(True)
         self._mw.set_sensor_Action.setDisabled(True)
 
@@ -799,8 +813,6 @@ class BasicGUI(GUIBase):
         self._mw.save_video_Action.setDisabled(False)
         self._mw.video_quickstart_Action.setDisabled(False)
         self._mw.set_sensor_Action.setDisabled(False)
-        if self._camera_logic.get_name() == 'iXon Ultra 897':  # in this case the button needs to be reactivated
-            self._mw.spooling_Action.setDisabled(False)
 
     def _create_metadata_dict(self):
         """ create a dictionary containing the metadata.
@@ -808,31 +820,35 @@ class BasicGUI(GUIBase):
         """
         # maybe reformat using tuples of value and comment (good for fits, less adapted for txt).
         metadata = {}
-        metadata['time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        # ----general----------------------------------------------------------------------------
+        metadata['Time'] = datetime.now().strftime('%m-%d-%Y, %H:%M:%S')
+        # sample name ?
+        # ----camera-----------------------------------------------------------------------------
+        metadata['Exposure time (s)'] = self._camera_logic.get_exposure()
+        if self._camera_logic.get_name() == 'iXon Ultra 897':
+            metadata['Kinetic time (s)'] = self._camera_logic.get_kinetic_time()
+        metadata['Gain'] = self._camera_logic.get_gain()
+        if self._camera_logic.has_temp:
+            self.sigReadTemperature.emit()  # short interruption of live mode to read temperature
+            metadata['Sensor temperature (deg C)'] = self._camera_logic._temperature
+        else:
+            metadata['Sensor temperature (deg C)'] = 'Not available'
+        # ----filter------------------------------------------------------------------------------
         filterpos = self._filterwheel_logic.get_position()
         filterdict = self._filterwheel_logic.get_filter_dict()
         label = 'filter{}'.format(filterpos)
-        metadata['filter'] = filterdict[label]['name']
-        metadata['gain'] = self._camera_logic.get_gain()
-        metadata['exposure'] = self._camera_logic.get_exposure()
-        if self._camera_logic.get_name() == 'iXon Ultra 897':
-            metadata['kinetic'] = self._camera_logic.get_kinetic_time()
+        metadata['Filter'] = filterdict[label]['name']
+        # ----laser-------------------------------------------------------------------------------
         intensity_dict = self._laser_logic._intensity_dict
         keylist = [key for key in intensity_dict if intensity_dict[key] != 0]
         laser_dict = self._laser_logic.get_laser_dict()
-        metadata['laser'] = [laser_dict[key]['wavelength'] for key in keylist]
-        if metadata['laser'] == []:  # for compliance with fits header conventions ([] is forbidden)
-            metadata['laser'] = None
-        metadata['intens'] = [intensity_dict[key] for key in keylist]
-        if metadata['intens'] == []:
-            metadata['intens'] = None
-        if self._camera_logic.has_temp:
-#            metadata['temp'] = self._camera_logic.get_temperature()  # old version with missing metadata entry when live mode is running and save is clicked
-            # new version allowing temperature reading during live (short interruption of live mode)
-            self.sigReadTemperature.emit()
-            metadata['temp'] = self._camera_logic._temperature
-        else:
-            metadata['temp'] = 'Not available'
+        metadata['Laser lines'] = [laser_dict[key]['wavelength'] for key in keylist]
+        if metadata['Laser lines'] == []:  # for compliance with fits header conventions ([] is forbidden)
+            metadata['Laser lines'] = None
+        metadata['Laser intensities (%)'] = [intensity_dict[key] for key in keylist]
+        if metadata['Laser intensities (%)'] == []:
+            metadata['Laser intensities (%)'] = None
+
         return metadata
 
     @ QtCore.Slot()
@@ -963,7 +979,7 @@ class BasicGUI(GUIBase):
             item.setValue(0)
         # also set brightfield control to zero in case it is available
         if self.brightfield_control:
-            self.bf_control_SpinBox.setValue(0)
+            self.bf_control_DSpinBox.setValue(0)
 
     def update_laser_spinbox(self):
         """ update values in laser spinboxes if the intensity dictionary in the logic module was changed """
@@ -983,8 +999,42 @@ class BasicGUI(GUIBase):
         else:
             # brightfield is initially off
             self.brightfield_on_Action.setText('Brightfield Off')
-            intensity = self.bf_control_SpinBox.value()
+            intensity = self.bf_control_DSpinBox.value()
             self.sigBFOn.emit(intensity)
+
+    @QtCore.Slot()
+    def reset_laser_toolbutton(self):
+        """ Callback of the signal sigLaserStopped from logic, emitted when laser output is programmatically stopped
+        (for example to prepare a task). """
+        self._mw.laser_on_Action.setText('Laser On')
+        self._mw.laser_on_Action.setChecked(False)
+        # enable filter setting again
+        self._mw.filter_ComboBox.setEnabled(True)
+
+    @QtCore.Slot()
+    def reset_brightfield_toolbutton(self):
+        """ Callback of the signal sigBrightfieldStopped from brightfield logic,
+        emitted when brightfield output is programmatically stopped
+        (for example to prepare a task). """
+        self.brightfield_on_Action.setText('Brightfield On')
+        self.brightfield_on_Action.setChecked(False)
+
+    @QtCore.Slot()
+    def disable_laser_toolbuttons(self):
+        """ disables all toolbuttons of the laser toolbar"""
+        self._mw.laser_on_Action.setDisabled(True)
+        self._mw.laser_zero_Action.setDisabled(True)
+        if self.brightfield_control:
+            self.brightfield_on_Action.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_laser_toolbuttons(self):
+        """ enables all toolbuttons of the camera toolbar"""
+        self._mw.laser_on_Action.setDisabled(False)
+        self._mw.laser_zero_Action.setDisabled(False)
+        if self.brightfield_control:
+            self.brightfield_on_Action.setDisabled(False)
+
 
     # filter dockwidget
     def init_filter_selection(self):
@@ -1035,7 +1085,34 @@ class BasicGUI(GUIBase):
         
         @returns: None
         """                   
-        self._mw.laser1_control_SpinBox.setEnabled(bool_list[0])
-        self._mw.laser2_control_SpinBox.setEnabled(bool_list[1])
-        self._mw.laser3_control_SpinBox.setEnabled(bool_list[2])
-        self._mw.laser4_control_SpinBox.setEnabled(bool_list[3])
+        self._mw.laser1_control_DSpinBox.setEnabled(bool_list[0])
+        self._mw.laser2_control_DSpinBox.setEnabled(bool_list[1])
+        self._mw.laser3_control_DSpinBox.setEnabled(bool_list[2])
+        self._mw.laser4_control_DSpinBox.setEnabled(bool_list[3])
+
+    @QtCore.Slot()
+    def disable_filter_selection(self):
+        """ disables filter combobox (for example as safety during tasks) """
+        self._mw.filter_ComboBox.setDisabled(True)
+
+    @QtCore.Slot()
+    def enable_filter_selection(self):
+        """ enables filter combobox """
+        self._mw.filter_ComboBox.setDisabled(False)
+
+    def close_function(self):
+        # stop live mode when window is closed
+        if self._camera_logic.enabled:
+            self.start_video_clicked()
+            self.reset_start_video_button()
+        # switch laser off when window is closed
+        if self._laser_logic.enabled:
+            self._laser_logic.voltage_off()
+            self.reset_laser_toolbutton()
+        # switch brightfield off when window is closed
+        if self.brightfield_control:
+            if self._brightfield_logic.enabled:
+                self._brightfield_logic.led_off()
+                self.reset_brightfield_toolbutton()
+
+

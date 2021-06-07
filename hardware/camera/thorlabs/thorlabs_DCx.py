@@ -73,10 +73,13 @@ class CameraThorlabs(Base, CameraInterface):
         """ Initialisation performed during activation of the module.
          """
 
-        # Load the dll if present
-        self._load_dll()
-        self._connect_camera()
-        self._init_camera()
+        try:
+            # Load the dll if present
+            self._load_dll()
+            self._connect_camera()
+            self._init_camera()
+        except Exception as e:
+            self.log.error(f'Thorlabs DCx Camera: Connection failed: {e}.')
 
     def _check_error(self, code, message):
         """
@@ -401,6 +404,13 @@ class CameraThorlabs(Base, CameraInterface):
     def get_progress(self):
         """ retrieves the total number of acquired images during a movie acquisition"""
         pass
+    
+
+    def prepare_camera_for_multichannel_imaging(self, frames, file_format, exposure, gain, save_path):
+        self.log.info('This method is not supported by Thorlabs camera')
+    
+    def reset_camera_after_multichannel_imaging(self):
+        self.log.info('This method is not supported by Thorlabs camera')
 ########################################################################
 
 # does not work yet .. 

@@ -11,7 +11,7 @@ obtained from <https://github.com/Ulm-IQO/qudi/>
 """
 
 import serial
-from time import sleep
+from time import sleep, time
 
 from core.module import Base
 from interface.motor_interface import MotorInterface
@@ -53,30 +53,38 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         
         @returns int: error code (ok: O)
         """
+        try:
+            self._serial_connection = serial.Serial(
+                self._com_port, baudrate=self._baud_rate, bytesize=8, parity="N", stopbits=1, xonxoff=True
+            )
 
-        self._serial_connection = serial.Serial(
-            self._com_port, baudrate=self._baud_rate, bytesize=8, parity="N", stopbits=1, xonxoff=True
-        )
+            # add here the setting of private attributes
+            self._timeout = 15
 
-        # add here the setting of private attributes
-        self._timeout = 15
-
-        # create a list as iterator for methods that need a specified axis to apply to
-        axis_list = [self._first_axis_label, self._second_axis_label, self._third_axis_label]  # this serves only as local iterator
-        self.axis_list = []
-        for item in axis_list:
-            if isinstance(item, str):
-                self.axis_list.append(item)
-
-        return 0
+            # create a list as iterator for methods that need a specified axis to apply to
+            axis_list = [self._first_axis_label, self._second_axis_label, self._third_axis_label]  # this serves only as local iterator
+            self.axis_list = []
+            for item in axis_list:
+                if isinstance(item, str):
+                    self.axis_list.append(item)
+        except Exception:
+            self.log.error(f'ASI MS2000 automated stage not connected. Check if device is switched on.')
 
     def on_deactivate(self):
         """ Close serial port when deactivating the module.
-        
-        @returns int: error code (ok: 0)
         """
         self._serial_connection.close()
-        return 0
+        # safety check  # to explore when problem with stage arises again ..
+        port_open = self._serial_connection.is_open
+        t0 = time()
+        while port_open:
+            print('in loop')
+            t1 = time() - t0
+            sleep(0.5)
+            # self._serial_connection.close()
+            port_open = self._serial_connection.is_open
+            if t1 > 5:
+                break
 
     def get_constraints(self):
         pass
@@ -255,8 +263,8 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         status = self.get_status()
         waiting_time = 0
         while status != "N":
-            sleep(0.5)
-            waiting_time = waiting_time + 0.5
+            sleep(0.1)
+            waiting_time = waiting_time + 0.1
             status = self.get_status()
             if waiting_time >= self._timeout:
                 self.log.error("ASI MS2000 translation stage timeout occurred")

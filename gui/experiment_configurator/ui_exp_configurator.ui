@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>800</width>
-    <height>702</height>
+    <height>880</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -28,41 +28,28 @@
     <item>
      <widget class="QWidget" name="formWidget" native="true">
       <layout class="QGridLayout" name="gridLayout">
-       <item row="11" column="1">
-        <spacer name="verticalSpacer_3">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
+       <item row="5" column="2">
+        <widget class="QSpinBox" name="gain_SpinBox"/>
        </item>
-       <item row="3" column="1">
-        <widget class="QLabel" name="label_4">
+       <item row="2" column="4">
+        <widget class="QCheckBox" name="rna_CheckBox">
          <property name="text">
-          <string>Frames per channel</string>
+          <string>RNA</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">buttonGroup</string>
+         </attribute>
+        </widget>
+       </item>
+       <item row="12" column="4">
+        <widget class="QPushButton" name="delete_entry_PushButton">
+         <property name="text">
+          <string>Delete entry</string>
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item row="3" column="2">
-        <widget class="QSpinBox" name="frames_SpinBox">
+       <item row="23" column="2">
+        <widget class="QSpinBox" name="num_z_planes_SpinBox">
          <property name="minimum">
           <number>1</number>
          </property>
@@ -71,7 +58,7 @@
          </property>
         </widget>
        </item>
-       <item row="7" column="1">
+       <item row="10" column="1">
         <spacer name="verticalSpacer_2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -84,183 +71,64 @@
          </property>
         </spacer>
        </item>
-       <item row="13" column="1">
-        <widget class="QLabel" name="label_10">
-         <property name="text">
-          <string>Path</string>
+       <item row="6" column="2">
+        <widget class="QSpinBox" name="num_frames_SpinBox">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>1000</number>
          </property>
         </widget>
        </item>
-       <item row="13" column="2" colspan="2">
-        <widget class="QLineEdit" name="save_path_LineEdit"/>
-       </item>
-       <item row="10" column="2">
-        <widget class="QComboBox" name="laser_ComboBox"/>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="label_2">
-         <property name="text">
-          <string>Exposure time (s)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="2">
-        <widget class="QSpinBox" name="gain_SpinBox"/>
-       </item>
-       <item row="2" column="3">
-        <widget class="QPushButton" name="get_gain_PushButton">
-         <property name="text">
-          <string>Get current value</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1">
-        <widget class="QLabel" name="label_8">
-         <property name="font">
-          <font>
-           <family>DejaVu Sans</family>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Imaging</string>
-         </property>
-        </widget>
-       </item>
-       <item row="12" column="1">
-        <widget class="QLabel" name="label_9">
-         <property name="font">
-          <font>
-           <family>DejaVu Sans</family>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Save settings</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="1">
-        <widget class="QLabel" name="label_6">
-         <property name="text">
-          <string>Filter position</string>
+       <item row="31" column="2">
+        <widget class="QDoubleSpinBox" name="illumination_time_DSpinBox">
+         <property name="value">
+          <double>1.000000000000000</double>
          </property>
         </widget>
        </item>
        <item row="5" column="1">
-        <widget class="QLabel" name="label_5">
-         <property name="font">
-          <font>
-           <family>DejaVu Sans</family>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Filter settings</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="label_3">
+        <widget class="QLabel" name="gain_Label">
          <property name="text">
           <string>Gain</string>
          </property>
         </widget>
        </item>
-       <item row="1" column="2">
-        <widget class="QDoubleSpinBox" name="exposure_DSpinBox">
-         <property name="decimals">
-          <number>3</number>
-         </property>
-         <property name="maximum">
-          <double>5.000000000000000</double>
-         </property>
-         <property name="singleStep">
-          <double>0.010000000000000</double>
-         </property>
-         <property name="value">
-          <double>0.050000000000000</double>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="4">
-        <widget class="QPushButton" name="delete_entry_PushButton">
+       <item row="12" column="5">
+        <widget class="QPushButton" name="delete_all_PushButton">
          <property name="text">
-          <string>Delete entry</string>
+          <string>Delete all</string>
          </property>
         </widget>
        </item>
-       <item row="10" column="4">
-        <widget class="QPushButton" name="add_entry_PushButton">
-         <property name="text">
-          <string>Add entry</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="3">
-        <widget class="QPushButton" name="get_filterpos_PushButton">
-         <property name="text">
-          <string>Get current value</string>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="2" colspan="2">
-        <widget class="QListView" name="imaging_sequence_ListView"/>
-       </item>
-       <item row="9" column="1">
-        <widget class="QLabel" name="label_7">
+       <item row="12" column="1">
+        <widget class="QLabel" name="imaging_sequence_Label">
          <property name="text">
           <string>Imaging sequence</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="label">
-         <property name="font">
-          <font>
-           <family>DejaVu Sans</family>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Camera settings</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="3">
-        <widget class="QSpinBox" name="laser_intensity_SpinBox"/>
-       </item>
-       <item row="1" column="3">
-        <widget class="QPushButton" name="get_exposure_PushButton">
-         <property name="text">
-          <string>Get current value</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="2">
-        <widget class="QComboBox" name="filterpos_ComboBox"/>
-       </item>
-       <item row="10" column="5">
-        <spacer name="horizontalSpacer_2">
+       <item row="21" column="1">
+        <spacer name="verticalSpacer_4">
          <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeType">
-          <enum>QSizePolicy::Fixed</enum>
+          <enum>Qt::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
            <width>20</width>
-           <height>20</height>
+           <height>40</height>
           </size>
          </property>
         </spacer>
        </item>
-       <item row="5" column="0">
+       <item row="9" column="2">
+        <widget class="QComboBox" name="filterpos_ComboBox"/>
+       </item>
+       <item row="12" column="2" colspan="2">
+        <widget class="QListView" name="imaging_sequence_ListView"/>
+       </item>
+       <item row="8" column="0">
         <spacer name="horizontalSpacer">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
@@ -276,15 +144,374 @@
          </property>
         </spacer>
        </item>
-       <item row="14" column="1">
-        <widget class="QLabel" name="label_11">
+       <item row="16" column="3">
+        <widget class="QSpinBox" name="laser_intensity_SpinBox"/>
+       </item>
+       <item row="16" column="5">
+        <spacer name="horizontalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="9" column="3">
+        <widget class="QPushButton" name="get_filterpos_PushButton">
+         <property name="text">
+          <string>Get current value</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="general_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>General</string>
+         </property>
+        </widget>
+       </item>
+       <item row="16" column="2">
+        <widget class="QComboBox" name="laser_ComboBox"/>
+       </item>
+       <item row="9" column="1">
+        <widget class="QLabel" name="filterpos_Label">
+         <property name="text">
+          <string>Filter position</string>
+         </property>
+        </widget>
+       </item>
+       <item row="19" column="1">
+        <widget class="QLabel" name="save_path_Label">
+         <property name="text">
+          <string>Path</string>
+         </property>
+        </widget>
+       </item>
+       <item row="24" column="1">
+        <widget class="QLabel" name="z_step_Label">
+         <property name="text">
+          <string>Step (um)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="2">
+        <widget class="QDoubleSpinBox" name="exposure_DSpinBox">
+         <property name="decimals">
+          <number>3</number>
+         </property>
+         <property name="maximum">
+          <double>5.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.050000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="27" column="1">
+        <widget class="QLabel" name="roi_list_path_Label">
+         <property name="text">
+          <string>ROI list path</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2" colspan="2">
+        <widget class="QLineEdit" name="sample_name_LineEdit"/>
+       </item>
+       <item row="20" column="1">
+        <widget class="QLabel" name="fileformat_Label">
          <property name="text">
           <string>Fileformat</string>
          </property>
         </widget>
        </item>
-       <item row="14" column="2">
+       <item row="1" column="4">
+        <widget class="QCheckBox" name="dapi_CheckBox">
+         <property name="text">
+          <string>DAPI</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">buttonGroup</string>
+         </attribute>
+        </widget>
+       </item>
+       <item row="27" column="4">
+        <widget class="QPushButton" name="load_roi_PushButton">
+         <property name="text">
+          <string>Load ROI list</string>
+         </property>
+        </widget>
+       </item>
+       <item row="28" column="4">
+        <widget class="QPushButton" name="load_injections_PushButton">
+         <property name="text">
+          <string>Load injections list</string>
+         </property>
+        </widget>
+       </item>
+       <item row="22" column="1">
+        <widget class="QLabel" name="scan_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Scan</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="cam_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Camera settings</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QLabel" name="filter_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Filter settings</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="3">
+        <widget class="QPushButton" name="get_gain_PushButton">
+         <property name="text">
+          <string>Get current value</string>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="1">
+        <widget class="QLabel" name="imaging_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Imaging</string>
+         </property>
+        </widget>
+       </item>
+       <item row="24" column="2">
+        <widget class="QDoubleSpinBox" name="z_step_DSpinBox">
+         <property name="decimals">
+          <number>3</number>
+         </property>
+         <property name="maximum">
+          <double>5.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.100000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.250000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="27" column="2" colspan="2">
+        <widget class="QLineEdit" name="roi_list_path_LineEdit"/>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLabel" name="num_frames_Label">
+         <property name="text">
+          <string>Frames per channel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="sample_name_Label">
+         <property name="text">
+          <string>Sample name</string>
+         </property>
+        </widget>
+       </item>
+       <item row="29" column="1">
+        <spacer name="verticalSpacer_6">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="18" column="1">
+        <widget class="QLabel" name="save_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Save settings</string>
+         </property>
+        </widget>
+       </item>
+       <item row="28" column="2" colspan="2">
+        <widget class="QLineEdit" name="injections_list_LineEdit"/>
+       </item>
+       <item row="28" column="1">
+        <widget class="QLabel" name="injections_list_Label">
+         <property name="text">
+          <string>Injection list path</string>
+         </property>
+        </widget>
+       </item>
+       <item row="23" column="3">
+        <widget class="QCheckBox" name="centered_focal_plane_CheckBox">
+         <property name="text">
+          <string>Centered focal plane?</string>
+         </property>
+        </widget>
+       </item>
+       <item row="23" column="1">
+        <widget class="QLabel" name="num_z_planes_Label">
+         <property name="text">
+          <string>Number of planes</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="4" column="3">
+        <widget class="QPushButton" name="get_exposure_PushButton">
+         <property name="text">
+          <string>Get current value</string>
+         </property>
+        </widget>
+       </item>
+       <item row="26" column="1">
+        <widget class="QLabel" name="documents_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Additional documents</string>
+         </property>
+        </widget>
+       </item>
+       <item row="30" column="1">
+        <widget class="QLabel" name="prebleach_settings_Label">
+         <property name="font">
+          <font>
+           <family>DejaVu Sans</family>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Prebleaching</string>
+         </property>
+        </widget>
+       </item>
+       <item row="31" column="1">
+        <widget class="QLabel" name="illumination_time_Label">
+         <property name="text">
+          <string>Illumination time (s)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="17" column="1">
+        <spacer name="verticalSpacer_3">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLabel" name="exposure_Label">
+         <property name="text">
+          <string>Exposure time (s)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="19" column="2" colspan="2">
+        <widget class="QLineEdit" name="save_path_LineEdit"/>
+       </item>
+       <item row="20" column="2">
         <widget class="QComboBox" name="fileformat_ComboBox"/>
+       </item>
+       <item row="16" column="4">
+        <widget class="QPushButton" name="add_entry_PushButton">
+         <property name="text">
+          <string>Add entry</string>
+         </property>
+        </widget>
+       </item>
+       <item row="25" column="1">
+        <spacer name="verticalSpacer_5">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
        </item>
       </layout>
      </widget>
@@ -320,7 +547,9 @@
     <bool>false</bool>
    </attribute>
    <addaction name="save_config_Action"/>
+   <addaction name="save_config_copy_Action"/>
    <addaction name="load_config_Action"/>
+   <addaction name="clear_all_Action"/>
   </widget>
   <action name="actionClose">
    <property name="text">
@@ -337,7 +566,24 @@
     <string>Load configuration</string>
    </property>
   </action>
+  <action name="clear_all_Action">
+   <property name="text">
+    <string>Clear all</string>
+   </property>
+  </action>
+  <action name="save_config_copy_Action">
+   <property name="text">
+    <string>Save copy</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>
+ <buttongroups>
+  <buttongroup name="buttonGroup">
+   <property name="exclusive">
+    <bool>false</bool>
+   </property>
+  </buttongroup>
+ </buttongroups>
 </ui>

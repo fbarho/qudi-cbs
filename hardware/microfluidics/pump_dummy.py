@@ -113,14 +113,14 @@ class PumpDummy(Base, MicrofluidicsPumpInterface):
         @return dict: with keys being the sensor channel IDs and values the flowrates
         """
         if not param_list:
-            flowrates = [self.pressure_dict[channel] * 0.1 + np.random.normal() for channel in self.sensor_channel_IDs]
+            flowrates = [self.pressure_dict[channel] * 5 + 5 * np.random.normal() for channel in self.sensor_channel_IDs]
             flowrate_dict = dict(zip(self.sensor_channel_IDs, flowrates))
             return flowrate_dict
         else:
             flowrate_dict = {}
             for channel in param_list:
                 if channel in self.sensor_channel_IDs:
-                    flowrate_dict[channel] = self.pressure_dict[channel] * 0.1 + np.random.normal()
+                    flowrate_dict[channel] = self.pressure_dict[channel] * 5 + 5 *np.random.normal()
                 else:
                     self.log.info('Specified sensor channel not available')
             return flowrate_dict

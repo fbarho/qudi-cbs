@@ -29,7 +29,7 @@
      <x>0</x>
      <y>0</y>
      <width>730</width>
-     <height>18</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuTaskrunner">
@@ -56,6 +56,7 @@
    <addaction name="actionStart_Task"/>
    <addaction name="actionPause_Task"/>
    <addaction name="actionStop_Task"/>
+   <addaction name="actionAbort_Task"/>
   </widget>
   <action name="actionStart_Task">
    <property name="enabled">
@@ -103,6 +104,11 @@
    </property>
    <property name="text">
     <string>Stop Task</string>
+   </property>
+  </action>
+  <action name="actionAbort_Task">
+   <property name="text">
+    <string>Abort task</string>
    </property>
   </action>
  </widget>

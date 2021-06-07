@@ -38,6 +38,9 @@ class LaserControlLogic(GenericLogic):
 
     # signals
     sigIntensityChanged = QtCore.Signal()  # if intensity dict is changed programmatically, this updates the GUI
+    sigLaserStopped = QtCore.Signal()
+    sigDisableLaserActions = QtCore.Signal()
+    sigEnableLaserActions = QtCore.Signal()
 
     # attributes
     enabled = False
@@ -131,6 +134,22 @@ class LaserControlLogic(GenericLogic):
         else:
             self.log.warning('your controller type is currently not covered')
 
+    def stop_laser_output(self):
+        """ Allows to stop the laser output programmatically, for example in the preparation steps of a task.
+        Emits a signal to reset the state of the GUI buttons / controls. """
+        if self.enabled:
+            self.voltage_off()
+            self.sigLaserStopped.emit()
+
+    def disable_laser_actions(self):
+        """ This method provides a security to avoid all laser related actions from GUI,
+        for example during Tasks. """
+        self.sigDisableLaserActions.emit()
+
+    def enable_laser_actions(self):
+        """ This method resets all laser related actions from GUI to callable state, for example after Tasks. """
+        self.sigEnableLaserActions.emit()
+
     @QtCore.Slot(str, int)  # should the decorator be removed when this method is called in a task ???
     def update_intensity_dict(self, key, value):
         """ STOP! DO NOT CALL THIS FUNCTION UNLESS YOU ARE SURE THAT THE FILTER YOU ARE USING IS ADAPTED FOR THE LASER LINE YOU WANT TO SET!
@@ -167,6 +186,8 @@ class LaserControlLogic(GenericLogic):
         """
         if self.controllertype == 'daq':
             self._controller.apply_voltage(voltage, channel, autostart, timeout)
+        elif self.controllertype == 'fpga':
+            self._controller.apply_voltage(voltage, channel)
         else:
             pass
 
@@ -270,8 +291,8 @@ class LaserControlLogic(GenericLogic):
             pass
 
 
-    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values):
+    def run_multicolor_imaging_task_session(self, z_planes, wavelength, values, num_laserlines, exposure):
         if self.controllertype == 'fpga':
-            self._controller.run_multicolor_imaging_task_session(z_planes, wavelength, values)
+            self._controller.run_multicolor_imaging_task_session(z_planes, wavelength, values, num_laserlines, exposure)
         else:
             pass

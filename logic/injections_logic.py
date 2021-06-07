@@ -1,16 +1,41 @@
 # -*- coding: utf-8 -*-
 """
+Qudi-CBS
+
+This module contains the logic to configure an injection sequence.
+
+An extension to Qudi.
+
+@author: F. Barho
+
 Created on Tue Mars 2 2021
+-----------------------------------------------------------------------------------
 
-@author: fbarho
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-This module contains the logic to configure a merfish injection sequence
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
 import yaml
 from qtpy import QtCore
 from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
 
+# ======================================================================================================================
+# Child classes of QAbstractListModel for the List Views
+# ======================================================================================================================
 
 class BufferListModel(QtCore.QAbstractListModel):
     """ This class contains the model class for the listview with the buffer names and the associated valve
@@ -69,19 +94,23 @@ class InjectionSequenceModel(QtCore.QAbstractListModel):
         return len(self.items)
 
 
-class MerfishLogic(GenericLogic):
+# ======================================================================================================================
+# Logic class
+# ======================================================================================================================
+
+class InjectionsLogic(GenericLogic):
     """
-    Class containing the logic to configure and save a merfish injection sequence
+    Class containing the logic to configure and save an injection sequence
 
     Example config for copy-paste:
 
-    merfish_logic:
-        module.Class: 'merfish_logic.MerfishLogic'
-        merfish_probe_valve_number: 7
+    injections_logic:
+        module.Class: 'injections_logic.InjectionsLogic'
+        probe_valve_number: 7
         number_of_valve_positions: 8
         number_of_probes: 100
     """
-    merfish_valve_number = ConfigOption('merfish_probe_valve_number', missing='warn')
+    probe_valve_number = ConfigOption('probe_valve_number', missing='warn')
     num_valve_positions = ConfigOption('number_of_valve_positions', missing='warn')
     num_probes = ConfigOption('number_of_probes', missing='warn')
 
@@ -90,12 +119,13 @@ class MerfishLogic(GenericLogic):
     sigProbeListChanged = QtCore.Signal()
     sigHybridizationListChanged = QtCore.Signal()
     sigPhotobleachingListChanged = QtCore.Signal()
+    sigIncompleteLoad = QtCore.Signal()
 
     # attributes
     procedures = ['Hybridization', 'Photobleaching']
-    products = ['Merfish Probe']
+    products = ['Probe']
 
-    buffer_dict = {}  # key: value = valve_number: buffer_name (to make sure that each valve is only used once, although it would be good to be able to address the valve number via the buffer name, but we will handle this differently
+    buffer_dict = {}  # key: value = valve_number: buffer_name (to make sure that each valve is only used once)
     probe_dict = {}  # key: value = position_number: probe_name (same comment)
 
     def __init__(self, config, **kwargs):
@@ -109,18 +139,22 @@ class MerfishLogic(GenericLogic):
         self.hybridization_injection_sequence_model = InjectionSequenceModel()
         self.photobleaching_injection_sequence_model = InjectionSequenceModel()
 
-        # add the merfish probe entry as default into the bufferlist
-        self.add_buffer('MerfishProbe', self.merfish_valve_number)
+        # add the probe entry as default into the bufferlist
+        self.add_buffer('Probe', self.probe_valve_number)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
         pass
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Methods to insert / delete items into the listview models
+# ----------------------------------------------------------------------------------------------------------------------
+
     def add_buffer(self, buffername, valve_number):
         """ This method adds an entry to the buffer dict and to the buffer list model and informs the GUI that the
         data was changed.
-        @:param: str buffername
-        @:param: int valve_number
+        :param: str buffername
+        :param: int valve_number
         """
         self.buffer_dict[valve_number] = buffername
         # synchronize buffer_dict and list_model, this approach also ensures that each valve number is only set once
@@ -130,12 +164,15 @@ class MerfishLogic(GenericLogic):
     def delete_buffer(self, index):
         """ This method deletes a single entry from the buffer list model and from the buffer dict. The signal
         informs the GUI that the data was changed.
-        @:param: QtCore.QModelIndex index
+        :param: QtCore.QModelIndex index
         """
         key = self.buffer_list_model.items[index.row()][1]  # the valve number
-        del self.buffer_dict[key]
-        del self.buffer_list_model.items[index.row()]
-        self.sigBufferListChanged.emit()
+        if key == self.probe_valve_number:
+            pass
+        else:
+            del self.buffer_dict[key]
+            del self.buffer_list_model.items[index.row()]
+            self.sigBufferListChanged.emit()
 
     def delete_all_buffer(self):
         """ This method resets the buffer dict and deletes all items from the buffer list model. The GUI is informed
@@ -143,15 +180,15 @@ class MerfishLogic(GenericLogic):
         """
         self.buffer_dict = {}
         self.buffer_list_model.items = []
+        # add the default entry Probe
+        self.add_buffer('Probe', self.probe_valve_number)
         self.sigBufferListChanged.emit()
-
-        # should the default entry MerfishProbe be added again ?
 
     def add_probe(self, probename, probe_position):
         """ This method adds an entry to the probe dict and to the probe position model and informs the GUI that the
         data was changed.
-        @:param: str probename
-        @:param: int probe_position
+        :param: str probename
+        :param: int probe_position
         """
         self.probe_dict[probe_position] = probename
         # synchronize buffer_dict and list_model, this approach also ensures that each valve number is only set once
@@ -161,7 +198,7 @@ class MerfishLogic(GenericLogic):
     def delete_probe(self, index):
         """ This method deletes a single entry from the probe position model and from the probe dict. The signal
         informs the GUI that the data was changed.
-        @:param: QtCore.QModelIndex index
+        :param: QtCore.QModelIndex index
         """
         key = self.probe_position_model.items[index.row()][1]   # the probe position number
         # delete the entry both in the dictionary and in the list model
@@ -177,14 +214,14 @@ class MerfishLogic(GenericLogic):
         self.probe_position_model.items = []
         self.sigProbeListChanged.emit()
 
-    @QtCore.Slot(str, str, float, float)
+    @QtCore.Slot(str, str, int, int)
     def add_injection_step(self, procedure, product, volume, flowrate):
         """ This method adds an entry tho the hybridization or photobleaching sequence model and informs the
         GUI that the underlying data has changed.
-        @:param: str procedure: identifier to select to which model the entry should be added
-        @:param: str product
-        @:param: float volume: amount of product to be injected (in ul)
-        @:param: float flowrate: target flowrate in ul/min
+        :param: str procedure: identifier to select to which model the entry should be added
+        :param: str product
+        :param: int volume: amount of product to be injected (in ul)
+        :param: int flowrate: target flowrate in ul/min
         """
         if procedure == 'Hybridization':
             self.hybridization_injection_sequence_model.items.append((procedure, product, volume, flowrate, None))
@@ -199,8 +236,8 @@ class MerfishLogic(GenericLogic):
     def add_incubation_step(self, procedure, time):
         """ This method adds an incubation time entry tho the hybridization or photobleaching sequence model and emits
         a signal to inform the GUI that the underlying data has changed.
-        @:param: str procedure: identifier to select to which model the entry should be added
-        @:param: int time: incubation time in seconds
+        :param: str procedure: identifier to select to which model the entry should be added
+        :param: int time: incubation time in seconds
         """
         if procedure == 'Hybridization':
             self.hybridization_injection_sequence_model.items.append((procedure, None, None, None, time))
@@ -239,14 +276,24 @@ class MerfishLogic(GenericLogic):
         self.photobleaching_injection_sequence_model.items = []
         self.sigPhotobleachingListChanged.emit()
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Methods to load and save files
+# ----------------------------------------------------------------------------------------------------------------------
+
     def load_injections(self, path):
         """ This method allows to open a file and fills in data to the buffer dict, probe dict and to the models
         if the specified document contains all relevant information. The GUI is notified and updated with the new data.
-        @:param: str path: full path to the file
+        :param: str path: full path to the file
         """
         try:
+            # delete the current content of models
+            self.delete_all_buffer()
+            self.delete_all_probes()
+            self.delete_hybr_all()
+            self.delete_photobl_all()
+
             with open(path, 'r') as stream:
-                documents = yaml.full_load(stream)
+                documents = yaml.safe_load(stream)  # yaml.full_load(stream)  # use this when pyyaml updated everywhere
                 self.buffer_dict = documents['buffer']
                 self.probe_dict = documents['probes']
                 hybridization_list = documents['hybridization list']
@@ -271,12 +318,13 @@ class MerfishLogic(GenericLogic):
 
         except KeyError:
             self.log.warning('Injections not loaded. Document is incomplete.')
+            self.sigIncompleteLoad.emit()
 
     def save_injections(self, path):
         """ This method allows to write the data from the models and from the buffer dict and probe position dict
         to a file. For readability, hybridization and photobleaching sequence model entries are converted into a
         dictionary format.
-        @:param: str path: full path
+        :param: str path: full path
         """
         # prepare the list entries in dictionary format for good readability in the file
         hybridization_list = []
@@ -301,17 +349,19 @@ class MerfishLogic(GenericLogic):
         # write a complete file containing buffer_dict, probe_dict, hybridization_list and photobleaching_list
         with open(path, 'w') as file:
             dict_file = {'buffer': self.buffer_dict, 'probes': self.probe_dict, 'hybridization list': hybridization_list, 'photobleaching list': photobleaching_list}
-            yaml.safe_dump(dict_file, file, default_flow_style=False)  #, sort_keys=False
+            yaml.safe_dump(dict_file, file, default_flow_style=False)  # , sort_keys=False
             self.log.info('Injections saved to {}'.format(path))
 
     @staticmethod
     def make_dict_entry(step_num, procedure, product, volume, flowrate, time=None):
-        """ Helper function """
-        inj_step_dict = {}
-        inj_step_dict['step_number'] = step_num
-        inj_step_dict['procedure'] = procedure
-        inj_step_dict['product'] = product
-        inj_step_dict['volume'] = volume
-        inj_step_dict['flowrate'] = flowrate
-        inj_step_dict['time'] = time
+        """ Helper function.
+        :param int step_num: number of the current step in an injection list
+        :param str procedure: name of the procedure: Hybridization or Photobleaching
+        :param str product: name of the product
+        :param int volume: quantity of product in ul to be injected
+        :param int flowrate: target flowrate in ul/min
+        :param int time: time in seconds for incubation steps
+        """
+        inj_step_dict = {'step_number': step_num, 'procedure': procedure, 'product': product, 'volume': volume,
+                         'flowrate': flowrate, 'time': time}
         return inj_step_dict

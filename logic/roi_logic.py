@@ -348,6 +348,11 @@ class RoiLogic(GenericLogic):
 
     sigStageMoved = QtCore.Signal(np.ndarray)  # current_position
     sigUpdateStagePosition = QtCore.Signal(tuple)
+    sigTrackingModeStopped = QtCore.Signal()  # important to emit this when tracking mode is programmatically stopped to reestablish correct GUI state
+    sigDisableTracking = QtCore.Signal()
+    sigEnableTracking = QtCore.Signal()
+    sigDisableRoiActions = QtCore.Signal()
+    sigEnableRoiActions = QtCore.Signal()
 
     # variables from mosaic settings dialog and default values
     _mosaic_x_start = 0
@@ -576,15 +581,32 @@ class RoiLogic(GenericLogic):
         self._move_stage(self.get_roi_position(name))
         return None
 
+    def go_to_roi_xy(self, name=None):
+        """
+        Move translation stage to the xy position of the given roi.
+
+        @param str name: the name of the ROI, default is the active roi
+        """
+        if name is None:
+            name = self.active_roi
+        if not isinstance(name, str):
+            self.log.error('ROI name to move to must be of type str.')
+            return None
+        x_roi, y_roi, z_roi = self.get_roi_position(name)
+        x_stage, y_stage, z_stage = self.stage_position
+        target_pos = np.array((x_roi, y_roi, z_stage))  # conversion from tuple to np.ndarray for call of _move_stage
+        self._move_stage(target_pos)
+        return None
+
     def _move_stage(self, position):
         """ 
         Move the translation stage to position.
         
-        @param float position: tuple (x, y, z)
+        @param float position: np.ndarray[3]
         """
         # this functions accepts a tuple (x, y, z) as argument because it will be called with the roi position as argument. 
         # Hence, the input argument has to be converted into a dictionary of format {'x': x, 'y': y} to be passed to the translation stage function.
-        if len(position) != 3:  # modify later to use only 2 coordinates but ask before ..
+        if len(position) != 3:
             self.log.error('Stage position to set must be iterable of length 3.')
             return None
         axis_label = ('x', 'y', 'z')
@@ -817,6 +839,7 @@ class RoiLogic(GenericLogic):
         # get once again the latest position
         position = self.stage_position
         self.sigUpdateStagePosition.emit(position)
+        self.sigTrackingModeStopped.emit()
 
     def tracking_loop(self):
         position = self.stage_position
@@ -826,3 +849,27 @@ class RoiLogic(GenericLogic):
             worker = Worker()
             worker.signals.sigFinished.connect(self.tracking_loop)
             self.threadpool.start(worker)
+
+    def set_stage_velocity(self, param_dict):
+        self.stage().set_velocity(param_dict)
+
+    def disable_tracking_mode(self):
+        """ This method provides a security that tracking mode is not callable from GUI, for example during Tasks. """
+        if self.tracking:
+            self.stop_tracking()
+        self.sigDisableTracking.emit()
+
+    def enable_tracking_mode(self):
+        """ This method makes tracking mode again available from GUI, for example when a Task is finishing. """
+        self.sigEnableTracking.emit()
+
+    def disable_roi_actions(self):
+        self.sigDisableRoiActions.emit()
+
+    def enable_roi_actions(self):
+        self.sigEnableRoiActions.emit()
+
+
+
+
+

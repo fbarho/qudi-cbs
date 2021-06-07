@@ -66,7 +66,7 @@ class MCLNanoDrive(Base, MotorInterface):
         # get handle of connected Nanodrive
         handle = self.dll.MCL_InitHandle()
         if handle == 0:
-            self.log.warning('Failed to initialize Nanodrive.')
+            self.log.error('Failed to initialize MCL Nanodrive. Check if device is switched on.')
         else:
             self.handle = handle
 
