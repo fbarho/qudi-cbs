@@ -98,8 +98,6 @@ class FlowcontrolLogic(GenericLogic):
     sigUpdateVolumeMeasurement = QtCore.Signal(int, int)
     sigTargetVolumeReached = QtCore.Signal()
     sigRinsingFinished = QtCore.Signal()
-    # sigDisablePressureAction = QtCore.Signal()
-    # sigEnablePressureAction = QtCore.Signal()
     sigDisableFlowActions = QtCore.Signal()
     sigEnableFlowActions = QtCore.Signal()
 
@@ -144,7 +142,8 @@ class FlowcontrolLogic(GenericLogic):
         """
         pressure = self._pump.get_pressure(channels)  # returns a dictionary: {0: pressure_channel_0}
         pressure = [*pressure.values()]  # retrieve only the values from the dictionary and convert into list
-        if len(pressure) < 2:
+        # if len(pressure) < 2:  # to reorganize for airyscan setup
+        if len(pressure) == 1:
             return pressure[0]
         else:
             return pressure
@@ -156,7 +155,7 @@ class FlowcontrolLogic(GenericLogic):
         @param: int list channels: optional, needed in case more than one pressure channel is available
         """
         if not channels:
-            if not isinstance(pressures, float):  # a list is given
+            if not isinstance(pressures, float):  # a list is given  # to do: modify so that this message is not raised when int format is used for pressrue value
                 self.log.warning('Channels must be specified if more than one pressure value shall be set.')
             else:
                 param_dict = {}
@@ -176,7 +175,8 @@ class FlowcontrolLogic(GenericLogic):
         """
         pressure_range = self._pump.get_pressure_range(channels)  # returns a dictionary: {0: pressure_range_channel_0}
         pressure_range = [*pressure_range.values()]  # retrieve only the values from the dictionary and convert into list
-        if len(pressure_range) < 2:
+        # if len(pressure_range) < 2: # to reorganize for airyscan setup
+        if len(pressure_range) == 1:
             return pressure_range[0]
         else:
             return pressure_range
@@ -185,12 +185,16 @@ class FlowcontrolLogic(GenericLogic):
         """
         @param: list channels: optional, list of channels from which pressure range unit will be retrieved
         """
-        pressure_unit = self._pump.get_pressure_unit(channels)  # returns a dictionary: {0: pressure_unit_channel_0}
-        pressure_unit = [*pressure_unit.values()]  # retrieve only the values from the dictionary and convert into list
-        if len(pressure_unit) < 2:
-            return pressure_unit[0]
+        if False:  # to be replaced by a condition checking if pressure is handled by Fluignet system
+            pressure_unit = self._pump.get_pressure_unit(channels)  # returns a dictionary: {0: pressure_unit_channel_0}
+            pressure_unit = [*pressure_unit.values()]  # retrieve only the values from the dictionary and convert into list
+            # if len(pressure_unit) < 2: # to reorganize for airyscan setup
+            if len(pressure_unit) == 1:
+                return pressure_unit[0]
+            else:
+                return pressure_unit
         else:
-            return pressure_unit
+            return 'pressure unit'
 
     def get_flowrate(self, channels=None):
         """
@@ -353,16 +357,6 @@ class FlowcontrolLogic(GenericLogic):
         Inform the GUI that the rinsing time has elapsed. """
         self.rinsing_enabled = False
         self.sigRinsingFinished.emit()
-
-
-    # def disable_pressure_setting(self):
-    #     """ This method provides a security to avoid using the set pressure button on GUI, for example during Tasks. """
-    #     self.sigDisablePressureAction.emit()
-    #
-    # def enable_pressure_setting(self):
-    #     """ This method resets set pressure button on GUI to callable state, for example after Tasks. """
-    #     self.sigEnablePressureAction.emit()
-
 
     def disable_flowcontrol_actions(self):
         """ This method provides a security to avoid using the set pressure, start volume measurement and start rinsing
