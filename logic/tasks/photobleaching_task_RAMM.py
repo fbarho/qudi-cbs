@@ -45,6 +45,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].stop_laser_output()
         self.ref['laser'].disable_laser_actions()
 
+        # reset all lasers to zero if values still present on basic imaging GUI
+        self.ref['laser'].reset_intensity_dict()
+
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
@@ -74,6 +77,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # all laser lines at once
         for item in self.imaging_sequence:
             self.ref['laser'].update_intensity_dict(item[0], item[1])  # key (register in fpga bitfile), value (intensity in %)
+
         self.ref['laser'].apply_voltage()
         sleep(self.illumination_time)
         self.ref['laser'].voltage_off()
@@ -98,6 +102,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+
         # reset stage velocity to default
         self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
@@ -108,6 +113,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # new version
         self.ref['laser'].voltage_off()
 
+        # reset all lasers to zero to not mix up the state on Basic GUI
+        self.ref['laser'].reset_intensity_dict()
 
         # enable gui actions
         # roi gui
@@ -144,5 +151,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.roi_names = self.ref['roi'].roi_names
 
         # convert the imaging_sequence given by user into format required for function call
-        lightsource_dict = {'405 nm': '405', '488 nm': '488', '561 nm': '561', '640 nm': '640'}
+        lightsource_dict = {'405 nm': 'laser1', '488 nm': 'laser2', '561 nm': 'laser3', '640 nm': 'laser4'}
         self.imaging_sequence = [(lightsource_dict[item[0]], item[1]) for item in imaging_sequence]
+        print(self.imaging_sequence)
