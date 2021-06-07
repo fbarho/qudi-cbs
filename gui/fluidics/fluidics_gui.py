@@ -487,7 +487,7 @@ class FluidicsGUI(GUIBase):
             self._mw.volume_measurement_Action.setText('Start volume measurement')
             self.sigStopVolumeMeasurement.emit()
         else:
-            target_volume = self._mw.target_volume_SpinBox.value()
+            target_volume = np.inf
             sampling_interval = 1  # in seconds, fixed for measurement started from GUI
             self._mw.volume_measurement_Action.setText('Stop volume measurement')
             self.sigStartVolumeMeasurement.emit(target_volume, sampling_interval)
@@ -537,7 +537,6 @@ class FluidicsGUI(GUIBase):
         self._mw.set_pressure_Action.setDisabled(True)
         self._mw.volume_measurement_Action.setDisabled(True)
         self._mw.rinsing_Action.setDisabled(True)
-        self._mw.target_volume_SpinBox.hide()
 
     @QtCore.Slot()
     def enable_flowcontrol_buttons(self):
@@ -545,8 +544,6 @@ class FluidicsGUI(GUIBase):
         self._mw.set_pressure_Action.setDisabled(False)
         self._mw.volume_measurement_Action.setDisabled(False)
         self._mw.rinsing_Action.setDisabled(False)
-        self._mw.target_volume_SpinBox.setVisible(True)
-
 
     # slots related to valve dockwidget
     @QtCore.Slot(int)
