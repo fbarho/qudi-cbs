@@ -115,9 +115,9 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                 if value <= max_pressure:  # check if target value in allowed range
                     fgt.fgt_set_pressure(key, value)
                 else:
-                    self.log.info('Pressure not set. Target value above allowed range.')
+                    self.log.warn('Pressure not set. Target value above allowed range.')
             else:
-                self.log.info('Specified channel not available')
+                self.log.warn('Specified pressure channel not available')
 
     def get_pressure(self, param_list=None):
         """ Gets current pressure of the corresponding channel or all channels.
@@ -137,7 +137,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     pressure = fgt.fgt_get_pressure(channel)
                     pressure_dict[channel] = pressure
                 else:
-                    self.log.info('Specified pressure channel not available')
+                    self.log.warn('Specified pressure channel not available')
             return pressure_dict
 
     def get_pressure_unit(self, param_list=None):
@@ -158,7 +158,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     pressure_unit = fgt.fgt_get_pressureUnit(channel)
                     pressure_unit_dict[channel] = pressure_unit
                 else:
-                    self.log.info('Specified pressure channel not available')
+                    self.log.warn('Specified pressure channel not available')
             return pressure_unit_dict
 
     def get_pressure_range(self, param_list=None):
@@ -179,7 +179,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     pressure_range = fgt.fgt_get_pressureRange(channel)
                     pressure_range_dict[channel] = pressure_range
                 else:
-                    self.log.info('Specified pressure channel not available')
+                    self.log.warn('Specified pressure channel not available')
             return pressure_range_dict
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -203,7 +203,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     flowrate = fgt.fgt_get_sensorValue(channel)
                     flowrate_dict[channel] = flowrate
                 else:
-                    self.log.info('Specified sensor channel not available')
+                    self.log.warn('Specified sensor channel not available')
             return flowrate_dict
 
     def get_sensor_unit(self, param_list=None):
@@ -224,7 +224,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     sensor_unit = fgt.fgt_get_sensorUnit(channel)
                     sensor_unit_dict[channel] = sensor_unit
                 else:
-                    self.log.info('Specified sensor channel not available')
+                    self.log.warn('Specified sensor channel not available')
             return sensor_unit_dict
 
     def get_sensor_range(self, param_list=None):
@@ -245,7 +245,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
                     sensor_range = fgt.fgt_get_sensorRange(channel)
                     sensor_range_dict[channel] = sensor_range
                 else:
-                    self.log.info('Specified sensor channel not available')
+                    self.log.warn('Specified sensor channel not available')
             return sensor_range_dict
 
 
