@@ -418,7 +418,7 @@ class FlowcontrolLogic(GenericLogic):
         :return: None
         """
         self.measuring_volume = True
-        self.total_volume = 0
+        self.total_volume = 0.0
         self.time_since_start = 0
         if self.total_volume < target_volume:
             self.target_volume_reached = False
@@ -435,14 +435,16 @@ class FlowcontrolLogic(GenericLogic):
         :return: None
         """
         flowrate = self.get_flowrate()
-        self.total_volume += flowrate * sampling_interval / 60  # abs(flowrate) ???
+        self.total_volume += flowrate * sampling_interval / 60
+        self.total_volume = np.round(self.total_volume, decimals=3)  # as safety to avoid entering into the else part when target volume is not yet reached due to data overflow
         self.time_since_start += sampling_interval
+        # print(self.total_volume, self.time_since_start, target_volume)
         self.sigUpdateVolumeMeasurement.emit(int(self.total_volume), self.time_since_start)
-        # print(f'Total volume: {self.total_volume:.0f} ul')
         if self.total_volume < target_volume:
             self.target_volume_reached = False
         else:
             self.target_volume_reached = True
+            self.measuring_volume = False
             self.sigTargetVolumeReached.emit()
 
         if not self.target_volume_reached and self.measuring_volume:  # second condition is necessary to stop measurement via GUI button
@@ -451,6 +453,8 @@ class FlowcontrolLogic(GenericLogic):
             worker.signals.sigIntegrationIntervalFinished.connect(self.volume_measurement_loop)
             self.threadpool.start(worker)
 
+        # when using np.inf as target_volume, the comparison ended sometimes up in the wrong branch (else) because np.inf was sometimes a large negative number
+
     def stop_volume_measurement(self):
         """ Stops the volume count. This method is used to stop the volume count using the GUI buttons,
         when no real target volume is provided.
@@ -458,7 +462,7 @@ class FlowcontrolLogic(GenericLogic):
         :return: None
         """
         self.measuring_volume = False
-        self.target_volume_reached = True  # do we need this ?
+        self.target_volume_reached = True
 
 # Rinse needle ---------- ----------------------------------------------------------------------------------------------
     def start_rinsing(self, duration):

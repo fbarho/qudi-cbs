@@ -38,5 +38,6 @@ class BrightfieldInterface(metaclass=InterfaceMetaclass):
     @abstract_interface_method
     def led_control(self, intensity):
         """
+        :param int intensity:
         """
         pass

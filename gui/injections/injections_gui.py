@@ -83,7 +83,6 @@ class InjectionsGUI(GUIBase):
     sigSaveInjections = QtCore.Signal(str)
 
     def __init__(self, config, **kwargs):
-        # load connection
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
