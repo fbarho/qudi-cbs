@@ -1,6 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-This module contains a GUI that allows to create a user config file for a Task
+Qudi-CBS
+
+This module contains a GUI that allows to create an experiment config file for a Task.
+
+An extension to Qudi.
+
+@author: F. Barho
+-----------------------------------------------------------------------------------
+
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
 import os
 from qtpy import QtCore
@@ -14,7 +38,7 @@ from core.configoption import ConfigOption
 
 
 class ExpConfiguratorWindow(QtWidgets.QMainWindow):
-    """ Class defined for the main window (not the module)
+    """ Class defined for the main window (not the module).
 
     """
     def __init__(self):
@@ -30,18 +54,16 @@ class ExpConfiguratorWindow(QtWidgets.QMainWindow):
 
 
 class ExpConfiguratorGUI(GUIBase):
-
-    """ Main window that helps to define the user the configuration file for the different types of experiments.
+    """ GUI module that helps the user to define the configuration file for the different types of experiments (=tasks).
 
     Example config for copy-paste:
 
-    exp_configurator_gui:
+    Experiment Configurator:
         module.Class: 'experiment_configurator.exp_configurator_gui.ExpConfiguratorGUI'
         default_location_qudi_files: '/home/barho/qudi_files'
         connect:
             exp_config_logic: 'exp_config_logic'
     """
-
     # connector to logic module
     exp_logic = Connector(interface='ExpConfigLogic')
 
@@ -51,7 +73,6 @@ class ExpConfiguratorGUI(GUIBase):
 
     # Signals
     sigSaveConfig = QtCore.Signal(str, str, str)
-    sigSaveConfigCopy = QtCore.Signal(str)
     sigLoadConfig = QtCore.Signal(str)
     sigAddEntry = QtCore.Signal(str, float)
     sigDeleteEntry = QtCore.Signal(QtCore.QModelIndex)
@@ -59,6 +80,8 @@ class ExpConfiguratorGUI(GUIBase):
     def __init__(self, config, **kwargs):
         # load connection
         super().__init__(config=config, **kwargs)
+        self._exp_logic = None
+        self._mw = None
 
     def on_activate(self):
         """ Required initialization steps.
@@ -70,9 +93,8 @@ class ExpConfiguratorGUI(GUIBase):
 
         # initialize combobox
         self._mw.select_experiment_ComboBox.addItems(self._exp_logic.experiments)
-        self._mw.fileformat_ComboBox.addItems(self._exp_logic.supported_fileformats)
 
-        # hide save configuration toolbuttons while no experiment selected yet
+        # disable the save configuration toolbuttons while no experiment selected yet
         self._mw.save_config_Action.setDisabled(True)
         self._mw.save_config_copy_Action.setDisabled(True)
 
@@ -88,7 +110,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.save_config_Action.triggered.connect(self.save_config_clicked)
         self._mw.save_config_copy_Action.triggered.connect(self.save_config_copy_clicked)
         self._mw.load_config_Action.triggered.connect(self.load_config_clicked)
-        self._mw.clear_all_Action.triggered.connect(self._exp_logic.init_default_config_dict)
+        self._mw.clear_all_Action.triggered.connect(self.clear_all_clicked)
 
         # widgets on the configuration form
         self._mw.select_experiment_ComboBox.activated[str].connect(self.update_form)
@@ -110,6 +132,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.illumination_time_DSpinBox.valueChanged.connect(self._exp_logic.update_illumination_time)
 
         # pushbuttons
+        # pushbuttons belonging to the listview
         self._mw.add_entry_PushButton.clicked.connect(self.add_entry_clicked)
         self._mw.delete_entry_PushButton.clicked.connect(self.delete_entry_clicked)
         self._mw.delete_all_PushButton.clicked.connect(self._exp_logic.delete_imaging_list)
@@ -150,20 +173,33 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.raise_()
 
     def init_configuration_form(self):
+        """ Enter items into the comboboxes according to available elements on the setup. """
         self._mw.filterpos_ComboBox.addItems(self._exp_logic.filters)
         self._mw.laser_ComboBox.addItems(self._exp_logic.lasers)
+        self._mw.fileformat_ComboBox.addItems(self._exp_logic.supported_fileformats)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Methods to adapt the configuration form depending on the current experiment
+# ----------------------------------------------------------------------------------------------------------------------
 
     def update_form(self):
+        """ Update the configuration form according to the selected experiment type.
+        Sets the visibility of the GUI widgets depending on whether an information is required for the selected
+        experiment type or not.
+
+        When implementing new experiments, an additional case must be defined here.
+        """
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self._mw.save_config_Action.setDisabled(False)
         self._mw.save_config_copy_Action.setDisabled(False)
         self._mw.laser_ComboBox.clear()  # reset content of laser selection to default state because it could have been modified (see 'Photobleaching' experiment)
         self._mw.laser_ComboBox.addItems(self._exp_logic.lasers)
+
         if experiment == 'Select your experiment..':
             self._mw.formWidget.hide()
             self._mw.save_config_Action.setDisabled(True)
             self._mw.save_config_copy_Action.setDisabled(True)
-        elif experiment == 'Multicolor imaging':
+        elif experiment == 'Multicolor imaging PALM':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
@@ -217,7 +253,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.injections_list_LineEdit.setVisible(False)
             self._mw.load_injections_PushButton.setVisible(False)
 
-        elif experiment == 'ROI multicolor scan':  # maybe modifiy into ROI multicolor scan RAMM
+        elif experiment == 'ROI multicolor scan RAMM':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
@@ -240,7 +276,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.num_frames_Label.setVisible(False)
             self._mw.num_frames_SpinBox.setVisible(False)
 
-        elif experiment == 'Fluidics':  # do we need this ?
+        elif experiment == 'Fluidics RAMM' or experiment == 'Fluidics Airyscan':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(False)
             self.set_visibility_camera_settings(False)
@@ -256,7 +292,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.roi_list_path_LineEdit.setVisible(False)
             self._mw.load_roi_PushButton.setVisible(False)
 
-        elif experiment == 'Hi-M':
+        elif experiment == 'Hi-M RAMM':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(True)
             self.set_visibility_camera_settings(True)
@@ -274,7 +310,7 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.num_frames_Label.setVisible(False)
             self._mw.num_frames_SpinBox.setVisible(False)
 
-        elif experiment == 'Photobleaching':
+        elif experiment == 'Photobleaching RAMM':
             self._mw.formWidget.setVisible(True)
             self.set_visibility_general_settings(False)
             self.set_visibility_camera_settings(False)
@@ -291,23 +327,25 @@ class ExpConfiguratorGUI(GUIBase):
             self._mw.load_injections_PushButton.setVisible(False)
             self._mw.laser_ComboBox.removeItem(0)  # do not allow the UV laser (405 nm typically)
 
+        # add here additional experiment types
+
         else:
             pass
 
     def set_visibility_general_settings(self, visible):
-        """ Show or hide the block with the general ettings widgets
+        """ Show or hide the block with the general settings widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.general_Label.setVisible(visible)
         self._mw.sample_name_Label.setVisible(visible)
         self._mw.sample_name_LineEdit.setVisible(visible)
 
-        # the dapi and rna checkboxes are needed only for the ROI Multicolor scan
+        # the dapi and rna checkboxes are needed only for the ROI Multicolor scan RAMM. Set them invisible as default.
         self._mw.dapi_CheckBox.setVisible(False)
         self._mw.rna_CheckBox.setVisible(False)
 
     def set_visibility_camera_settings(self, visible):
-        """ Show or hide the block with the camera settings widgets
+        """ Show or hide the block with the camera settings widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.cam_settings_Label.setVisible(visible)
@@ -321,7 +359,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.num_frames_SpinBox.setVisible(visible)
 
     def set_visibility_filter_settings(self, visible):
-        """ Show or hide the block with the filter settings widgets
+        """ Show or hide the block with the filter settings widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.filter_settings_Label.setVisible(visible)
@@ -330,7 +368,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.get_filterpos_PushButton.setVisible(visible)
 
     def set_visibility_imaging_settings(self, visible):
-        """ Show or hide the block with the imaging sequence widgets
+        """ Show or hide the block with the imaging sequence widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.imaging_settings_Label.setVisible(visible)
@@ -343,7 +381,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.delete_all_PushButton.setVisible(visible)
 
     def set_visibility_save_settings(self, visible):
-        """ Show or hide the block with the save settings widgets
+        """ Show or hide the block with the save settings widgets. (Information where to save image data, and fileformat)
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.save_settings_Label.setVisible(visible)
@@ -353,7 +391,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.fileformat_ComboBox.setVisible(visible)
 
     def set_visibility_scan_settings(self, visible):
-        """ Show or hide the block with the scan settings widgets
+        """ Show or hide the block with the scan settings widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.scan_settings_Label.setVisible(visible)
@@ -364,7 +402,7 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.centered_focal_plane_CheckBox.setVisible(visible)
 
     def set_visibility_documents_settings(self, visible):
-        """ Show or hide the block with the additional documents settings widgets
+        """ Show or hide the block with the additional documents settings widgets.
         :param bool visible: show widgets = True, hide widgets = False
         """
         self._mw.documents_Label.setVisible(visible)
@@ -383,13 +421,27 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.illumination_time_Label.setVisible(visible)
         self._mw.illumination_time_DSpinBox.setVisible(visible)
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Callbacks of the toolbuttons
+# ----------------------------------------------------------------------------------------------------------------------
+
     def save_config_clicked(self):
+        """ Callback of the save config toolbutton. Sends a signal to the logic indicating the complete path where
+         the config file will be saved depending on the experimental setup, and the experiment.
+        A default filename is used in the logic module which is linked to the taskrunner (experiments are run using the
+        parameters in these default files.
+        """
         path = os.path.join(self.default_location, 'qudi_task_config_files')
         self.log.info(path)
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self.sigSaveConfig.emit(path, experiment, None)
 
     def save_config_copy_clicked(self):
+        """ Callback of the save config copy toolbutton. Sends a signal to the logic indicating the complete path where
+         the config file will be saved depending on the experimental setup, the experiment, and a custom filename.
+         The experiment will not be run based on the parameters in the custom file, this just serves as a backup for
+         the user.
+        """
         path = os.path.join(self.default_location, 'qudi_task_config_files')
         experiment = self._mw.select_experiment_ComboBox.currentText()
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw, 'Save copy of experiental configuration',
@@ -400,7 +452,8 @@ class ExpConfiguratorGUI(GUIBase):
             self.sigSaveConfig.emit(path, experiment, filename)
 
     def load_config_clicked(self):
-        data_directory = os.path.join(self.default_location, 'qudi_task_config_files') # '/home/barho/qudi-cbs-experiment-config'  # 'C:\\Users\\admin\\qudi-cb-user-configs'  # we will use this as default location to look for files
+        """ Callback of the load config toolbutton. Opens a dialog to select an already defined config file. """
+        data_directory = os.path.join(self.default_location, 'qudi_task_config_files')
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
@@ -408,7 +461,61 @@ class ExpConfiguratorGUI(GUIBase):
         if this_file:
             self.sigLoadConfig.emit(this_file)
 
+    def clear_all_clicked(self):
+        """ Callback of clear all toolbutton. Resets default values to all fields on the GUI. """
+        self._mw.laser_ComboBox.setCurrentIndex(0)
+        self._mw.laser_intensity_DSpinBox.setValue(0.0)
+        self._exp_logic.init_default_config_dict()
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Callbacks of pushbuttons on the configuration form
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def add_entry_clicked(self):
+        """ Callback of add entry pushbutton inserting an item into the imaging sequence list. """
+        lightsource = self._mw.laser_ComboBox.currentText()  # or replace by current index
+        intensity = self._mw.laser_intensity_DSpinBox.value()
+        self.sigAddEntry.emit(lightsource, intensity)
+
+    def delete_entry_clicked(self):
+        """ Callback of delete entry pushbutton. The selected item is deleted from the list model in the logic module.
+        """
+        indexes = self._mw.imaging_sequence_ListView.selectedIndexes()
+        if indexes:
+            # Indexes is a list of a single item in single-select mode.
+            index = indexes[0]
+            self.sigDeleteEntry.emit(index)
+
+    def load_roi_list_clicked(self):
+        """ Callback of load roi pushbutton. Opens a dialog to select the complete path to the roi list.
+        """
+        data_directory = os.path.join(self.default_location, 'qudi_roi_lists')
+        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
+                                                          'Open ROI list',
+                                                          data_directory,
+                                                          'json files (*.json)')[0]
+        if this_file:
+            self._mw.roi_list_path_LineEdit.setText(this_file)
+
+    def load_injections_clicked(self):
+        """ Callback of load injections pushbutton. Opens a dialog to select the complete path to the injections list.
+        """
+        data_directory = os.path.join(self.default_location, 'qudi_injection_parameters')
+        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
+                                                          'Open injections file',
+                                                          data_directory,
+                                                          'yaml files (*.yaml)')[0]
+        # print(this_file)
+        if this_file:
+            self._mw.injections_list_LineEdit.setText(this_file)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Callbacks of signals sent from the logic
+# ----------------------------------------------------------------------------------------------------------------------
+
     def update_entries(self):
+        """ Callback of the signal sigConfigDictUpdated sent from the logic. Updates the values on the configuration
+        form using the values stored in the config dict in the logic module. """
         self._mw.sample_name_LineEdit.setText(self._exp_logic.config_dict.get('sample_name', ''))
         self._mw.exposure_DSpinBox.setValue(self._exp_logic.config_dict.get('exposure', 0.0))
         self._mw.gain_SpinBox.setValue(self._exp_logic.config_dict.get('gain', 0))
@@ -424,51 +531,20 @@ class ExpConfiguratorGUI(GUIBase):
         self._mw.injections_list_LineEdit.setText(self._exp_logic.config_dict.get('injections_path', ''))
         self._mw.illumination_time_DSpinBox.setValue(self._exp_logic.config_dict.get('illumination_time', 0.0))
 
-    def add_entry_clicked(self):
-        """ callback from pushbutton inserting an item into the imaging sequence list"""
-        lightsource = self._mw.laser_ComboBox.currentText()  # or replace by current index
-        intensity = self._mw.laser_intensity_DSpinBox.value()
-        self.sigAddEntry.emit(lightsource, intensity)
-
     def update_listview(self):
+        """ Callback of the signal sigImagingListChanged sent from the logic. Updates the items displayed in the
+        imaging sequence listview. """
         self._exp_logic.img_sequence_model.layoutChanged.emit()
         # for the delete entry case, if one row is selected then it will be deleted
         indexes = self._mw.imaging_sequence_ListView.selectedIndexes()
         if indexes:
             self._mw.imaging_sequence_ListView.clearSelection()
 
-    def delete_entry_clicked(self):
-        indexes = self._mw.imaging_sequence_ListView.selectedIndexes()
-        if indexes:
-            # Indexes is a list of a single item in single-select mode.
-            index = indexes[0]
-            self.sigDeleteEntry.emit(index)
-
-    def load_roi_list_clicked(self):
-        data_directory = os.path.join(self.default_location, 'qudi_roi_lists')
-        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
-                                                          'Open ROI list',
-                                                          data_directory,
-                                                          'json files (*.json)')[0]
-        if this_file:
-            self._mw.roi_list_path_LineEdit.setText(this_file)
-
-    def load_injections_clicked(self):
-        data_directory = os.path.join(self.default_location, 'qudi_injection_parameters')
-        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
-                                                          'Open injections file',
-                                                          data_directory,
-                                                          'yaml files (*.yaml)')[0]
-        # print(this_file)
-        if this_file:
-            self._mw.injections_list_LineEdit.setText(this_file)
-
     def display_loaded_config(self):
+        """ Callback of the signal sigConfigLoaded sent from the logic. Updates the displayed configuration form
+        according to the experiment and shows the values defined in the loaded config file. """
         self._mw.select_experiment_ComboBox.setCurrentText(self._exp_logic.config_dict['experiment'])
         self.update_form()
         self.update_entries()
 
 # clear all toolbutton: reset also selectors for imaging sequence to default values ? (first laser, 0)
-
-
-

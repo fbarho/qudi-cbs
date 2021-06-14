@@ -84,6 +84,8 @@ class InjectionsGUI(GUIBase):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._injections_logic = None
+        self._mw = None
 
     def on_activate(self):
         """ Required initialization steps.
