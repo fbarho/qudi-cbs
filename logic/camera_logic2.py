@@ -106,11 +106,7 @@ class CameraLogic(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-
         self.threadpool = QtCore.QThreadPool()
-
-        # uncomment if needed:
-        # self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
