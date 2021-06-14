@@ -33,7 +33,7 @@ from core.configoption import ConfigOption
 
 
 class FluigentFlowboard(Base, MicrofluidicsInterface):
-    """ Hardware class representing the Fluigent Microfluidics Controller (Flowboard)
+    """ Hardware class representing the Fluigent Microfluidics Controller (Flowboard).
 
     Example config for copy-paste:
 

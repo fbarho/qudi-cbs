@@ -31,7 +31,7 @@ from core.meta import InterfaceMetaclass
 
 
 class MicrofluidicsInterface(metaclass=InterfaceMetaclass):
-    """ This interface is used to control a microfluidics control system
+    """ This interface is used to control a microfluidics system.
     """
 
     @abstract_interface_method

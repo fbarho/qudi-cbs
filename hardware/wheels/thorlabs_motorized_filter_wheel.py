@@ -4,7 +4,7 @@ Qudi-CBS
 
 This module contains the hardware class representing a Thorlabs motorized filterwheel.
 
-This module was available in Qudi original version and modified.
+This module was available in Qudi original version and was modified.
 -----------------------------------------------------------------------------------
 
 Qudi is free software: you can redistribute it and/or modify

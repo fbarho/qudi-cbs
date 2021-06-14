@@ -298,7 +298,7 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
             value = int(min(max(intens, 0), 99))
             cmd = f"LED X={value}? \r"
             self.write(cmd)
-            return 0
+            # return 0
         else:
             pass
 
