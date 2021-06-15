@@ -1,5 +1,6 @@
 import ctypes
 import numpy as np
+from time import sleep
 from core.module import Base
 from core.configoption import ConfigOption
 from interface.camera_interface import CameraInterface
@@ -132,6 +133,10 @@ class HCam(Base, CameraInterface):
 
         Each pixel might be a float, integer or sub pixels
         """
+        # bug fixes are used here to wait until data is available. A more elegant solution would be to modify the hamamatsu_python_driver file
+        # so that getFrames method blocks waiting until at least one frame is available. (which is supposed to be the case according to comments therein).
+        # for fixed length and n = 1, the counter may go up to its maximum if the exposure time is long (such as 1 s)
+        # if even longer exposure times are needed, the counter or the waiting time must be increased.
         acq_mode = self.get_acquisition_mode()
 
         image_array = []  # or should this be initialized as an np array ??
@@ -148,7 +153,18 @@ class HCam(Base, CameraInterface):
                 image_array = np.reshape(data, (dim[1], dim[
                     0]))  # reshape in row major shape (height, width) # to check if image is reconstituted correctly
         elif acq_mode == 'fixed_length' and self.n_frames == 1:  # equivalent to single_scan
-            data = frames[-1].getData()
+            # bug fix for snap functionality: data retrieval is sometimes invoked too fast and data is not yet ready
+            counter = 0
+            while not frames and counter < 10:  # check if frames list is empty; 10 tries to get the data
+                [frames, dim] = self.camera.getFrames()  # try again to get the data
+                counter += 1
+                sleep(0.005)
+            if not frames:  # as last option
+                data = np.zeros((dim[1], dim[0]))
+                print('no data available from camera')
+            else:  # else continue normally
+                data = frames[-1].getData()
+            print(counter)  # for debugging, comment out later
             image_array = np.reshape(data, (dim[1], dim[0]))
             # this case is covered separately to guarantee the correct display for snap
             # code could be combined with case 1 above (conditions listed with 'or')
@@ -158,7 +174,6 @@ class HCam(Base, CameraInterface):
         else:
             self.log.info('Your aquisition mode is not covered yet.')
         return image_array
-        # to do: add a check if data is available to avoid the index error if data has already been retrieved
 
     def set_exposure(self, exposure):
         """ Set the exposure time in seconds
