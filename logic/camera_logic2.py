@@ -209,15 +209,15 @@ class CameraLogic(GenericLogic):
         else:
             if self.enabled:  # live mode on
 #                self.interrupt_live()
-                self.timer.stop() 
+#                 self.timer.stop()
                 self._hardware.stop_acquisition()
                 
             temp = self._hardware.get_temperature()
             self._temperature = temp
             
             if self.enabled:  # restart live mode
-#                self.resume_live()
-                self.start_loop()
+                self.resume_live()
+                # self.start_loop()
             return temp
                 
 
@@ -731,7 +731,7 @@ class CameraLogic(GenericLogic):
             self.log.info('Sensor region set to {} x {}'.format(vend-vstart+1, hend-hstart+1))
 
         if self.enabled:
-#            self.resume_live() # restart live in case it was activated
+            # self.resume_live() # restart live in case it was activated
             self.start_loop()
 
     def reset_sensor_region(self):
