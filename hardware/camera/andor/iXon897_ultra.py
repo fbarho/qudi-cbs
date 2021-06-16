@@ -195,7 +195,8 @@ class IxonUltra(Base, CameraInterface):
             self._set_cooler(self._cooler_on)
             self.set_temperature(self._default_temperature)
             # set the preamp gain (it is not accessible by the user interface)
-            # self._set_preamp_gain(4.7) # verify the parameter - according to doc it takes a value between 0 and 2 (numberpreampgains - 1)
+            gain_index = c_int(2)   # possible preamplification gains: index 0: 1.0 ; index 1: 2.4 ; index 2: 5.1.
+            self._set_preamp_gain(gain_index)  # pass in the index as argument to set the gain to a specific value.
         except Exception as e:
             self.log.error(f'Andor iXon Ultra 897 Camera: Connection failed: {e}.')
 
@@ -1030,12 +1031,13 @@ class IxonUltra(Base, CameraInterface):
         self.dll.GetNumberPreAmpGains(byref(n_gains))
         return n_gains.value
 
-    def _get_preamp_gain(self):
+    def _get_preamp_gain(self, index):
         """
+        :param: int index: ranging from 0 to (number of preamp gains-1)
         Function returning
         @return tuple (int1, int2): First int describing the gain setting, second value the actual gain
         """
-        index = c_int()
+        index = c_int(index)
         gain = c_float()
         self.dll.GetPreAmpGain(index, byref(gain))
         return index.value, gain.value
