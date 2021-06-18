@@ -1,9 +1,31 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Qudi-CBS
 
+This module contains the logic for the autofocus with camera-based readout.
+
+An extension to Qudi.
+
+@authors: JB. Fiche, F. Barho
+-----------------------------------------------------------------------------------
+
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
-
 from core.connector import Connector
 from core.configoption import ConfigOption
 from core.util.mutex import Mutex
@@ -13,14 +35,13 @@ from qtpy import QtCore
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from simple_pid import PID
-import pyqtgraph as pg
 from time import sleep
 
 
 class AutofocusLogic(GenericLogic):
-    """ This logic connect to the instruments necessary for the autofocus method based on the camera. This logic
-    is directly connected to the focus_logic controlling the piezo position.
-    
+    """ Logic class to control the autofocus using camera-based readout. Connected hardware is a thorlabs camera.
+    An autofocus logic class is needed as connector to the focus logic.
+
     autofocus_logic:
         module.Class: 'autofocus_logic.AutofocusLogic'
         autofocus_ref_axis : 'X' # 'Y'
@@ -30,7 +51,6 @@ class AutofocusLogic(GenericLogic):
         connect:
             camera : 'thorlabs_camera'
     """
-
     # declare connectors
     camera = Connector(interface='CameraInterface')
 
@@ -60,6 +80,10 @@ class AutofocusLogic(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._camera = None
+        self._im_size = None
+        self._idx_X = None
+        self._idx_Y = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -79,13 +103,14 @@ class AutofocusLogic(GenericLogic):
         """
         self.stop_camera_live()
 
-# =======================================================================================
-# Public method for the autofocus, used by all the methods (camera or FPGA/QPD based)
-# =======================================================================================
+# ======================================================================================================================
+# Public method for the autofocus, used by all the techniques (camera or FPGA/QPD based readout)
+# ======================================================================================================================
 
     def read_detector_signal(self):
-        """ General function returning the reference signal for the autofocus correction. In the case of the
-        method using a FPGA, it returns the QPD signal measured along the reference axis.
+        """ This method reads the reference signal for the autofocus correction. In the case of the
+        method using a camera, it returns the coordinates of the centroid projected along the reference axis.
+        :return: int: coordinate of the centroid along the reference axis
         """
         im = self.get_latest_image()
         mask = self.calculate_threshold_image(im)
@@ -109,20 +134,22 @@ class AutofocusLogic(GenericLogic):
         else:
             return True
 
-    def define_pid_setpoint(self):
-        """ Initialize the pid setpoint
-        """
-        self._setpoint = self.read_detector_signal()
-        return self._setpoint
-
     def init_pid(self):
-        """ Initialize the pid for the autofocus
+        """ Initialize the pid for the autofocus, and reset the number of autofocus iterations.
+        :return: None
         """
         self._pid = PID(self._P_gain, self._I_gain, 0, setpoint=self._setpoint)
         self._pid.sample_time = self._pid_frequency
 
         self._autofocus_stable = False
         self._autofocus_iterations = 0
+
+    def define_pid_setpoint(self):
+        """ Initialize the pid setpoint and save it as a class attribute.
+        :return float: setpoint
+        """
+        self._setpoint = self.read_detector_signal()
+        return self._setpoint
 
     def read_pid_output(self, check_stabilization):
         """ Read the pid output signal in order to adjust the position of the objective
@@ -169,9 +196,9 @@ class AutofocusLogic(GenericLogic):
         im = self._camera.get_acquired_data()
         return im
 
-# ================================================================================
+# ======================================================================================================================
 # empty methods (only available on systems with 3 axes stage)
-# ================================================================================
+# ======================================================================================================================
 
     def calibrate_offset(self):
         """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
@@ -194,11 +221,6 @@ class AutofocusLogic(GenericLogic):
         """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
         """
         self.log.warning('start_piezo_position_correction is not available on this setup.')
-
-    # def run_piezo_position_correction(self):
-    #     """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
-    #     """
-    #     self.log.info('run_piezo_position_correction is not available on this setup.')
 
 # =================================================================
 # private methods for camera-based autofocus
@@ -224,5 +246,4 @@ class AutofocusLogic(GenericLogic):
             y0 = 0
 
         return x0, y0
-
 

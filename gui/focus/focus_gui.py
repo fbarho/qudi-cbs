@@ -93,12 +93,12 @@ class FocusGUI(GUIBase):
         # setup specific adjustments of the GUI
         # DockWidget for the camera - for the RAMM setup, the camera is only used to check for the quality of the
         # reflexion. By default the dock widget is hidden.
-        if self._focus_logic._setup == 'RAMM':
+        if self._focus_logic._readout == 'qpd':
             self._mw.threshold_image_PlotWidget.hide()
             self._mw.threshold_label.hide()
             self._mw.threshold_SpinBox.hide()
             self._mw.im_display_dockWidget.hide()
-        if self._focus_logic._setup == 'PALM':
+        if self._focus_logic._readout == 'camera':
             self._mw.find_offset_PushButton.hide()
             self._mw.offset_lineEdit.hide()
 
@@ -404,7 +404,6 @@ class FocusGUI(GUIBase):
         self._mw.search_focus_Action.setText('Search focus')
         self._mw.search_focus_Action.setChecked(False)
         self._mw.search_focus_Action.setDisabled(False)
-
 
     def start_live_clicked(self):
         """ When the action button start/stop Live is triggered, this method is called. If the camera is

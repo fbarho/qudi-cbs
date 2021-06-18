@@ -275,44 +275,6 @@ class AutofocusLogic(GenericLogic):
         self._stage.set_velocity({'z': 1.9})
         self.sigStageMoved.emit()
 
-# ----------------to be completed----------------------------------
-#     def start_piezo_position_correction(self, direction):
-#         """ When the piezo position gets too close to the limits, the MS2000 stage is used to move the piezo back
-#         to a standard position. If the piezo close to the lower limit (<5µm) it is moved to 25µm. If the piezo is too
-#         close to the upper limit (>70µm), it is moved back to 50µm.
-#         """
-#
-#         if direction == "up":
-#             step = 1
-#         elif direction == "down":
-#             step = -1
-#         else:
-#             self.log.warning('no valid direction specified')
-#             return
-#
-#         self._pos_dict = {'z': step}
-#
-#         # this needs to be modified :
-#         if not self._run_autofocus:
-#             self.start_autofocus()
-#
-#         stage_worker = StageAutofocusWorker()
-#         stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
-#         self.threadpool.start(stage_worker)
-#
-#     def run_piezo_position_correction(self):
-#         """ Correct the piezo position by moving the MS2000 stage while the autofocus ON
-#         """
-#         z = self.get_position()  # z posiiton of the piezo -- to be modified, this needs to be passed in by the focus_logic
-#         # if not self._autofocus_lost and (z < 25 or z > 50):
-#         if not self.autofocus_check_signal and (z < 25 or z > 50):
-#             self._stage.move_rel(self._pos_dict)
-#
-#             stage_worker = StageAutofocusWorker()
-#             stage_worker.signals.sigFinished.connect(self.run_piezo_position_correction)
-#             self.threadpool.start(stage_worker)
-# ---------------------------------------------------------------
-
 # =================================================================
 # private methods for QPD-based autofocus
 # =================================================================
