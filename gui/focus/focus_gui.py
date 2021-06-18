@@ -74,7 +74,6 @@ class FocusGUI(GUIBase):
     sigAutofocusStart = QtCore.Signal()
     sigAutofocusStop = QtCore.Signal()
     sigSearchFocus = QtCore.Signal()
-    sigDoPiezoPositionCorrection = QtCore.Signal()
 
     _mw = None
 
@@ -131,7 +130,6 @@ class FocusGUI(GUIBase):
         self._mw.autofocus_Action.setChecked(self._focus_logic.autofocus_enabled)
         self._mw.autofocus_Action.setDisabled(True)
         self._mw.search_focus_Action.setDisabled(True)
-        self._mw.piezo_position_correction_Action.setDisabled(True)
 
         # connect signals
         # internal signals
@@ -144,7 +142,6 @@ class FocusGUI(GUIBase):
         self._mw.start_live_Action.triggered.connect(self.start_live_clicked)
         self._mw.autofocus_Action.triggered.connect(self.start_focus_stabilization_clicked)
         self._mw.search_focus_Action.triggered.connect(self.search_focus_clicked)
-        self._mw.piezo_position_correction_Action.triggered.connect(self.piezo_position_correction_clicked)
         # widgets
         self._mw.step_doubleSpinBox.valueChanged.connect(self.step_changed)
         self._mw.move_up_PushButton.clicked.connect(self.move_up_button_clicked)
@@ -169,7 +166,6 @@ class FocusGUI(GUIBase):
         self.sigAutofocusStart.connect(self._focus_logic.start_autofocus)
         self.sigAutofocusStop.connect(self._focus_logic.stop_autofocus)
         self.sigSearchFocus.connect(self._focus_logic.start_search_focus)
-        self.sigDoPiezoPositionCorrection.connect(self._focus_logic.do_piezo_position_correction)
 
         # keyboard shortcuts for up / down buttons
         self._mw.move_up_PushButton.setShortcut(QtCore.Qt.Key_Up)
@@ -188,7 +184,6 @@ class FocusGUI(GUIBase):
         self._focus_logic.sigAutofocusError.connect(self.autofocus_stopped)
         self._focus_logic.sigSetpointDefined.connect(self.update_autofocus_setpoint)
         self._focus_logic.sigFocusFound.connect(self.reset_search_focus_button)
-        self._focus_logic.sigPiezoPositionCorrectionFinished.connect(self.reset_position_correction_button)
         self._focus_logic.sigDisableFocusActions.connect(self.disable_focus_toolbuttons)
         self._focus_logic.sigEnableFocusActions.connect(self.enable_focus_toolbuttons)
 
@@ -346,8 +341,6 @@ class FocusGUI(GUIBase):
         # enable the piezo position correction, focus stabilization and search focus toolbuttons
         self._mw.autofocus_Action.setDisabled(False)
         self._mw.search_focus_Action.setDisabled(False)
-        if self._focus_logic._setup == 'RAMM':
-            self._mw.piezo_position_correction_Action.setDisabled(False)
 
     def calibrate_offset_clicked(self):
         """ Callback of the find offset pushbutton. Handles the pushbutton state and starts the calibration of the
@@ -369,21 +362,6 @@ class FocusGUI(GUIBase):
     def update_autofocus_setpoint(self, setpoint):
         """ Callback of sigSetpointDefined from focus_logic. Display the current setpoint on the GUI. """
         self._mw.setpoint_lineEdit.setText("{:.2f}".format(setpoint))
-
-    def piezo_position_correction_clicked(self):
-        self._mw.piezo_position_correction_Action.setDisabled(True)
-        self._mw.piezo_position_correction_Action.setText('Moving piezo into central range..')
-        self._mw.search_focus_Action.setDisabled(True)  # incompatible action
-        self._mw.autofocus_Action.setDisabled(True)  # can be on or off, but do not allow to act on this while position correction is running
-        self.sigDoPiezoPositionCorrection.emit()
-
-    def reset_position_correction_button(self):
-        """ Callback of sigPiezoPositionCorrectionFinished from logic. Reset piezo position toolbutton to callable stage """
-        self._mw.piezo_position_correction_Action.setDisabled(False)
-        self._mw.piezo_position_correction_Action.setText('Piezo position correction')
-        self._mw.search_focus_Action.setDisabled(False)  # re-enable other autofocus actions
-        self._mw.autofocus_Action.setDisabled(False)
-
 
     def start_focus_stabilization_clicked(self):
         """ When the toolbutton start/stop autofocus is triggered, this function is called. If the autofocus is
@@ -485,14 +463,12 @@ class FocusGUI(GUIBase):
     @QtCore.Slot()
     def disable_focus_toolbuttons(self):
         self._mw.piezo_init_Action.setDisabled(True)
-        self._mw.piezo_position_correction_Action.setDisabled(True)
         self._mw.autofocus_Action.setDisabled(True)
         self._mw.search_focus_Action.setDisabled(True)
 
     @QtCore.Slot()
     def enable_focus_toolbuttons(self):
         self._mw.piezo_init_Action.setDisabled(False)
-        self._mw.piezo_position_correction_Action.setDisabled(False)
         self._mw.autofocus_Action.setDisabled(False)
         self._mw.search_focus_Action.setDisabled(False)
 
