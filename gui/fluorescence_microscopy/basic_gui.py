@@ -162,8 +162,6 @@ class BasicGUI(GUIBase):
     rot180 = False
 
     def __init__(self, config, **kwargs):
-
-        # load connection
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
@@ -851,7 +849,7 @@ class BasicGUI(GUIBase):
 
         return metadata
 
-    @ QtCore.Slot()
+    @QtCore.Slot()
     def select_sensor_region(self):
         """ callback of set_sensor_Action.
         Enables or disables (according to initial state) the rubberband selection tool on the camera image."""

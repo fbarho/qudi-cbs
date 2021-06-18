@@ -432,7 +432,6 @@ class ExpConfiguratorGUI(GUIBase):
         parameters in these default files.
         """
         path = os.path.join(self.default_location, 'qudi_task_config_files')
-        self.log.info(path)
         experiment = self._mw.select_experiment_ComboBox.currentText()
         self.sigSaveConfig.emit(path, experiment, None)
 
@@ -445,8 +444,7 @@ class ExpConfiguratorGUI(GUIBase):
         path = os.path.join(self.default_location, 'qudi_task_config_files')
         experiment = self._mw.select_experiment_ComboBox.currentText()
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw, 'Save copy of experiental configuration',
-                                                          path, 'yaml files (*.yaml)')[0]
-        self.log.info(this_file)
+                                                          path, 'yml files (*.yml)')[0]
         path, filename = os.path.split(this_file)
         if this_file:
             self.sigSaveConfig.emit(path, experiment, filename)
@@ -457,7 +455,7 @@ class ExpConfiguratorGUI(GUIBase):
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open experiment configuration',
                                                           data_directory,
-                                                          'yaml files (*.yaml)')[0]
+                                                          'yml files (*.yml)')[0]
         if this_file:
             self.sigLoadConfig.emit(this_file)
 
@@ -504,7 +502,7 @@ class ExpConfiguratorGUI(GUIBase):
         this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw,
                                                           'Open injections file',
                                                           data_directory,
-                                                          'yaml files (*.yaml)')[0]
+                                                          'yml files (*.yml)')[0]
         # print(this_file)
         if this_file:
             self._mw.injections_list_LineEdit.setText(this_file)

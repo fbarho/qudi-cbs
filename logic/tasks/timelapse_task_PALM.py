@@ -291,9 +291,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.gain = self.user_param_dict['gain']
                 self.centered_focal_plane = self.user_param_dict['centered_focal_plane']
                 self.save_path = self.user_param_dict['save_path']
-                self.imaging_sequence = [{'laserline': '488 nm', 'intensity': 5, 'num_z_planes': 3, 'z_step': 0.25, 'filter_pos': 1},
-                                         {'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 2},
-                                         {'laserline': '641 nm', 'intensity': 10, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 3}]
+                self.imaging_sequence = [{'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 10, 'z_step': 0.25, 'filter_pos': 2},
+                                         {'laserline': '641 nm', 'intensity': 5, 'num_z_planes': 5, 'z_step': 0.25, 'filter_pos': 1}]
                 self.file_format = self.user_param_dict['file_format']
                 self.roi_list_path = self.user_param_dict['roi_list_path']
                 self.num_iterations = self.user_param_dict['num_iterations']
