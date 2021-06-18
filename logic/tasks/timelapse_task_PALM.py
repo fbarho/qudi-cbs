@@ -35,14 +35,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     """ This task does an acquisition of a series of images from different channels or using different intensities
     """
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.err_count = None
+        self.autofocus_ok = False
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -61,7 +64,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['filter'].disable_filter_actions()
 
-        # add also deactivation of autofocus and actions on focus gui
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
+
+        # control that autofocus has been calibrated and a setpoint is defined
+        self.autofocus_ok = self.ref['focus']._calibrated and self.ref['focus']._setpoint_defined
+
+        if not self.autofocus_ok:
+            self.log.warning('Task aborted. Please initialize the autofocus before starting this task.')
+            return
 
         # open camera shutter ??
 
@@ -130,8 +141,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 num_z_planes = self.imaging_sequence[i]['num_z_planes']
                 z_step = self.imaging_sequence[i]['z_step']
 
-                # self.ref['focus'].search_focus()
-                initial_position = self.ref['focus'].get_position()  # first draft version only  until we have the autofocus
+                self.ref['focus'].start_search_focus()
+                # need to ensure that focus is stable here:
+                ready = self.ref['focus']._stage_is_positioned  # maybe use (not self.ref['focus'].autofocus_enabled) instead
+                counter = 0
+                while not ready:
+                    counter += 1
+                    time.sleep(0.1)
+                    ready = self.ref['focus']._stage_is_positioned
+                    if counter > 50:
+                        break
+
+                initial_position = self.ref['focus'].get_position()
                 print(f'initial position: {initial_position}')
                 start_position = self.calculate_start_position(self.centered_focal_plane, num_z_planes, z_step)
                 print(f'start position: {start_position}')
@@ -148,7 +169,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
                 for plane in tqdm(range(num_z_planes)):
 
-                    # print(f'plane number {plane + 1}')  # replace by tqdm package when piezo positioning problem is solved
+                    # print(f'plane number {plane + 1}')
 
                     # position the piezo
                     position = np.round(start_position + plane * z_step, decimals=3)
@@ -193,9 +214,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 position = self.ref['focus'].get_position()
                 print(f'piezo position reset to {position}')
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # metadata saving
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         self.ref['camera'].abort_acquisition()  # after this, temperature can be retrieved for metadata
         if self.file_format == 'fits':
             metadata = self.get_fits_metadata()
@@ -208,7 +229,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # go back to first ROI
         self.ref['roi'].set_active_roi(name=self.roi_names[0])
         self.ref['roi'].go_to_roi_xy()
-        # time.sleep(1)  # replace by wait for idle ?
         self.ref['roi'].stage_wait_for_idle()
 
         self.counter += 1
@@ -255,17 +275,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].enable_laser_actions()
         self.ref['filter'].enable_filter_actions()
         # focus tools gui
+        self.ref['focus'].enable_focus_actions()
 
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         """ this function is called from startTask() to load the parameters given in a specified format by the user
@@ -330,9 +351,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
@@ -386,9 +407,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -449,4 +470,3 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
-

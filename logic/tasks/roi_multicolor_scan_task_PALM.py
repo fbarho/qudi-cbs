@@ -26,6 +26,7 @@ import yaml
 from datetime import datetime
 import os
 from time import sleep
+from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -33,14 +34,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     """ This task does an acquisition of a series of images from different channels or using different intensities
     """
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.err_count = None
+        self.laser_allowed = False
+        self.autofocus_ok = False
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -59,6 +64,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['filter'].disable_filter_actions()
 
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
+
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
 
@@ -70,6 +78,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         if not self.laser_allowed:
             self.log.warning('Task aborted. Please specify a valid filter / laser combination')
+            return
+
+        # control that autofocus has been calibrated and a setpoint is defined
+        self.autofocus_ok = self.ref['focus']._calibrated and self.ref['focus']._setpoint_defined
+
+        if not self.autofocus_ok:
+            self.log.warning('Task aborted. Please initialize the autofocus before starting this task.')
             return
 
         # preparation steps
@@ -101,10 +116,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """
         if not self.laser_allowed:
             return False  # skip runTaskStep and directly go to cleanupTask
+        if not self.autofocus_ok:
+            return False  # skip runTaskStep and directly go to cleanupTask
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # create the path for each roi
         cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
 
@@ -112,33 +129,50 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
         self.ref['roi'].go_to_roi_xy()
         self.log.info('Moved to {} xy position'.format(self.roi_names[self.roi_counter]))
-        sleep(1)  # replace maybe by wait for idle
+        self.ref['roi'].stage_wait_for_idle()
 
-        # autofocus  # add this when autofocus is set up correctly and tested on PALM setup
-        # self.ref['focus'].search_focus()
-        initial_position = self.ref['focus'].get_position()    # until we have the autofocus
+        # autofocus
+        self.ref['focus'].start_search_focus()
+        # need to ensure that focus is stable here.
+        ready = self.ref['focus']._stage_is_positioned  # maybe use (not self.ref['focus'].autofocus_enabled) instead
+        counter = 0
+        while not ready:
+            counter += 1
+            sleep(0.1)
+            ready = self.ref['focus']._stage_is_positioned
+            if counter > 50:
+                break
+
+        initial_position = self.ref['focus'].get_position()
         print(f'initial position: {initial_position}')
         start_position = self.calculate_start_position(self.centered_focal_plane)
         print(f'start position: {start_position}')
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # imaging sequence (image data is spooled to disk)
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # prepare the camera
         frames = len(self.imaging_sequence) * self.num_frames * self.num_z_planes  # self.num_frames = 1 typically, but keep as an option
         self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain,
                                                                    cur_save_path.rsplit('.', 1)[0],
                                                                    self.file_format)
 
-        for plane in range(self.num_z_planes):
-            print(f'plane number {plane + 1}')
+        # initialize arrays to save the target and current z positions
+        z_target_positions = []
+        z_actual_positions = []
+
+        for plane in tqdm(range(self.num_z_planes)):
+            # print(f'plane number {plane + 1}')
+
             # position the piezo
             position = np.round(start_position + plane * self.z_step, decimals=3)
             self.ref['focus'].go_to_position(position)
-            print(f'target position: {position} um')
+            # print(f'target position: {position} um')
             sleep(0.03)
             cur_pos = self.ref['focus'].get_position()
-            print(f'current position: {cur_pos} um')
+            # print(f'current position: {cur_pos} um')
+            z_target_positions.append(position)
+            z_actual_positions.append(np.round(cur_pos, decimals=3))
 
             # loop over the number of frames per color
             for j in range(self.num_frames):  # per default only one frame per plane per color but keep it as an option
@@ -183,9 +217,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         position = self.ref['focus'].get_position()
         print(f'position reset to {position}')
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # metadata saving
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         self.ref['camera'].abort_acquisition()  # after this, temperature can be retrieved for metadata
         if self.file_format == 'fits':
             metadata = self.get_fits_metadata()
@@ -194,6 +228,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             metadata = self.get_metadata()
             file_path = cur_save_path.replace('tiff', 'txt', 1)
             self.save_metadata_file(metadata, file_path)
+
+        # save file with z positions (same procedure for either file format)
+        # file_path = os.path.join(os.path.split(cur_save_path)[0], 'z_positions.yml')
+        # self.save_z_positions_to_file(z_target_positions, z_actual_positions, file_path)
+        print(z_actual_positions)
+        print(z_target_positions)
 
         self.roi_counter += 1
         return self.roi_counter < len(self.roi_names)
@@ -232,17 +272,19 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['camera'].enable_camera_actions()
         self.ref['daq'].enable_laser_actions()
         self.ref['filter'].enable_filter_actions()
+        # focus gui
+        self.ref['focus'].enable_focus_actions()
 
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         """ this function is called from startTask() to load the parameters given in a specified format by the user
@@ -334,9 +376,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
@@ -390,9 +432,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -454,6 +496,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
 
+    def save_z_positions_to_file(self, z_target_positions, z_actual_positions, path):
+        z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
+        with open(path, 'w') as outfile:
+            yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
+
+
 def get_entry_nested_dict(nested_dict, val, entry):
     """ helper function that searches for 'val' as value in a nested dictionary and returns the corresponding value in the category 'entry'
     example: search in laser_dict (nested_dict) for the label (entry) corresponding to a given wavelength (val)
@@ -469,10 +517,6 @@ def get_entry_nested_dict(nested_dict, val, entry):
     entrylist = []
     for outer_key in nested_dict:
         item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
-        if item != []:
+        if item:
             entrylist.append(*item)
     return entrylist
-
-
-
-# problem with piezo positioning - enormous backlash ?? around 1 um below target position on start

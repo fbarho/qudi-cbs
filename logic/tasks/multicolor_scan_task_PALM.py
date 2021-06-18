@@ -28,16 +28,19 @@ from logic.generic_task import InterruptableTask
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
-    """ This task does an acquisition of a series of images from different channels or using different intensities
+    """ This task does an acquisition of a stack of images from different channels or using different intensities.
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.err_count = None
+        self.laser_allowed = False
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -52,6 +55,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['daq'].disable_laser_actions()
 
         self.ref['filter'].disable_filter_actions()
+
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         # read all user parameters from config
         self.load_user_parameters()
@@ -92,9 +98,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if not self.laser_allowed:
             return False  # skip runTaskStep and directly go to cleanupTask
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # position the piezo
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         self.step_counter += 1
         print(f'plane number {self.step_counter}')
 
@@ -105,9 +111,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         cur_pos = self.ref['focus'].get_position()
         print(f'current position: {cur_pos} um')
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # imaging sequence (image data is spooled to disk)
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # outer loop over the number of frames per color
         for j in range(self.num_frames):  # per default only one frame per plane per color but keep it as an option 
 
@@ -184,17 +190,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['camera'].enable_camera_actions()
         self.ref['daq'].enable_laser_actions()
         self.ref['filter'].enable_filter_actions()
+        self.ref['focus'].enable_focus_actions()
 
         self.log.debug(f'number of missed triggers: {self.err_count}')
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         """ this function is called from startTask() to load the parameters given in a specified format by the user
@@ -283,9 +290,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_complete_path(self, path_stem):
         """ Create the complete path based on path_stem given as user parameter,
@@ -326,9 +333,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -387,8 +394,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.log.info('Saved metadata to {}'.format(path))
 
 
-
-
 def get_entry_nested_dict(nested_dict, val, entry):
     """ helper function that searches for 'val' as value in a nested dictionary and returns the corresponding value in the category 'entry'
     example: search in laser_dict (nested_dict) for the label (entry) corresponding to a given wavelength (val)
@@ -404,8 +409,6 @@ def get_entry_nested_dict(nested_dict, val, entry):
     entrylist = []
     for outer_key in nested_dict:
         item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
-        if item != []:
+        if item:
             entrylist.append(*item)
     return entrylist
-
-

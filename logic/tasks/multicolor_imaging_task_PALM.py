@@ -29,14 +29,17 @@ from logic.generic_task import InterruptableTask
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
     """ This task does an acquisition of a series of images from different channels or using different intensities
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.err_count = None
+        self.laser_allowed = False
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -88,16 +91,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         if not self.laser_allowed:
             return False  # skip runTaskStep and directly go to cleanupTask
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # imaging sequence (image data is spooled to disk)
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # this task has only one step until a data set is prepared and saved
-        # but loops over the number of frames per channel and the channels)
+        # but loops over the number of frames per channel and the channels
 
         # outer loop over the number of frames per color
         for j in range(self.num_frames):
 
-            # use a while loop to catch the exception when a trigger is missed and just repeat the missed image (in case one trigger was missed)
+            # use a while loop to catch the exception when a trigger is missed and just repeat the missed image
+            # (in case one trigger was missed)
             i = 0
             while i < len(self.imaging_sequence):
                 # reset the intensity dict to zero
@@ -131,9 +135,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 else:
                     i += 1  # increment to continue with the next image
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # metadata saving
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         self.ref['camera'].abort_acquisition()  # after this, temperature can be retrieved for metadata
         if self.file_format == 'fits':
             metadata = self.get_fits_metadata()
@@ -173,25 +177,25 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
-        """ this function is called from startTask() to load the parameters given in a specified format by the user
+        """ This function is called from startTask() to load the parameters given by the user in a specific format.
 
-        specify only the path to the user defined config in the (global) config of the experimental setup
+        Specify the path to the user defined config for this task in the (global) config of the experimental setup.
 
-        user must specify the following dictionary (here with example entries):
+        The config file contains the following dictionary (here with example entries):
             filter_pos: 1
             exposure: 0.05  # in s
             gain: 0
             num_frames: 1  # number of frames per color
-            save_path: 'E:\\Data'
+            save_path: 'E:\\'
             file_format: 'tiff'
             imaging_sequence = [('488 nm', 3), ('561 nm', 3), ('641 nm', 10)]
         """
@@ -242,9 +246,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 break  # stop if at least one forbidden laser is found
         return lasers_allowed
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_complete_path(self, path_stem):
         """ Create the complete path based on path_stem given as user parameter,
@@ -285,9 +289,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -356,7 +360,6 @@ def get_entry_nested_dict(nested_dict, val, entry):
     entrylist = []
     for outer_key in nested_dict:
         item = [nested_dict[outer_key][entry] for inner_key, value in nested_dict[outer_key].items() if val == value]
-        if item != []:
+        if item:
             entrylist.append(*item)
     return entrylist
-
