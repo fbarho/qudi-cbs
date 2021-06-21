@@ -331,7 +331,7 @@ class FocusLogic(GenericLogic):
 # Methods for autofocus (autofocus dockwidget and toolbar)
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Camera based readout -------------------------------------------------------------------------------------------------
+# Method specific for camera based readout -----------------------------------------------------------------------------
     def update_threshold(self, threshold):
         """ Set the user defined threshold used to calculate the threshold image of the raw data.
         :param: int threshold: value above which values are set to maximum of the scale. """
@@ -350,7 +350,7 @@ class FocusLogic(GenericLogic):
         detected by the QPD or the camera. This methods updates the class attribute _autofocus_lost.
         :return: None
         """
-        self._autofocus_lost = not self._autofocus_logic.autofocus_check_signal()
+        self._autofocus_lost = not self._autofocus_logic.autofocus_check_signal
 
 # Calibration of the autofocus -----------------------------------------------------------------------------------------
     def calibrate_focus_stabilization(self):
@@ -580,12 +580,14 @@ class FocusLogic(GenericLogic):
         This method is intended for a use in long automated tasks.
         The autofocus method with readout on a reference plane is used.
         """
+        self.stop_autofocus()
         self.piezo_correction_running = True
         success = True
 
         piezo_pos = self.get_position()
 
         if (piezo_pos < 10) or (piezo_pos > 50):  # correction necessary
+            print('doing piezo position correction..')
             # move to the reference plane
             offset = self._autofocus_logic._focus_offset
             self._autofocus_logic.stage_move_z(offset)
@@ -597,8 +599,7 @@ class FocusLogic(GenericLogic):
 
             # signal ok, position correction can be done
             if success:
-                if not self.autofocus_enabled:
-                    self.start_autofocus()  # using default conditions
+                self.start_autofocus()  # using default conditions for autofocus
                 # calculate the relative movement necessary to move piezo to 25 um
                 step = np.round(25 - piezo_pos, decimals = 3)
                 self.sigDoStageMovement.emit(step)
@@ -606,15 +607,21 @@ class FocusLogic(GenericLogic):
                 self.log.warning('Position correction could not be done because autofocus signal not found!')
                 self._autofocus_logic.stage_move_z(-offset)
                 sleep(1)  # replace by wait for idle
-                self.piezo_position_running = False
+                self.piezo_correction_running = False
 
         else:  # position does not need to be corrected
-            self.piezo_position_correction_running = False
+            print('no piezo position correction needed..')
+            self.piezo_correction_running = False
 
     def finish_piezo_position_correction(self):
         """ Slot called by the signal sigStageMoved from the autofocus_logic. Handles the stopping of the autofocus
-         and resets the indicator variable. """
+        and resets the indicator variable. Moves also the stage back to the sample surface plane, as the piezo position
+        correction method moved it to the reference interface. """
         self.stop_autofocus()
+        # move stage back to surface plane
+        offset = self._autofocus_logic._focus_offset
+        self._autofocus_logic.stage_move_z(-offset)
+        sleep(1)  # replace by wait for idle
         self.piezo_correction_running = False
 
     def start_search_focus(self):

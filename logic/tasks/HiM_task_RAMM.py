@@ -39,9 +39,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     """ This task iterates over all roi given in a file and does an acquisition of a series of planes in z direction
     using a sequence of lightsources for each plane, for each roi.
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -74,7 +74,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['laser'].stop_laser_output()
         self.ref['bf'].led_off()
-        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
+        self.ref['laser'].disable_laser_actions()  # includes also disabling of brightfield on / off button
+
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         self.ref['valves'].disable_valve_positioning()
         self.ref['flow'].disable_flowcontrol_actions()
@@ -82,8 +85,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # control if experiment can be started : origin defined in position logic ?
         if not self.ref['pos'].origin:
-            self.log.warning('No position 1 defined for injections. Experiment can not be started. Please define position 1')
+            self.log.warning('No position 1 defined for injections. Experiment can not be started. Please define position 1!')
             return
+
+        if (not self.ref['focus']._calibrated) or (not self.ref['focus']._setpoint_defined):
+            self.log.warning('Autofocus is not calibrated. Experiment can not be started. Please calibrate autofocus!')
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
@@ -109,20 +115,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # initialize a counter to iterate over the number of probes to inject
         self.probe_counter = 0
 
-        # add here the initialization of the autofocus (relative movement of stage and piezo to have travel range in both directions) ?
-        # move - offset
-        # do_piezo_position_correction
-        # move + offset
-
     def runTaskStep(self):
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
         # go directly to cleanupTask if position 1 is not defined
-        if not self.ref['pos'].origin:
+        if (not self.ref['pos'].origin) or (not self.ref['focus']._calibrated) or (not self.ref['focus']._setpoint_defined):
             return False
 
-        if not self.aborted:   # need to add regularly check if the aborted variable was set to True
+        if not self.aborted:
             now = time.time()
             # info message
             self.probe_counter += 1
@@ -137,9 +138,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['pos'].start_move_to_target(self.probe_list[self.probe_counter-1][0])
             self.ref['pos'].disable_positioning_actions()  # to disable again the move stage button
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # Hybridization
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         if not self.aborted:
 
             if self.logging:
@@ -220,21 +221,21 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 add_log_entry(self.log_path, self.probe_counter, 1, 'Finished Hybridization', 'info')
         # Hybridization finished ---------------------------------------------------------------------------------------
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # Imaging for all ROI
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         if not self.aborted:
             if self.logging:
                 self.status_dict['process'] = 'Imaging'
                 write_status_dict_to_file(self.status_dict_path, self.status_dict)
                 add_log_entry(self.log_path, self.probe_counter, 2, 'Started Imaging', 'info')
 
-            # # reset piezo position to 25 um if too close to the limit of travel range (< 10 or > 50)
-            # self.ref['focus'].do_piezo_position_correction()
-            # busy = self.ref['focus'].piezo_correction_running
-            # while busy:
-            #     time.sleep(0.1)
-            #     busy = self.ref['focus'].piezo_correction_running
+            # reset piezo position to 25 um if too close to the limit of travel range (< 10 or > 50)
+            self.ref['focus'].do_piezo_position_correction()
+            busy = self.ref['focus'].piezo_correction_running
+            while busy:
+                time.sleep(0.5)
+                busy = self.ref['focus'].piezo_correction_running
 
             for item in self.roi_names:
                 if self.aborted:
@@ -267,7 +268,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 reference_position = self.ref['focus'].get_position()  # save it to go back to this plane after imaging
                 start_position = self.calculate_start_position(self.centered_focal_plane)
 
-                # imaging sequence -----------------------------------------------------------------------------------------
+                # imaging sequence -------------------------------------------------------------------------------------
                 # prepare the daq: set the digital output to 0 before starting the task
                 self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
@@ -339,14 +340,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             if self.logging:
                 add_log_entry(self.log_path, self.probe_counter, 2, 'Finished Imaging', 'info')
-
-
-
         # Imaging (for all ROIs) finished ------------------------------------------------------------------------------
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # Photobleaching
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         if not self.aborted:
             if self.logging:
                 self.status_dict['process'] = 'Photobleaching'
@@ -454,10 +452,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 add_log_entry(self.log_path, self.probe_counter, 0, 'Task was aborted.', level='warning')
             # add extra actions to end up in a proper state: pressure 0, end regulation loop, set valves to default position .. (maybe not necessary because all those elements will still be done above)
 
-        # # go back to first ROI
-        # self.ref['roi'].set_active_roi(name=self.roi_names[0])
-        # self.ref['roi'].go_to_roi_xy()
-
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
         # close the fpga session
@@ -474,6 +468,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # basic imaging gui
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
+        # focus tools gui
+        self.ref['focus'].enable_focus_actions()
+        # fluidics control gui
         self.ref['valves'].enable_valve_positioning()
         self.ref['flow'].enable_flowcontrol_actions()
         self.ref['pos'].enable_positioning_actions()
@@ -483,13 +480,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -567,9 +564,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
         in which the folders for the ROI will be created
@@ -620,9 +617,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -673,9 +670,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
 
-# ------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 # helper functions for bokeh app display  (put this in a separate file later and import)
-# ------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def write_status_dict_to_file(path, status_dict):
     """ Write the current status dictionary to a yaml file.
@@ -683,6 +681,7 @@ def write_status_dict_to_file(path, status_dict):
     """
     with open(path, 'w') as outfile:
         yaml.safe_dump(status_dict, outfile, default_flow_style=False)
+
 
 def add_log_entry(path, cycle, process, event, level='info'):
     """ Append a log entry to the log.csv file.
@@ -697,4 +696,3 @@ def add_log_entry(path, cycle, process, event, level='info'):
     df_line = pd.DataFrame(entry, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
     with open(path, 'a') as file:
         df_line.to_csv(file, index=False, header=False)
-
