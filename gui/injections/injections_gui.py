@@ -308,8 +308,8 @@ class InjectionsGUI(GUIBase):
         over to the logic where the data is loaded.
         """
         data_directory = self.default_path  # default location to look for the file
-        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw, 'Load injections', data_directory, 'yaml files ('
-                                                                                                       '*.yaml)')[0]
+        this_file = QtWidgets.QFileDialog.getOpenFileName(self._mw, 'Load injections', data_directory, 'yml files ('
+                                                                                                       '*.yml)')[0]
         if this_file:
             self.sigLoadInjections.emit(this_file)
 
@@ -320,7 +320,7 @@ class InjectionsGUI(GUIBase):
         this_file = QtWidgets.QFileDialog.getSaveFileName(self._mw,
                                                           'Save injection sequence',
                                                           data_directory,
-                                                          'yaml files (*.yaml)')[0]
+                                                          'yml files (*.yml)')[0]
         if this_file:
             self.sigSaveInjections.emit(this_file)
 
