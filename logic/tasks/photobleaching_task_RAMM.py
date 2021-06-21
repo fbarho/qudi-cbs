@@ -26,14 +26,16 @@ from logic.generic_task import InterruptableTask
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
     """ This task iterates over all roi given in a file and illuminates this position with a sequence of lasers.
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.roi_counter = None
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -63,17 +65,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # move to ROI
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
         self.ref['roi'].go_to_roi_xy()
         self.log.info('Moved to {}'.format(self.roi_names[self.roi_counter]))
-        sleep(1)  # replace maybe by wait for idle
+        self.ref['roi'].stage_wait_for_idle()
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # activate lightsource
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # all laser lines at once
         for item in self.imaging_sequence:
             self.ref['laser'].update_intensity_dict(item[0], item[1])  # key (register in fpga bitfile), value (intensity in %)
@@ -102,6 +104,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     def cleanupTask(self):
         """ """
         self.log.info('cleanupTask called')
+        # go back to first ROI
+        self.ref['roi'].set_active_roi(name=self.roi_names[0])
+        self.ref['roi'].go_to_roi_xy()
 
         # reset stage velocity to default
         self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
@@ -125,14 +130,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.log.info('cleanupTask finished')
 
-
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:

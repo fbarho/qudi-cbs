@@ -37,14 +37,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
     """ This task iterates over all roi given in a file and does an acquisition of a series of planes in z direction
     using a sequence of lightsources for each plane, for each roi.
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.roi_counter = None
+        self.directory = None
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -58,7 +61,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['laser'].stop_laser_output()
         self.ref['bf'].led_off()
-        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
+        self.ref['laser'].disable_laser_actions()  # includes also disabling of brightfield on / off button
+
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
@@ -90,9 +96,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         """ Implement one work step of your task here.
         @return bool: True if the task should continue running, False if it should finish.
         """
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # create the path for each roi
         cur_save_path = self.get_complete_path(self.directory, self.roi_names[self.roi_counter])
 
@@ -100,12 +106,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['roi'].set_active_roi(name=self.roi_names[self.roi_counter])
         self.ref['roi'].go_to_roi_xy()
         self.log.info('Moved to {} xy position'.format(self.roi_names[self.roi_counter]))
-        # waiting time needed ???
-        sleep(1)  # replace maybe by wait for idle
+        self.ref['roi'].stage_wait_for_idle()
 
         # autofocus
         self.ref['focus'].start_search_focus()
-        # need to ensure that focus is stable here.
+        # need to ensure that focus is stable here and stage is back at the sample surface, not on the reference plane
         ready = self.ref['focus']._stage_is_positioned
         counter = 0
         while not ready:
@@ -117,9 +122,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         start_position = self.calculate_start_position(self.centered_focal_plane)
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # imaging sequence
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # prepare the daq: set the digital output to 0 before starting the task
         self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
@@ -166,9 +171,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['focus'].go_to_position(start_position)
 
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         # data saving
-        # ------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
         image_data = self.ref['cam'].get_acquired_data()
 
         if self.file_format == 'fits':
@@ -218,16 +223,18 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # basic imaging gui
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
+        # focus tools gui
+        self.ref['focus'].enable_focus_actions()
 
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -273,7 +280,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True)
         or if the focal plane is the bottommost plane in the scan (False)
         """
-        current_pos = self.ref['focus'].get_position()  # for tests until we have the autofocus #self.ref['piezo'].get_position()  # lets assume that we are at focus (user has set focus or run autofocus)
+        current_pos = self.ref['focus'].get_position()
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
@@ -286,9 +293,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def create_directory(self, path_stem):
         """ Create the directory (based on path_stem given as user parameter),
@@ -312,7 +319,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         dir_list = [folder for folder in os.listdir(path_stem_with_date) if os.path.isdir(os.path.join(path_stem_with_date, folder))]
         number_dirs = len(dir_list)
 
-        prefix=str(number_dirs+1).zfill(3)
+        prefix = str(number_dirs+1).zfill(3)
         # make prefix accessible to include it in the filename generated in the method get_complete_path
         self.prefix = prefix
 
@@ -358,9 +365,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
@@ -375,8 +382,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             metadata[f'Laser intensity {i+1} (%)'] = self.imaging_sequence[i][1]
         metadata['x position'] = self.ref['roi'].stage_position[0]
         metadata['y position'] = self.ref['roi'].stage_position[1]
-        # roi_001_pos = self.ref['roi'].get_roi_position('ROI_001')  # np.ndarray return type
-        # metadata['ROI_001'] = (float(roi_001_pos[0]), float(roi_001_pos[1]), float(roi_001_pos[2]))
         # pixel size ???
         return metadata
 
@@ -411,4 +416,3 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         z_data_dict = {'z_target_positions': z_target_positions, 'z_positions': z_actual_positions}
         with open(path, 'w') as outfile:
             yaml.safe_dump(z_data_dict, outfile, default_flow_style=False)
-

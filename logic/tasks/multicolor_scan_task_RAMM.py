@@ -30,16 +30,19 @@ from logic.generic_task import InterruptableTask
 
 
 class Task(InterruptableTask):  # do not change the name of the class. it is always called Task !
-    """ This task does an acquisition of a series of planes in z direction using a sequence of lightsources for each plane
+    """ This task does an acquisition of a series of planes in z direction using a sequence of lightsources
+    for each plane.
     """
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Generic Task methods
-    # ===============================================================================================================
+    # ==================================================================================================================
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.step_counter = None
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -50,7 +53,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['laser'].stop_laser_output()
         self.ref['bf'].led_off()
-        self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
+        self.ref['laser'].disable_laser_actions()  # includes also disabling of brightfield on / off button
+
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         # read all user parameters from config
         self.load_user_parameters()
@@ -59,7 +65,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].close_default_session()
 
         # download the bitfile for the task on the FPGA
-        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx' # associated to Qudi_HiM_QPD_PID.vi
+        bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx'  # associated to Qudi_HiM_QPD_PID.vi
         self.ref['laser'].start_task_session(bitfile)
         self.log.info('Task session started')
 
@@ -87,15 +93,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         @return bool: True if the task should continue running, False if it should finish.
         """
         self.step_counter += 1
-        print(f'plane number {self.step_counter}')
+        # print(f'plane number {self.step_counter}')
 
         # position the piezo
         position = self.start_position + (self.step_counter - 1) * self.z_step
         self.ref['focus'].go_to_position(position)
-        print(f'target position: {position} um')
+        # print(f'target position: {position} um')
         sleep(0.03)
         cur_pos = self.ref['focus'].get_position()
-        print(f'current position: {cur_pos} um')
+        # print(f'current position: {cur_pos} um')
         self.z_target_positions.append(position)
         self.z_actual_positions.append(cur_pos)
 
@@ -134,7 +140,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # reset piezo position to the initial one
         self.ref['focus'].go_to_position(self.focal_plane_position)
 
-        # get acquired data from the camera and save it to file in case the task has not been aborted during acquisition
+        # get acquired data from the camera and save it to file in case the task has not been stopped during acquisition
         if self.step_counter == self.num_z_planes:
             image_data = self.ref['cam'].get_acquired_data()
 
@@ -162,16 +168,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # enable gui actions
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
+        self.ref['focus'].enable_focus_actions()
 
         self.log.info('cleanupTask finished')
 
-    # ===============================================================================================================
+    # ==================================================================================================================
     # Helper functions
-    # ===============================================================================================================
+    # ==================================================================================================================
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # user parameters
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def load_user_parameters(self):
         try:
@@ -191,7 +198,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
 
         # establish further user parameters derived from the given ones
-        self.complete_path =  self.get_complete_path(self.save_path)
+        self.complete_path = self.get_complete_path(self.save_path)
 
         self.start_position = self.calculate_start_position(self.centered_focal_plane)
 
@@ -210,7 +217,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
     def calculate_start_position(self, centered_focal_plane):
         """
-        @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or if the focal plane is the bottommost plane in the scan (False)
+        @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True) or
+        if the focal plane is the bottommost plane in the scan (False).
         """
         current_pos = self.ref['focus'].get_position()  # user has set focus
         self.focal_plane_position = current_pos  # save it to come back to this plane at the end of the task
@@ -226,9 +234,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         else:
             return current_pos  # the scan starts at the current position and moves up
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # file path handling
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_complete_path(self, path_stem):
         """ Create the complete path based on path_stem given as user parameter,
@@ -253,7 +261,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         dir_list = [folder for folder in os.listdir(path_stem_with_date) if os.path.isdir(os.path.join(path_stem_with_date, folder))]
         number_dirs = len(dir_list)
 
-        prefix=str(number_dirs + 1).zfill(3)
+        prefix = str(number_dirs + 1).zfill(3)
         foldername = f'{prefix}_Scan_{self.sample_name}'
 
         path = os.path.join(path_stem_with_date, foldername)
@@ -268,9 +276,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         complete_path = os.path.join(path, file_name)
         return complete_path
 
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # metadata
-    # ------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
 
     def get_metadata(self):
         """ Get a dictionary containing the metadata in a plain text compatible format. """
