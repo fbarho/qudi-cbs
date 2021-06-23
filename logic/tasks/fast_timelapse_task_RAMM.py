@@ -20,10 +20,9 @@ Config example pour copy-paste:
             focus: 'focus_logic'
             roi: 'roi_logic'
         config:
-            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/fast_timelapse_task_RAMM.yaml'
+            path_to_user_config: 'C:/Users/sCMOS-1/qudi_data/qudi_task_config_files/fast_timelapse_task_RAMM.yml'
 
 """
-
 import numpy as np
 import os
 import yaml
@@ -64,7 +63,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['bf'].led_off()
         self.ref['laser'].disable_laser_actions()  # includes also disabling of brightfield on / off button
 
-        # add disabling of focus tools actions
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
@@ -84,9 +84,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines, self.exposure)
 
         # prepare the camera
-        num_z_planes_total = sum(self.imaging_sequence[i]['num_z_planes'] for i in range(len(self.imaging_sequence)))  # get the total number of planes per cycle
-        num_frames = len(self.roi_names) * num_z_planes_total
-        self.ref['cam'].prepare_camera_for_multichannel_imaging(num_frames, self.exposure, None, None, None)
+        self.num_frames = len(self.roi_names) * self.num_z_planes * self.num_laserlines
+        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
 
         # set the active_roi to none to avoid having two active rois displayed
         self.ref['roi'].active_roi = None
@@ -102,7 +101,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # create a save path for the current iteration
         cur_save_path = self.get_complete_path(self.directory, self.counter+1)
-        print(cur_save_path)
+
+        # start camera acquisition
+        self.ref['cam'].stop_acquisition()  # for safety
+        self.ref['cam'].start_acquisition()
 
         # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus (using autofocus and stop when stable)
@@ -139,11 +141,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # prepare the daq: set the digital output to 0 before starting the task
             self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
-            # start camera acquisition
-            self.ref['cam'].stop_acquisition()  # for safety
-            self.ref['cam'].start_acquisition()
-
-            print(f'{self.roi_names[self.roi_counter]}: performing z stack..')
+            print(f'{item}: performing z stack..')
 
             for plane in tqdm(range(self.num_z_planes)):
                 # print(f'plane number {plane + 1}')
@@ -237,7 +235,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
         # focus tools gui
-        # to be added
+        self.ref['focus'].enable_focus_actions()
 
         self.log.info('cleanupTask finished')
 
@@ -266,7 +264,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.time_step = self.user_param_dict['time_step']
                 # self.imaging_sequence = self.user_param_dict['imaging_sequence']
                 self.imaging_sequence = [{'laserline': '561 nm', 'intensity': 5},
-                                         {'laserline': '641 nm', 'intensity': 5}]
+                                         {'laserline': '488 nm', 'intensity': 10}]
 
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
