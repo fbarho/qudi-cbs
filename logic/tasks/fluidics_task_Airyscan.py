@@ -27,13 +27,13 @@ from logic.generic_task import InterruptableTask
 from time import sleep
 import yaml
 
-# incomplete : need to define the valve state on this setup for each step
+
 class Task(InterruptableTask):
     """ Fluidic injection task
 
     Config example pour copy-paste:
     FluidicsTask:
-        module: 'fluidics_task'
+        module: 'fluidics_task_Airyscan'
         needsmodules:
             valves: 'valve_logic'
             pos: 'positioning_logic'
@@ -49,6 +49,8 @@ class Task(InterruptableTask):
         super().__init__(**kwargs)
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
+        self.step_counter = None
+        self.user_param_dict = {}
 
     def startTask(self):
         """ """
@@ -64,7 +66,7 @@ class Task(InterruptableTask):
         self.step_counter = 0
 
         # position the needle in the probe in case a probe is injected
-        if 'Probe' in self.buffer_dict.keys():
+        if self.probe_list:
             # control if experiment can be started : origin defined in position logic ?
             if not self.ref['pos'].origin:
                 self.log.warning(
@@ -73,12 +75,12 @@ class Task(InterruptableTask):
             # position the needle in the probe
             self.ref['pos'].start_move_to_target(self.probe_list[0][0])
 
-        self.ref['valves'].set_valve_position('b', 2)
+        self.ref['valves'].set_valve_position('b', 1)  # inject probe
         self.ref['valves'].wait_for_idle()
 
     def runTaskStep(self):
         """ Task step (iterating over the number of injection steps to be done) """
-        if 'Probe' in self.buffer_dict.keys():
+        if self.probe_list:
             # go directly to cleanupTask if position 1 is not defined
             if not self.ref['pos'].origin:
                 return False
@@ -109,11 +111,9 @@ class Task(InterruptableTask):
         else:  # an incubation step
             time = self.hybridization_list[self.step_counter]['time']
             print(f'Incubation time.. {time} s')
-            self.ref['valves'].set_valve_position('c', 1)
             self.ref['valves'].wait_for_idle()
             sleep(self.hybridization_list[self.step_counter]['time'])
             # maybe it is better to split into small intervals to keep the thread responsive ?????
-            self.ref['valves'].set_valve_position('c', 2)
             self.ref['valves'].wait_for_idle()
             print('Incubation time finished')
 
@@ -168,7 +168,7 @@ class Task(InterruptableTask):
         try:
             with open(self.injections_path, 'r') as stream:
                 documents = yaml.safe_load(stream)  # yaml.full_load when yaml package updated
-                buffer_dict = documents['buffer']  #  example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
+                buffer_dict = documents['buffer']  # example {3: 'Buffer3', 7: 'Probe', 8: 'Buffer8'}
                 probe_dict = documents['probes']  # example {1: 'DAPI'}, probe_dict can be empty or should contain at maximum one entry for the fluidics task (only 1 positioning step of the needle is performed)
                 self.hybridization_list = documents['hybridization list']
 
@@ -178,6 +178,3 @@ class Task(InterruptableTask):
 
         except Exception as e:
             self.log.warning(f'Could not load hybridization sequence for task {self.name}: {e}')
-
-
-
