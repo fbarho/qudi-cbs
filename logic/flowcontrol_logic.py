@@ -121,6 +121,12 @@ class FlowcontrolLogic(GenericLogic):
 
     flowcontrol_logic:
         module.Class: 'flowcontrol_logic.FlowcontrolLogic'
+        p_gain: 0.005
+        i_gain: 0.01
+        d_gain: 0.0
+        pid_sample_time: 0.1  # in s
+        pid_output_min: 0
+        pid_output_max: 15
         connect:
             flowboard: 'flowboard_dummy'
             daq_ao_logic: 'daq_logic.....'
@@ -148,10 +154,12 @@ class FlowcontrolLogic(GenericLogic):
     rinsing_enabled = False
 
     # attributes for pid
-    p_gain = 0.005
-    i_gain = 0.001
-    d_gain = 0
-    pid_sample_time = 0.1  # in s, frequency for the PID update in simple_pid package
+    p_gain = ConfigOption('p_gain', 0.005, missing='warn')   # 0.005
+    i_gain = ConfigOption('i_gain', 0.01, missing='warn')  # 0.001 for Airyscan   # 0.01 for RAMM
+    d_gain = ConfigOption('d_gain', 0.0, missing='warn')  # 0.0
+    pid_sample_time =  ConfigOption('pid_sample_time', 0.1, missing='warn')  # 0.1 (for RAMM)  # in s, frequency for the PID update in simple_pid package
+    pid_output_min = ConfigOption('pid_output_min', 0, missing='warn')
+    pid_output_max = ConfigOption('pid_output_max', 15, missing='warn')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -190,8 +198,7 @@ class FlowcontrolLogic(GenericLogic):
             else:
                 return pressure
         else:
-            pressure = 0.0 # add here the steps needed to read the pressure if the pump is controlled by a daq
-            return pressure
+            return self._daq_logic.get_pressure()
 
     def set_pressure(self, pressures, log_entry=True, channels=None):
         """
@@ -215,7 +222,11 @@ class FlowcontrolLogic(GenericLogic):
                 param_dict = dict(zip(channels, pressures))
                 self._flowboard.set_pressure(param_dict)
         else:
-            pass # add here the steps needed to set pressure if pump is controlled by a daq
+            if type(pressures) == list:  # handle the list case, just take the first entry
+                pressure = pressures[0]
+            else:
+                pressure = pressures
+            self._daq_logic.set_pressure(pressure)
 
     def get_pressure_range(self, channels=None):
         """
@@ -230,7 +241,7 @@ class FlowcontrolLogic(GenericLogic):
             else:
                 return pressure_range
         else:
-            return 10  # arbitrary value for the moment # add here the steps needed to set pressure if pump is controlled by a daq
+            return 0, 10  # arbitrary value for the moment # add here the steps needed to set pressure if pump is controlled by a daq
 
     def get_pressure_unit(self, channels=None):
         """
@@ -347,7 +358,8 @@ class FlowcontrolLogic(GenericLogic):
 # Pressure regulation loop ----------------------------------------------------------------------------------------------
     def init_pid(self, setpoint):
         pid = PID(self.p_gain, self.i_gain, self.d_gain, setpoint=setpoint)
-        pid.output_limits = (0, 15)
+        # pid.output_limits = (0, 15)
+        pid.output_limits = (self.pid_output_min, self.pid_output_max)
         pid.sample_time = self.pid_sample_time
         return pid
 

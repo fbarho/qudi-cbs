@@ -63,7 +63,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['bf'].led_off()
         self.ref['laser'].disable_laser_actions()  # includes also disabling of brightfield on / off button
 
-        # add disabling of focus tools actions
+        self.ref['focus'].stop_autofocus()
+        self.ref['focus'].disable_focus_actions()
 
         # set stage velocity
         self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
@@ -81,11 +82,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         bitfile = 'C:\\Users\\sCMOS-1\\qudi-cbs\\hardware\\fpga\\FPGA\\FPGA Bitfiles\\FPGAv0_FPGATarget_QudiHiMQPDPID_sHetN0yNJQ8.lvbitx'
         self.ref['laser'].start_task_session(bitfile)
         # self.ref['laser'].run_multicolor_imaging_task_session(self.num_z_planes, self.wavelengths, self.intensities, self.num_laserlines, self.exposure)
+        self.ref['laser'].run_multicolor_imaging_task_session(1, [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], 1, self.exposure)  # in order to have a session running for access to autofocus  ..
 
         # prepare the camera
         num_z_planes_total = sum(self.imaging_sequence[i]['num_z_planes'] for i in range(len(self.imaging_sequence)))  # get the total number of planes per cycle
-        num_frames = len(self.roi_names) * num_z_planes_total
-        self.ref['cam'].prepare_camera_for_multichannel_imaging(num_frames, self.exposure, None, None, None)
+        self.num_frames = len(self.roi_names) * num_z_planes_total
+        self.ref['cam'].prepare_camera_for_multichannel_imaging(self.num_frames, self.exposure, None, None, None)
 
         # set the active_roi to none to avoid having two active rois displayed
         self.ref['roi'].active_roi = None
@@ -101,7 +103,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # create a save path for the current iteration
         cur_save_path = self.get_complete_path(self.directory, self.counter+1)
-        print(cur_save_path)
+
+        # start camera acquisition
+        self.ref['cam'].stop_acquisition()  # for safety
+        self.ref['cam'].start_acquisition()
 
         # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus (using autofocus and stop when stable)
@@ -130,36 +135,42 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 if counter > 50:  # maybe increase the counter ?
                     break
 
-            start_position = self.calculate_start_position(self.centered_focal_plane)
+
 
             # ----------------------------------------------------------------------------------------------------------
             # imaging sequence
             # ----------------------------------------------------------------------------------------------------------
             # acquire a stack for each laserline at the current ROI
             for i in range(self.num_laserlines):
+                num_z_planes = self.imaging_sequence[i]['num_z_planes']
+                z_step = self.imaging_sequence[i]['z_step']
+                start_position = self.calculate_start_position(self.centered_focal_plane, num_z_planes, z_step)
+
+                # autofocus could be moved here if setpoint for each laserline defined
+
+
+
                 # define the parameters of the fpga session for the laserline:
-                fill = [0, 0, 0, 0]
-                # wavelength = self.imaging_sequence[i]['laserline']
-                wavelength = ['561 nm']  # example: replace this by the correct way to extract this information as a function of i
-                wavelength = [self.lightsource_dict[key] for key in wavelength]
-                wavelengths = wavelength + fill  # generate a list of length 5 having only a first entry different from zero
-                intensity = self.imaging_seqeunce[i]['intensity']
-                intensities = intensity + fill
-                self.ref['laser'].run_multicolor_imaging_task_session(self.imaging_sequence[i]['num_z_planes'], wavelengths, intensities, 1, self.exposure)
+                wavelengths = [0, 0, 0, 0]
+                wavelength = self.imaging_sequence[i]['laserline']
+                wavelength = self.lightsource_dict[wavelength]
+                wavelengths.insert(0, wavelength) # generate a list of length 5 having only a first entry different from zero
+
+                intensities = [0, 0, 0, 0]
+                intensity = self.imaging_sequence[i]['intensity']
+                intensities.insert(0, intensity)
+
+                self.ref['laser'].run_multicolor_imaging_task_session(num_z_planes, wavelengths, intensities, 1, self.exposure)
                 # parameters: num_z_planes, wavelengths: array of length 5 with only 1 entry != 0, intensities: array of length 5 with only 1 entry != 0, num_laserlines, exposure_time
 
                 # prepare the daq: set the digital output to 0 before starting the task
                 self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
 
-                # start camera acquisition
-                self.ref['cam'].stop_acquisition()  # for safety
-                self.ref['cam'].start_acquisition()
-
                 print(f'{item}: Laserline {i}: performing z stack..')
 
-                for plane in tqdm(range(self.num_z_planes)):
+                for plane in tqdm(range(num_z_planes)):
                     # position the piezo
-                    position = start_position + plane * self.z_step
+                    position = start_position + plane * z_step
                     self.ref['focus'].go_to_position(position)
                     # print(f'target position: {position} um')
                     time.sleep(0.03)
@@ -250,7 +261,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
         # focus tools gui
-        # to be added
+        self.ref['focus'].enable_focus_actions()
 
         self.log.info('cleanupTask finished')
 
@@ -276,8 +287,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.num_iterations = self.user_param_dict['num_iterations']
                 self.time_step = self.user_param_dict['time_step']
                 # self.imaging_sequence = self.user_param_dict['imaging_sequence']
-                self.imaging_sequence = [{'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 5, 'z_step': 0.25},
-                                         {'laserline': '641 nm', 'intensity': 5, 'num_z_planes': 10, 'z_step': 0.1}]
+                self.imaging_sequence = [{'laserline': '561 nm', 'intensity': 5, 'num_z_planes': 10, 'z_step': 0.1},
+                                         {'laserline': '488 nm', 'intensity': 5, 'num_z_planes': 10, 'z_step': 0.1}]
 
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
@@ -292,7 +303,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.num_laserlines = len(self.imaging_sequence)
 
 
-    def calculate_start_position(self, centered_focal_plane):
+    def calculate_start_position(self, centered_focal_plane, num_z_planes, z_step):
         """
         @param bool centered_focal_plane: indicates if the scan is done below and above the focal plane (True)
         or if the focal plane is the bottommost plane in the scan (False)
@@ -301,11 +312,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         if centered_focal_plane:  # the scan should start below the current position so that the focal plane will be the central plane or one of the central planes in case of an even number of planes
             # even number of planes:
-            if self.num_z_planes % 2 == 0:
-                start_pos = current_pos - self.num_z_planes / 2 * self.z_step  # focal plane is the first one of the upper half of the number of planes
+            if num_z_planes % 2 == 0:
+                start_pos = current_pos - num_z_planes / 2 * z_step  # focal plane is the first one of the upper half of the number of planes
             # odd number of planes:
             else:
-                start_pos = current_pos - (self.num_z_planes - 1)/2 * self.z_step
+                start_pos = current_pos - (num_z_planes - 1)/2 * z_step
             return start_pos
         else:
             return current_pos  # the scan starts at the current position and moves up
