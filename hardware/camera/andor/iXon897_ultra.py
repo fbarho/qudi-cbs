@@ -268,9 +268,9 @@ class IxonUltra(Base, CameraInterface):
             return False
 
     def get_gain(self):
-        """ Get the electron multiplying gqin
+        """ Get the electron multiplying gain
 
-        @return int: em gain """
+        :return int: em gain """
         self._gain = self._get_emccd_gain()
         return self._gain
 
@@ -350,7 +350,7 @@ class IxonUltra(Base, CameraInterface):
 
 # Methods for displaying images on the GUI -----------------------------------------------------------------------------
     def start_single_acquisition(self):
-        """ Start a single acquisition
+        """ Start a single acquisition.
 
         :return: bool: Success ?
         """
@@ -374,7 +374,7 @@ class IxonUltra(Base, CameraInterface):
             return True
 
     def start_live_acquisition(self):
-        """ Start a continuous acquisition
+        """ Start a continuous acquisition.
 
         :return: bool: Success ?
         """
@@ -592,8 +592,6 @@ class IxonUltra(Base, CameraInterface):
         cimage = cimage_array()
 
         if self._acquisition_mode == 'RUN_TILL_ABORT':
-            # error_code = self.dll.GetOldestImage(pointer(cimage), dim)
-            # new version: we avoid a delay between what the sensor sees and what is displayed on the GUI
             error_code = self.dll.GetMostRecentImage(pointer(cimage), dim)
         else:
             error_code = self.dll.GetAcquiredData(pointer(cimage), dim)
