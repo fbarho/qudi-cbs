@@ -139,6 +139,7 @@ class PositioningLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self.threadpool = QtCore.QThreadPool()
+        self._stage = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -156,6 +157,7 @@ class PositioningLogic(GenericLogic):
 # ----------------------------------------------------------------------------------------------------------------------
 # Methods defining the origin, the grid and the x-y or r-phi coordinates
 # ----------------------------------------------------------------------------------------------------------------------
+
     def set_origin(self, origin):
         """ Defines the origin = the metric coordinates of the position1 of the grid with the probes.
         Sends a signal to indicate that the origin was set.
@@ -194,7 +196,7 @@ class PositioningLogic(GenericLogic):
         elif self.grid == 'polar':  # for Airyscan setup
             num_r = 3
             num_phi = 36
-            num_probes = 108
+            num_probes = num_r * num_phi
 
             # coords_list = [(x, y) for y in range(0, -360, -10) for x in [40, 20, 0]]  # this would directly define the metric coordinates
             coords_list = [(x, y) for y in range(num_phi) for x in range(num_r)]
@@ -204,11 +206,13 @@ class PositioningLogic(GenericLogic):
                 coord_dict[key+1] = coords_list[key]
 
         else:
+            coord_dict = {}
             self.log.warning('Your grid type is currently not covered.')
 
         return coord_dict
 
-    def sort_first(self, val):
+    @staticmethod
+    def sort_first(val):
         """ Helper function for sorting a list of tuples by the first element of each tuple,
         used for setting up the serpentine grid
 
@@ -224,8 +228,8 @@ class PositioningLogic(GenericLogic):
 
         This dictionary serves as look-up-table in the fluidics gui module to check if the stage is currently at a probe position.
         """
+        probe_xy_position_dict = {}
         if self.grid == 'cartesian':
-            probe_xy_position_dict = {}
             for key in self._probe_grid_dict:
                 x_pos = self._probe_grid_dict[key][0] * self.delta_x + self.origin[0] + self._probe_grid_dict[key][1] * -0.11
                 y_pos = self._probe_grid_dict[key][1] * self.delta_y + self.origin[1] + self._probe_grid_dict[key][0] * -0.055
@@ -233,7 +237,6 @@ class PositioningLogic(GenericLogic):
                 probe_xy_position_dict[key] = position
 
         elif self.grid == 'polar':
-            probe_xy_position_dict = {}
             for key in self._probe_grid_dict:
                 r_pos = self._probe_grid_dict[key][0] * self.delta_r + self.origin[0]
                 phi_pos = self._probe_grid_dict[key][1] * self.delta_phi + self.origin[1]
@@ -302,7 +305,6 @@ class PositioningLogic(GenericLogic):
             while not ready:
                 sleep(0.5)
                 ready = self._stage.get_status('z')['z']
-                # or use wait for idle (waitontarget) as non interface method .. or add it to the interface
 
             # start the xy movement of the translation stage
             self._stage.move_abs(pos_dict_xy)
@@ -328,11 +330,6 @@ class PositioningLogic(GenericLogic):
         self.go_to_target = True  # flag indicating later on that the translation stage movement was initiated by start_move_to_target method
         self.target_position = target_position  # keep this variable accessible until movement is finished
         self.moving = True
-
-        # old version recalculating target metric coordinates each time
-        # grid_coordinates = self.get_coordinates(target_position)
-        # x_pos = self.origin[0] + grid_coordinates[0] * self.delta_x + grid_coordinates[1] * -0.11  # last term: correction term
-        # y_pos = self.origin[1] + grid_coordinates[1] * self.delta_y + grid_coordinates[0] * -0.055
 
         # invert the probe_xy_position_dict
         inv_probe_xy_position_dict = dict((v, k) for k, v in self._probe_xy_position_dict.items())
@@ -369,6 +366,18 @@ class PositioningLogic(GenericLogic):
         self.threadpool.start(worker)
 
     def move_xy_stage_loop(self, pos_dict_xy, pos_dict_z):
+        """ This method queries the current position and sends a signal to the GUI to update the current position.
+        It calls itself using a worker thread until the in-plane target position is reached. Then it starts the move
+        to the z coordinate.
+
+        :param: dict pos_dict_xy: dictionary containing the labels 'x' and 'y' as keys and the target values along
+                                    these axes as values. 'x' and 'y' can be an alias for any other type of axes,
+                                    such as 'r' and 'phi'. For coding clarity, first and second axes are always called
+                                    'x' and 'y', respectively.
+        :param: dict pos_dict_z: dictionary containing the label 'z' as key and the target value along the z axis as
+                                    value.
+        :return: None
+        """
         # compare the current position with the target position
         new_position = self.get_position()
         x_pos = new_position[0]
@@ -386,7 +395,13 @@ class PositioningLogic(GenericLogic):
                 self.start_move_z_stage(pos_dict_z)
 
     def start_move_z_stage(self, pos_dict_z):
-        self.log.info('move z started')
+        """ This method starts the movement in z direction and starts a worker thread that will invoke
+        the move_z_stage_loop after a waiting time.
+
+        :param: dict pos_dict_z: dictionary containing the label 'z' as key and the target value along the z axis as
+                                    value.
+        :return: None
+        """
         # start the z movement of the translation stage
         self._stage.move_abs(pos_dict_z)
 
@@ -396,14 +411,22 @@ class PositioningLogic(GenericLogic):
         self.threadpool.start(worker)
 
     def move_z_stage_loop(self, pos_dict_z):
-        """  """
+        """ This method queries the current z position and sends a signal to the GUI to update the current position.
+        It calls itself using a worker thread until the target z position is reached. It then sends a signal to the
+        GUI to indicate that the movement is finished and to reset the toolbuttons.
+
+        :param: dict pos_dict_z: dictionary containing the label 'z' as key and the target value along the z axis as
+                                    value.
+        :return: None
+        """
         # compare the current position with the target position
         new_position = self.get_position()
         z_pos = new_position[2]
         self.sigUpdatePosition.emit(new_position)
 
         if self.moving:  # make sure that movement has not been aborted
-            if z_pos != pos_dict_z['z']:
+            # if z_pos != pos_dict_z['z']:
+            if abs(z_pos - pos_dict_z['z'] > 0.002):
                 # enter in a loop until z position reached
                 worker = zMoveWorker(pos_dict_z)
                 worker.signals.sigzStepFinished.connect(self.move_z_stage_loop)
@@ -461,4 +484,3 @@ class PositioningLogic(GenericLogic):
         """ This method resets positioning action button on GUI to callable state,
         for example after Tasks. """
         self.sigEnablePositioningActions.emit()
-

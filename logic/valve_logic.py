@@ -61,6 +61,7 @@ class ValveLogic(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._valves = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
