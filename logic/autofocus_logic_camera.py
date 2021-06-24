@@ -35,7 +35,6 @@ from qtpy import QtCore
 import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from simple_pid import PID
-from time import sleep
 
 
 class AutofocusLogic(GenericLogic):
@@ -43,7 +42,7 @@ class AutofocusLogic(GenericLogic):
     An autofocus logic class is needed as connector to the focus logic.
 
     autofocus_logic:
-        module.Class: 'autofocus_logic.AutofocusLogic'
+        module.Class: 'autofocus_logic_camera.AutofocusLogic'
         autofocus_ref_axis : 'X' # 'Y'
         proportional_gain : 0.1 # in %%
         integration_gain : 1 # in %%
@@ -104,13 +103,13 @@ class AutofocusLogic(GenericLogic):
         self.stop_camera_live()
 
 # ======================================================================================================================
-# Public method for the autofocus, used by all the techniques (camera or FPGA/QPD based readout)
+# Public methods for the autofocus, used by all the techniques (camera or FPGA/QPD based readout)
 # ======================================================================================================================
 
     def read_detector_signal(self):
         """ This method reads the reference signal for the autofocus correction. In the case of the
         method using a camera, it returns the coordinates of the centroid projected along the reference axis.
-        :return: int: coordinate of the centroid along the reference axis
+        :return: int: coordinate of the centroid along the reference axis  # check return type: int or float ?
         """
         im = self.get_latest_image()
         mask = self.calculate_threshold_image(im)
@@ -151,13 +150,16 @@ class AutofocusLogic(GenericLogic):
         self._setpoint = self.read_detector_signal()
         return self._setpoint
 
-    def read_pid_output(self, check_stabilization):
-        """ Read the pid output signal in order to adjust the position of the objective
+    def read_pid_output(self, do_stabilization_check):
+        """ Read the pid output signal in order to adjust the position of the objective.
+        :param: bool do_stabilization_check: if True, the last 10 pid output values are stored and fitted.
+        :return float: pid output:
+                or tuple (float, bool): pid_output, autofocus stable?
         """
         centroid = self.read_detector_signal()
         pid_output = self._pid(centroid)
 
-        if check_stabilization:
+        if do_stabilization_check:
             self._autofocus_iterations += 1
             self._last_pid_output_values = np.concatenate((self._last_pid_output_values[1:10], [pid_output]))
             return pid_output, self.check_stabilization()
@@ -165,7 +167,10 @@ class AutofocusLogic(GenericLogic):
             return pid_output
 
     def check_stabilization(self):
-        """ Check for the stabilization of the focus
+        """ Check for the stabilization of the focus. If at least 10 values of pid readout are present, a linear fit
+        is performed. If the slope is sufficiently low, the autofocus is considered as stable. The class attribute
+        self._autofocus_stable is updated by this function.
+        :return: bool: is the autofocus stable ?
         """
         if self._autofocus_iterations > 10:
             p = Poly.fit(np.linspace(0, 9, num=10), self._last_pid_output_values, deg=1)
@@ -178,20 +183,22 @@ class AutofocusLogic(GenericLogic):
         return self._autofocus_stable
 
     def start_camera_live(self):
-        """ Launch live acquisition of the camera
+        """ Launch live acquisition of the camera.
+        :return: None
         """
         self._camera.start_live_acquisition()
         self._camera_acquiring = True
 
     def stop_camera_live(self):
-        """ Stop live acquisition of the camera
+        """ Stop live acquisition of the camera.
+        :return: None
         """
         self._camera.stop_acquisition()
         self._camera_acquiring = False
 
     def get_latest_image(self):
-        """ Get the latest acquired image from the camera. This function returns the raw image as well as the
-        threshold image
+        """ Get the latest acquired image from the camera.
+        :return: np.ndarray im: most recent image from the camera
         """
         im = self._camera.get_acquired_data()
         return im
@@ -201,32 +208,52 @@ class AutofocusLogic(GenericLogic):
 # ======================================================================================================================
 
     def calibrate_offset(self):
-        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """ This method requires a connected 3 axes stage and is not available for the camera based autofocus logic.
+        It can be implemented for a setup combining camera based readout and a 3 axes stage.
+        :return int 0 used as default offset (= no offset available)
         """
         self.log.warning('calibrate_offset is not available on this setup.')
-        return 0  # to test if this is ok to use 0 value for not available offset
+        return 0
 
     def rescue_autofocus(self):
-        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """ This method requires a connected 3 axes stage and is not available for the camera based autofocus logic.
+        It can be implemented for a setup combining camera based readout and a 3 axes stage.
+        :return: bool success: Rescue autofocus successfully finished ?
         """
         self.log.warning('rescue_autofocus is not available on this setup.')
+        return False
 
     def stage_move_z(self, step):
+        """ This method requires a connected 3 axes stage and is not available for the camera based autofocus logic.
+        It can be implemented for a setup combining camera based readout and a 3 axes stage.
+        :param: float step: relative movement in z direction of the translation stage.
+        :return: None
+        """
         self.log.warning('stage movement is not supported on this setup')
+
+    def stage_wait_for_idle(self):
+        """ This method requires a connected 3 axes stage and is not available for the camera based autofocus logic.
+        It can be implemented for a setup combining camera based readout and a 3 axes stage.
+        :return: None
+        """
+        self.log.warning('stage commands are not supported on this setup')
 
     def do_position_correction(self):
-        self.log.warning('stage movement is not supported on this setup')
-
-    def start_piezo_position_correction(self, direction):
-        """ This method requires a connected 3 axis stage and is not available for the camera based autofocus logic.
+        """ This method requires a connected 3 axes stage and is not available for the camera based autofocus logic.
+        It can be implemented for a setup combining camera based readout and a 3 axes stage.
+        :return: None
         """
-        self.log.warning('start_piezo_position_correction is not available on this setup.')
+        self.log.warning('Do piezo position correction is not supported on this setup')
 
-# =================================================================
+
+# ======================================================================================================================
 # private methods for camera-based autofocus
-# =================================================================
+# ======================================================================================================================
+
     def calculate_threshold_image(self, im):
-        """ Calculate the threshold image according to the threshold value
+        """ Calculate the threshold image according to the threshold value.
+        :param: np.ndarray im: camera image
+        :return: np.ndarray mask: thresholded camera image
         """
         mask = np.copy(im)
         mask[mask > self._threshold] = 254
@@ -234,16 +261,17 @@ class AutofocusLogic(GenericLogic):
         return mask
 
     def calculate_centroid(self, im, mask):
-        """ Calculate the centroid of the raw image using the threshold image as mask
+        """ Calculate the centroid of the raw image using the threshold image as mask.
+        :param: np.ndarray im: camera image
+        :param: np.ndarray mask: thresholded camera image
+        :return tuple (float, float): centroid coordinates
         """
         im_x = np.sum(im * mask, 0)  # Calculate the projection along the X axis
         im_y = np.sum(im * mask, 1)  # Calculate the projection along the Y axis
-        if sum(im_x) != 0 and sum(im_y) != 0:
+        if sum(im_x) != 0 and sum(im_y) != 0:  # safety check to avoid division by 0
             x0 = sum(self._idx_X * im_x) / sum(im_x)
             y0 = sum(self._idx_Y * im_y) / sum(im_y)
         else:
             x0 = 0 
             y0 = 0
-
         return x0, y0
-
