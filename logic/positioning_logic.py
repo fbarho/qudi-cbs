@@ -140,6 +140,7 @@ class PositioningLogic(GenericLogic):
         super().__init__(config=config, **kwargs)
         self.threadpool = QtCore.QThreadPool()
         self._stage = None
+        self.num_probes = 0
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -153,6 +154,13 @@ class PositioningLogic(GenericLogic):
     def on_deactivate(self):
         """ Perform required deactivation. """
         pass
+
+    def get_hardware_constraints(self):
+        """ Retrieve constraints from the connected stage. This is used to update the indicators on the GUI
+        according to the connected stage.
+        :return: dict constraints
+        """
+        return self._stage.get_constraints()
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Methods defining the origin, the grid and the x-y or r-phi coordinates
@@ -181,7 +189,7 @@ class PositioningLogic(GenericLogic):
         if self.grid == 'cartesian':  # for RAMM setup
             num_x = 10  # number of positions in x direction
             num_y = 10  # number of positions in y direction
-            num_probes = num_x * num_y
+            self.num_probes = num_x * num_y
             # create the coordinate grid
             list_even = [(x, y) for x in range(num_x) for y in range(num_y) if x % 2 == 0]
             list_odd = [(x, y) for x in range(num_x) for y in reversed(range(num_y)) if x % 2 != 0]
@@ -190,19 +198,19 @@ class PositioningLogic(GenericLogic):
 
             # associate a grid point to each probe position
             coord_dict = {}
-            for key in range(num_probes):
+            for key in range(self.num_probes):
                 coord_dict[key+1] = coords_list[key]
 
         elif self.grid == 'polar':  # for Airyscan setup
             num_r = 3
             num_phi = 36
-            num_probes = num_r * num_phi
+            self.num_probes = num_r * num_phi
 
             # coords_list = [(x, y) for y in range(0, -360, -10) for x in [40, 20, 0]]  # this would directly define the metric coordinates
             coords_list = [(x, y) for y in range(num_phi) for x in range(num_r)]
 
             coord_dict = {}
-            for key in range(num_probes):
+            for key in range(self.num_probes):
                 coord_dict[key+1] = coords_list[key]
 
         else:

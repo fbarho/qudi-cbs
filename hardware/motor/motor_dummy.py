@@ -555,6 +555,8 @@ class MotorDummy(Base, MotorInterface):
             else:
                 self._phi_axis.vel = desired_vel
 
+    def wait_for_idle(self):
+        time.sleep(0.1)
 
     def _make_wait_after_movement(self):
         """ Define a time which the dummy should wait after each movement. """

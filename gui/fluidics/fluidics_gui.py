@@ -283,6 +283,28 @@ class FluidicsGUI(GUIBase):
 
         self._mw.probe_position_LineEdit.setText('Please calibrate !')
 
+        # initialize spinboxes depending on connected hardware
+        constraints = self._positioning_logic.get_hardware_constraints()
+
+        x_min = constraints['x']['pos_min']
+        x_max = constraints['x']['pos_max']
+        y_min = constraints['y']['pos_min']
+        y_max = constraints['y']['pos_max']
+        z_min = constraints['z']['pos_min']
+        z_max = constraints['z']['pos_max']
+
+        self._mw.x_axis_position_DSpinBox.setMinimum(x_min)
+        self._mw.x_axis_position_DSpinBox.setMaximum(x_max)
+
+        self._mw.y_axis_position_DSpinBox.setMinimum(y_min)
+        self._mw.y_axis_position_DSpinBox.setMaximum(y_max)
+
+        self._mw.z_axis_position_DSpinBox.setMinimum(z_min)
+        self._mw.z_axis_position_DSpinBox.setMaximum(z_max)
+
+        probe_max = self._positioning_logic.num_probes
+        self._mw.target_probe_position_SpinBox.setMaximum(probe_max)
+
         # toolbar actions
         self._mw.move_stage_Action.triggered.connect(self.move_stage_clicked)
         self._mw.set_position1_Action.triggered.connect(self.open_calibration_settings)
@@ -312,6 +334,11 @@ class FluidicsGUI(GUIBase):
         """
         # Create the settings window
         self._pos1_sd = Position1SettingDialog()
+        # update the labels according to connected hardware
+        self._pos1_sd.label.setText(self._positioning_logic.first_axis_label)
+        self._pos1_sd.label_2.setText(self._positioning_logic.second_axis_label)
+        self._pos1_sd.label_3.setText(self._positioning_logic.third_axis_label)
+
         # Connect the action of the settings window with the code:
         self._pos1_sd.accepted.connect(self.set_position1)  # ok button
         self._pos1_sd.rejected.connect(self.sd_set_default_values)  # cancel button
