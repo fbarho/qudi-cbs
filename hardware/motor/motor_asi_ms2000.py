@@ -122,13 +122,13 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         axis0 = {}
         axis0['label'] = self._first_axis_label
         axis0['unit'] = '0.1 um'
-        axis0['vel_min'] = 0,
-        axis0['vel_max'] = 7.5
+        axis0['vel_min'] = 0
+        axis0['vel_max'] = 7.5  # check in hardware manual
 
         axis1 = {}
         axis1['label'] = self._second_axis_label
         axis1['unit'] = '0.1 um'
-        axis1['vel_min'] = 0,
+        axis1['vel_min'] = 0
         axis1['vel_max'] = 7.5  # check in hardware manual
 
         constraints[axis0['label']] = axis0
@@ -139,8 +139,8 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
             axis2 = {}
             axis2['label'] = self._third_axis_label
             axis2['unit'] = '0.1 um'
-            axis2['vel_min'] = 0,
-            axis2['vel_max'] = 1.9
+            axis2['vel_min'] = 0
+            axis2['vel_max'] = 1.9  # check in hardware manual
 
             constraints[axis2['label']] = axis2
 
@@ -305,7 +305,7 @@ class MS2000(Base, MotorInterface, BrightfieldInterface):
         else:
             for item in param_list:
                 if item in self.axis_list:
-                    cmd = f"S {item}\r"
+                    cmd = f"S {item}?\r"
                     velo[item] = float(self.query(cmd)[5:])
                 else:
                     self.log.warn(f'Specified axis not available: {item}')

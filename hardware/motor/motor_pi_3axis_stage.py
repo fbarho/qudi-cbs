@@ -2,7 +2,7 @@
 """
 Qudi-CBS
 
-This file contains a class for the PI 2 or 3 axes stage.
+This file contains a class for the Physik Instrumente 2 or 3 axes stage.
 
 An extension to Qudi.
 
@@ -76,8 +76,8 @@ class PIMotorStage(Base, MotorInterface):
     _first_axis_daisychain_id = ConfigOption('first_axis_daisychain_id')  # optional; only needed if daisychain connection
     _second_axis_daisychain_id = ConfigOption('second_axis_daisychain_id')  # optional; only needed if daisychain connection
     _third_axis_daisychain_id = ConfigOption('third_axis_daisychain_id')   # optional; only needed if daisychain connection
-    _first_axis_type = ConfigOption('first_axis_type', missing='warn')
-    _second_axis_type = ConfigOption('second_axis_type', missing='warn')
+    _first_axis_type = ConfigOption('first_axis_type', 'linear', missing='warn')
+    _second_axis_type = ConfigOption('second_axis_type', 'linear', missing='warn')
     _third_axis_type = ConfigOption('third_axis_type', None)
 
     def __init__(self, config, **kwargs):
@@ -151,6 +151,7 @@ class PIMotorStage(Base, MotorInterface):
                 # print(self.third_axis_ID)
 
             self.calibrate()
+            print('done!')
 
         except Exception as e:
             self.log.error(f'Physik Instrumente stage: Connection failed: {e}.')
@@ -319,7 +320,7 @@ class PIMotorStage(Base, MotorInterface):
                 else:
                     print('Target value not in allowed range. Relative movement not done.')
             else:
-                print('Given axis not available.')
+                print('Given axis not available: {key}.')
 
         return err
 
@@ -404,7 +405,7 @@ class PIMotorStage(Base, MotorInterface):
                     z_pos = self.pidevice_3rd_axis.qPOS()[self.third_axis_ID]
                     pos_dict[item] = z_pos
                 else:
-                    print('Given axis not available.')
+                    print('Given axis not available: {item}.')
             return pos_dict
 
     def get_status(self, param_list=None):
@@ -468,20 +469,20 @@ class PIMotorStage(Base, MotorInterface):
             # 3rd axis is typically z. Calibrate and move first z to negative limit
             if self.pidevice_3rd_axis:
                 self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
-                if self.third_axis_type == 'rotation':
+                if self._third_axis_type == 'rotation':
                     self.pidevice_3rd_axis.FRF(self.third_axis_ID)
                 else:
                     self.pidevice_3rd_axis.FNL(self.third_axis_ID)
                 pitools.waitontarget(self.pidevice_3rd_axis, axes=self.third_axis_ID)
 
             self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
-            if self.first_axis_type == 'rotation':
+            if self._first_axis_type == 'rotation':
                 self.pidevice_1st_axis.FRF(self.first_axis_ID)
             else:
                 self.pidevice_1st_axis.FNL(self.first_axis_ID)
 
             self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-            if self.second_axis_type == 'rotation':
+            if self._second_axis_type == 'rotation':
                 self.pidevice_2nd_axis.FRF(self.second_axis_ID)
             else:
                 self.pidevice_2nd_axis.FNL(self.second_axis_ID)
@@ -494,7 +495,7 @@ class PIMotorStage(Base, MotorInterface):
             for item in param_list:
                 if item == self.first_axis_label:
                     self.pidevice_1st_axis.RON(self.first_axis_ID, values=1)
-                    if self.first_axis_type == 'rotation':
+                    if self._first_axis_type == 'rotation':
                         self.pidevice_1st_axis.FRF(self.first_axis_ID)
                     else:
                         self.pidevice_1st_axis.FNL(self.first_axis_ID)
@@ -502,7 +503,7 @@ class PIMotorStage(Base, MotorInterface):
                     err = 0
                 elif item == self.second_axis_label:
                     self.pidevice_2nd_axis.RON(self.second_axis_ID, values=1)
-                    if self.second_axis_type == 'rotation':
+                    if self._second_axis_type == 'rotation':
                         self.pidevice_2nd_axis.FRF(self.second_axis_ID)
                     else:
                         self.pidevice_2nd_axis.FNL(self.second_axis_ID)
@@ -510,7 +511,7 @@ class PIMotorStage(Base, MotorInterface):
                     err = 0
                 elif item == self.third_axis_label:
                     self.pidevice_3rd_axis.RON(self.third_axis_ID, values=1)
-                    if self.third_axis_type == 'rotation':
+                    if self._third_axis_type == 'rotation':
                         self.pidevice_3rd_axis.FRF(self.third_axis_ID)
                     else:
                         self.pidevice_3rd_axis.FNL(self.third_axis_ID)
