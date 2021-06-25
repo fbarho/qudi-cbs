@@ -86,12 +86,17 @@ class HamiltonValve(Base, ValvePositionerInterface):
     
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._serial_connection = None
 
     def on_activate(self):
-        """ Initialization: open the serial port
+        """ Initialization: open the serial port.
         """
-        self._serial_connection = serial.Serial(self._com_port, baudrate=9600, bytesize=serial.SEVENBITS, parity=serial.PARITY_ODD, stopbits=serial.STOPBITS_ONE)
-        sleep(2)  # keep 2 s time delay to ensure that communication has been established
+        try:
+            self._serial_connection = serial.Serial(self._com_port, baudrate=9600, bytesize=serial.SEVENBITS, parity=serial.PARITY_ODD, stopbits=serial.STOPBITS_ONE, timeout=1.0)
+            sleep(2)  # keep 2 s time delay to ensure that communication has been established
+        except serial.SerialException:
+            self.log.error(f'Hamilton MVP not connected. Check if device is switched on.')
+            return
         
         # initialization of the daisy chain
         cmd = "1a\r"
