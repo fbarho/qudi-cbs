@@ -2,7 +2,7 @@
 """
 Qudi-CBS
 
-This module contains a class representing a Hamilton modular valve positioner (MVP).
+This module contains a class representing a Lumencor celesta laser source.
 
 An extension to Qudi.
 
@@ -28,206 +28,162 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 -----------------------------------------------------------------------------------
 """
-import serial
-from time import sleep
-
+import urllib.request
+import numpy as np
 from core.module import Base
-#from interface.valvepositioner_interface import ValvePositionerInterface
+# from interface.valvepositioner_interface import ValvePositionerInterface
 from core.configoption import ConfigOption
 
 
 class LumencorCelesta(Base):
-    """ Class representing the Lumencor celesta laser source
-    
+    """ Class representing the Lumencor celesta laser source.
+
     Example config for copy-paste:
-        
-    hamilton_mvc:
-        module.Class: 'valve.hamilton_valve.HamiltonValve'
-        com_port: 'COM1'
-        num_valves: 3
-        daisychain_ID:
-            - 'a'
-            - 'b'
-            - 'c'
-        name:
-            - 'Buffer 8-way valve'
-            - 'RT rinsing 2-way valve'
-            - 'Syringe 2-way valve'
-        number_outputs:
-            - 8
-            - 2
-            - 2
-        valve_positions:
-            - - '1'
-              - '2'
-              - '3'
-              - '4'
-              - '5'
-              - '6'
-              - '7'
-              - '8'
-            - - '1: Rinse needle'
-              - '2: Inject probe'
-            - - '1: Syringe'
-              - '2: Pump'
 
-    # please specify for all elements corresponding information in the same order,
-    # starting from the first valve in the daisychain (valve 'a')
+    celesta:
+        module.Class: 'laser.lumencor_celesta.LumencorCelesta'
+        ip: '192.168.201.200'
+        wavelengths :
+            - "405"
+            - "446"
+            - "477"
+            - "520"
+            - "546"
+            - "638"
+            - "750"
+        allowed_wavelengths :
+            - True
+            - False
+            - True
+            - False
+            - True
+            - True
+            - True
+
     """
-    # config options
-    _com_port = ConfigOption("com_port", missing="error")
-    _num_valves = ConfigOption('num_valves', missing='warn')
-    _valve_names = ConfigOption('name', missing='warn')
-    _daisychain_IDs = ConfigOption('daisychain_ID', missing='warn')
-    _number_outputs = ConfigOption('number_outputs', missing='warn')
-    valve_positions = ConfigOption('valve_positions', [])  # optional; if labels instead of only valve numbers on the GUI are desired
 
-    _valve_state = {}  # dictionary holding the valve names as keys and their status as values # {'a': status_valve1, ..}
-    
+    # config options
+    _ip = ConfigOption('ip', missing='error')
+    _wavelengths = ConfigOption('wavelengths', missing='error')
+    _allowed_wavelengths = ConfigOption('allowed_wavelengths', missing='error')
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self.laser_check = {}
+        self.laser_lines = {}
 
     def on_activate(self):
-        """ Initialization: open the serial port
+        """ Initialization: test whether the celesta is connected
         """
-        self._serial_connection = serial.Serial(self._com_port, baudrate=9600, bytesize=serial.SEVENBITS, parity=serial.PARITY_ODD, stopbits=serial.STOPBITS_ONE)
-        sleep(2)  # keep 2 s time delay to ensure that communication has been established
-        
-        # initialization of the daisy chain
-        cmd = "1a\r"
-        self.write(cmd)
-        
-        # add the initialisation of every valve. In the daisy chain, the valves 
-        # are referenced by a letter, starting with "a". The valve status dictionary
-        # is created during this process.
-        for n in range(self._num_valves):
-            cmd = chr(n+97) + "LXR\r"
-            self.write(cmd)
-            # self._valve_state[chr(n+97)] = 'Idle'
-        self.wait_for_idle()
-        self._valve_state = self.get_status()
+        self.laser_check = dict(zip(self._wavelengths, self._allowed_wavelengths))
+        self.laser_lines = dict(zip(self._wavelengths, np.linspace(0, 6, num=7, dtype=int)))
+        try:
+            message = self.lumencor_httpcommand(self._ip, 'GET VER')
+            print('Lumencor source version {} was found'.format(message['message']))
+        except Exception:
+            self.log.warning('Lumencor celesta laser source was not found - HTTP connection was not possible')
 
     def on_deactivate(self):
         """ Close serial port when deactivating the module.
         """
-        self._serial_connection.close()
+        self.zero_all()
+        self.set_ttl(False)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Valvepositioner interface functions
+# Getter and setter functions
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def get_valve_dict(self):
-        """ This method retrieves a dictionary with the following entries, containing relevant information for each
-        valve positioner in a daisychain:
-                    {'a': {'daisychain_ID': 'a', 'name': str name, 'number_outputs': int number_outputs},
-                    {'b': {'daisychain_ID': 'b', 'name': str name, 'number_outputs': int number_outputs},
-                    ...
-                    }
-
-        :return: dict valve_dict: dictionary following the example shown above
+    def wakeup(self):
+        """ Wake up the celesta source when it is in standby mode
         """
-        valve_dict = {}
+        self.lumencor_httpcommand(self._ip, 'WAKEUP')
 
-        for i in range(self._num_valves):
+    def get_laserline_intensity(self):
+        """ Return the intensity of all laser lines
 
-            dic_entry = {'daisychain_ID': self._daisychain_IDs[i],
-                         'name': self._valve_names[i],
-                         'number_outputs': self._number_outputs[i],
-                         }
-
-            valve_dict[dic_entry['daisychain_ID']] = dic_entry
-
-        return valve_dict
-    
-    def get_status(self):
-        """ This method reads the valve status and returns it.
-
-        :return: dict: containing the valve ID as key and the str status code as value (N=not executed - Y=idle - *=busy)
+            intensity : array of int - indicate the intensity of each laser line
         """
-        for n in range(self._num_valves):
-            cmd = chr(n+97) + "F\r"
-            self.write(cmd)
-            status = self.read()
+        message = self.lumencor_httpcommand(self._ip, 'GET MULCHINT')
+        intensity = [int(s) for s in message['message'].split() if s.isdigit()]
 
-            self._valve_state[chr(n+97)] = status
-        return self._valve_state
+        return intensity
 
-    def get_valve_position(self, valve_address):
-        """ This method gets the current position of the valve positioner.
+    def get_laserline_state(self):
+        """ Return the status of all laser lines
 
-        :param: str valve_address: ID of the valve positioner
-
-        :return: int position: position of the valve positioner specified by valve_address
+            status : array of int - indicate the status of each laser line (1=ON, 0=OFF)
         """
-        if valve_address in self._daisychain_IDs:
-            cmd = valve_address + "LQP\r"
-            self.write(cmd)
-            pos = self.read()
-            return int(pos)
+        message = self.lumencor_httpcommand(self._ip, 'GET MULCH')
+        status = [int(s) for s in message['message'].split() if s.isdigit()]
+
+        return status
+
+    def stop_all(self):
+        """ Set all laser lines to zero.
+        """
+        self.lumencor_httpcommand(self._ip, 'SET MULCH 0 0 0 0 0 0 0')
+
+    def set_ttl(self, ttl_state):
+        """ Define whether the celesta source can be controlled through ttl control.
+
+            ttl_state : boolean - indicate whether to allow external trigger control of the source
+        """
+        if ttl_state:
+            self.lumencor_httpcommand(self._ip, 'SET TTLENABLE 1')
         else:
-            self.log.warn(f'Valve {valve_address} not available.')
+            self.lumencor_httpcommand(self._ip, 'SET TTLENABLE 0')
 
-    def set_valve_position(self, valve_address, target_position):
-        """ This method sets the valve position for the valve specified by valve_address.
+    def set_laserline_intensity(self, wavelength, intensity):
+        """ Set laser line intensity to a given value
 
-        :param: str valve address: ID of the valve positioner (eg. "a")
-        :param: int target_position: new position for the valve at valve_address
-
-        :return: None
+            wavelength : array of string - indicate the selected laser line
+            intensity : array of int - indicate the laser power (in per thousand)
         """
-        if valve_address in self._daisychain_IDs:
-            start_pos = self.get_valve_position(valve_address)
-            max_pos = self.get_valve_dict()[valve_address]['number_outputs']
-            if target_position > max_pos:
-                self.log.warn(f'Target position out of range for valve {valve_address}. Position not set.')
-            else:
-                if (start_pos > target_position and abs(target_position - start_pos) < max_pos/2) or (start_pos < target_position and abs(target_position-start_pos) > max_pos/2):
-                    cmd = valve_address + "LP1" + str(target_position) + "R\r"
-                else:
-                    cmd = valve_address + "LP0" + str(target_position) + "R\r"
-                self.write(cmd)
-                self.log.info(f'Set {self.get_valve_dict()[valve_address]["name"]} to position {target_position}')
-        else:
-            self.log.warn(f'Valve {valve_address} not available.')
+        laser_lines_intensity = self.get_laserline_intensity()
 
-    def wait_for_idle(self):
-        """ Wait for the valves to be idle. This is important when one wants to
-        read the position of a valve or make sure the valves are not moving before
-        starting an injection.
+        for n in range(len(wavelength)):
+            channel_wavelength = wavelength[n]
+            channel_intensity = intensity[n]
+            if self.laser_check[channel_wavelength] == True:
+                line = self.laser_lines[channel_wavelength]
+                laser_lines_intensity[line] = channel_intensity
 
-        :return: None
+        command = 'SET MULCHINT {}'.format(' '.join(map(str, laser_lines_intensity)))
+        self.lumencor_httpcommand(self._ip, command)
+
+    def set_laserline_on_off(self, wavelength, state):
+        """ Switch specified laser line to ON or OFF
+
+            wavelength : array of string - indicate the selected laser line
+            state : array of int - indicate 0 to switch OFF the specified line, or 1 to switch it ON.
         """
-        self.get_status()
-        for n in range(self._num_valves):
-            while self._valve_state[chr(n+97)] != "Y":
-                sleep(0.5)
-                self.get_status()
+        laser_lines_state = self.get_laserline_state()
 
-                # this waits on valve 'a' until idle before moving to the next one
+        for n in range(len(wavelength)):
+            channel_wavelength = wavelength[n]
+            channel_state = state[n]
+            if self.laser_check[channel_wavelength] == True:
+                line = self.laser_lines[channel_wavelength]
+                laser_lines_state[line] = channel_state
+
+        command = 'SET MULCH {}'.format(' '.join(map(str, laser_lines_state)))
+        self.lumencor_httpcommand(self._ip, command)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Helper functions
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def write(self, command):
-        """ Clears the input buffer and writes an utf-8 encoded command to the serial port 
-        
-        :param: str command: message to send to the serial port
+    def lumencor_httpcommand(self, ip, command):
         """
-        self._serial_connection.flushInput()
-        self._serial_connection.write(command.encode())
-        
-    def read(self):
-        """ Read the buffer of the valve. The first line does not contain relevant
-        information. Only the second line is useful.
-
-        :return: str output: text read from the valve buffer
+        Sends commands to the lumencor system via http.
+        Please find commands here:
+        http://lumencor.com/wp-content/uploads/sites/11/2019/01/57-10018.pdf
         """
-        self._serial_connection.read()
-        output = self._serial_connection.read()
-        output = output.decode('utf-8')
-        # output = self._serial_connection.read().decode('utf-8')
-        return output
+        command_full = r'http://' + ip + '/service/?command=' + command.replace(' ', '%20')
+        # print('Commande envoyee au Celesta : {}'.format(command_full))
+        with urllib.request.urlopen(command_full) as response:
+            message = eval(response.read())  # the default is conveniently JSON so eval creates dictionary
+            if message['message'][0] == 'E':
+                self.log.warning('An error occurred - the command was not recognized')
 
-# To do: for the moment no time out for the wait for idle -> should add one.
-# add try except in on_activate
+        return message
