@@ -105,19 +105,32 @@ class Task(InterruptableTask):
             while not ready:
                 sleep(2)
                 ready = self.ref['flow'].target_volume_reached
+                if self.aborted:
+                    ready = True
             self.ref['flow'].stop_pressure_regulation_loop()
             sleep(2)  # waiting time to wait until last regulation step is finished, afterwards reset pressure to 0
             self.ref['flow'].set_pressure(0.0)
         else:  # an incubation step
-            time = self.hybridization_list[self.step_counter]['time']
-            print(f'Incubation time.. {time} s')
-            self.ref['valves'].wait_for_idle()
-            sleep(self.hybridization_list[self.step_counter]['time'])
-            # maybe it is better to split into small intervals to keep the thread responsive ?????
-            self.ref['valves'].wait_for_idle()
+            incubation_time = self.hybridization_list[self.step_counter]['time']
+            print(f'Incubation time.. {incubation_time} s')
+
+            # allow abort by splitting the waiting time into small intervals of 30 s
+            num_steps = incubation_time // 30
+            remainder = incubation_time % 30
+            for i in range(num_steps):
+                if not self.aborted:
+                    sleep(30)
+
+            if not self.aborted:
+                sleep(remainder)
+
             print('Incubation time finished')
 
         self.step_counter += 1
+
+        if self.aborted:
+            return True  # avoid error when aborting during last iteration of runTaskStep
+
         return self.step_counter < len(self.hybridization_list)
 
     def pauseTask(self):

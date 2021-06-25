@@ -43,9 +43,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
         # for logging:
-        # self.status_dict_path = 'Z:/DATA/JB/hi_m_log/current_status.yaml'    # maybe read from config
-        # self.log_path = 'Z:/DATA/JB/hi_m_log/log_hi_m.csv'   # maybe read from config
-        self.logging = False
+        self.status_dict_path = 'Z:/DATA/JB/hi_m_log/current_status.yaml'    # maybe read from config
+        self.log_path = 'Z:/DATA/JB/hi_m_log/log_hi_m_airyscan.csv'   # maybe read from config
+        self.logging = True
 
     def startTask(self):
         """ """
@@ -166,7 +166,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                     for i in range(num_steps):
                         if not self.aborted:
                             time.sleep(30)
-                    time.sleep(remainder)
+                    if not self.aborted:
+                        time.sleep(remainder)
 
                     self.log.info('Incubation time finished')
 
@@ -213,6 +214,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 print(f'{item}: performing z stack..')
                 time.sleep(1)
                 # add here whatever is needed for imaging
+                image_data = np.random.normal(size=(10, 125, 125))
+
+                if self.file_format == 'fits':
+                    metadata = {}
+                    self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
+                else:  # use tiff as default format
+                    self.ref['cam']._save_to_tiff(10, cur_save_path, image_data)
+
 
             # go back to first ROI (to avoid a long displacement just before restarting imaging)
             self.ref['roi'].set_active_roi(name=self.roi_names[0])
@@ -281,13 +290,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 if self.logging:
                     add_log_entry(self.log_path, self.probe_counter, 3, f'Finished injection {step + 1}')
 
+            # uncomment when peristaltic pump is reconfigured
             # rinse needle after photobleaching
-            self.ref['valves'].set_valve_position('a', 3)  # Towards probe
-            self.ref['valves'].wait_for_idle()
-            self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: rinse needle
-            self.ref['valves'].wait_for_idle()
-            self.ref['flow'].start_rinsing(60)
-            time.sleep(60)   # block the program flow until rinsing is finished
+            # self.ref['valves'].set_valve_position('a', 3)  # Towards probe
+            # self.ref['valves'].wait_for_idle()
+            # self.ref['valves'].set_valve_position('b', 2)  # RT rinsing valve: rinse needle
+            # self.ref['valves'].wait_for_idle()
+            # self.ref['flow'].start_rinsing(60)
+            # time.sleep(60)   # block the program flow until rinsing is finished
 
             # set valves to default positions
             self.ref['valves'].set_valve_position('a', 1)  # 8 way valve
