@@ -101,6 +101,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
 # ----------------------------------------------------------------------------------------------------------------------
 # Methods for pressure channels
 # ----------------------------------------------------------------------------------------------------------------------
+
     def set_pressure(self, param_dict):
         """ Set new pressure value to a channel.
 
@@ -110,7 +111,7 @@ class FluigentFlowboard(Base, MicrofluidicsInterface):
         """
         for key, value in param_dict.items():  # param_dict has the format {0: 20} for example
             if key in self.pressure_channel_IDs:
-                max_pressure = self.get_pressure_range([key])[key][1] # the second value [1] in the pressure range tuple is the maximum
+                max_pressure = self.get_pressure_range([key])[key][1]  # the second value [1] in the pressure range tuple is the maximum
                 if value <= max_pressure:  # check if target value in allowed range
                     fgt.fgt_set_pressure(key, value)
                 else:
