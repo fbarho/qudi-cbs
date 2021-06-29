@@ -99,12 +99,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # create a directory in which all the data will be saved
         self.directory = self.create_directory(self.save_path)
 
-        # initialize the digital output channel for trigger
-        self.ref['daq'].set_up_do_channel()
-
-        # initialize the analog input channel that reads the fire
-        self.ref['daq'].set_up_ai_channel()
-
         # initialize a counter to iterate over the ROIs
         self.roi_counter = 0
         # set the active_roi to none to avoid having two active rois displayed
@@ -192,11 +186,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                     err = self.ref['daq'].send_trigger_and_control_ai()
 
                     # read fire signal of camera and switch off when the signal is low
-                    ai_read = self.ref['daq'].read_ai_channel()
+                    ai_read = self.ref['daq'].read_trigger_ai_channel()
                     count = 0
                     while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
                         sleep(0.001)  # read every ms
-                        ai_read = self.ref['daq'].read_ai_channel()
+                        ai_read = self.ref['daq'].read_trigger_ai_channel()
                         count += 1  # can be used for control and debug
                     self.ref['daq'].voltage_off()
                     # self.log.debug(f'iterations of read analog in - while loop: {count}')
@@ -258,8 +252,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
-        self.ref['daq'].close_do_task()
-        self.ref['daq'].close_ai_task()
+        # self.ref['daq'].close_do_task()
+        # self.ref['daq'].close_ai_task()
 
         # reset stage velocity to default
         self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592

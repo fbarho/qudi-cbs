@@ -18,13 +18,13 @@ obtained from <https://github.com/Ulm-IQO/qudi/>
 import PyDAQmx as daq  # this only runs on systems where the niDAQmx library is available
 from core.module import Base
 from interface.daq_interface import DaqInterface
-from interface.lasercontrol_interface import LaserControlInterface
+from interface.lasercontrol_interface import LasercontrolInterface
 from core.configoption import ConfigOption
 import numpy as np
 from time import sleep
 
 
-class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
+class NIDAQMSeries(Base, LasercontrolInterface, DaqInterface):
     """ National Instruments DAQ that controls the lasers via an OTF.
     
     Example config for copy-paste:

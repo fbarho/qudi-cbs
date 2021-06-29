@@ -33,19 +33,19 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 import PyDAQmx as daq  # this only runs on systems where the niDAQmx library is available
 from core.module import Base
 from interface.daq_interface import DaqInterface
-from interface.lasercontrol_interface import LaserControlInterface
+from interface.lasercontrol_interface import LasercontrolInterface
 from core.configoption import ConfigOption
 import numpy as np
 from time import sleep
 
 
-class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
+class NIDAQMSeries(Base, LasercontrolInterface, DaqInterface):
     """ National Instruments DAQ that controls the lasers via an OTF.
 
     Example config for copy-paste:
         (example for PALM setup)
         nidaq_6259:
-            module.Class: 'daq.national_instruments_m_series.NIDAQMSeries'
+            module.Class: 'daq.national_instruments_daq.NIDAQMSeries'
             read_write_timeout: 10
             ao_voltage_range: [0, 10]  # in V
             lasercontrol: True
@@ -62,7 +62,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
             trigger_do_channel: '/Dev1/port0/line2'
             trigger_ai_channel: '/Dev1/AI0'
 
-            # please indicate belonging elements in the same order in the categories wavelengths, ao_channels, voltage_ranges
+            # please indicate belonging elements in the same order in the categories wavelengths, laser_ao_channels
             # order preferentially by increasing wavelength (this will result in an ordered gui)
 
         (example for RAMM setup)
@@ -89,7 +89,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
 
     # config options used for PALM setup
     _wavelengths = ConfigOption('wavelengths', None)
-    _laser_write_ao_channels = ConfigOption('ao_channels', None)
+    _laser_write_ao_channels = ConfigOption('laser_ao_channels', None)
     _trigger_write_do_channel = ConfigOption('trigger_do_channel', None)
     _trigger_read_ai_channel = ConfigOption('trigger_ai_channel', None)
 
@@ -143,7 +143,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         if self._trigger_read_ai_channel:
             try:
                 self.trigger_read_taskhandle = self.create_taskhandle()
-                self.set_up_ai_channel(self.trigger_read_ai_channel, self._trigger_read_ai_channel, self._ao_voltage_range)
+                self.set_up_ai_channel(self.trigger_read_taskhandle, self._trigger_read_ai_channel, self._ao_voltage_range)
                 print('Trigger read analog in channel created!')
             except Exception:
                 print('Failed to create ai channel')
@@ -196,51 +196,53 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         if self._lasercontrol:
             try:
                 for channel in self._laser_write_ao_channels:
-                    self.clear_task(self.laser_ao_taskhandle[channel])
+                    self.close_task(self.laser_ao_taskhandles[channel])
             except Exception:
                 self.log.exception('Could not clear laser analog out task.')
 
         if self._trigger_write_do_channel:
             try:
-                self.clear_task(self.trigger_write_taskhandle)
+                self.close_task(self.trigger_write_taskhandle)
             except Exception:
                 print('Failed to close do channel')
 
         if self._trigger_read_ai_channel:
             try:
-                self.clear_task(self.trigger_read_taskhandle)
+                self.close_task(self.trigger_read_taskhandle)
             except Exception:
                 print('Failed to close ai channel')
 
         if self._piezo_write_ao_channel:
             try:
-                self.clear_task(self.piezo_write_taskhandle)
+                self.close_task(self.piezo_write_taskhandle)
             except Exception:
                 print('Failed to close ao channel')
 
         if self._piezo_read_ai_channel:
             try:
-                self.clear_task(self.piezo_read_taskhandle)
+                self.close_task(self.piezo_read_taskhandle)
             except Exception:
                 print('Failed to close ai channel')
 
         if self._pump_write_ao_channel:
             try:
-                self.clear_task(self.pump_write_taskhandle)
+                self.close_task(self.pump_write_taskhandle)
             except Exception:
                 print('Failed to close ao channel')
 
         if self._start_acquisition_do_channel:
             try:
-                self.clear_task(self.start_acquisition_taskhandle)
+                self.close_task(self.start_acquisition_taskhandle)
             except Exception:
                 print('Failed to close do channel')
 
         if self._acquisition_done_di_channel:
             try:
-                self.clear_task(self.acquisition_done_taskhandle)
+                self.close_task(self.acquisition_done_taskhandle)
             except Exception:
                 print('Failed to close di channel')
+
+        # continue here closing tasks if additional channels are added in the config
 
 # ----------------------------------------------------------------------------------------------------------------------
 # DAQ utility functions
@@ -260,8 +262,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         daq.DAQmxCreateTask('', daq.byref(taskhandle))
         daq.DAQmxCreateAOVoltageChan(taskhandle, channel, '', voltage_range[0], voltage_range[1], daq.DAQmx_Val_Volts, None)
 
-    @staticmethod
-    def write_to_ao_channel(taskhandle, voltage, timeout=_rw_timeout, autostart=True):
+    def write_to_ao_channel(self, taskhandle, voltage, timeout=None, autostart=True):
         """ Write a voltage to an analog output virtual channel.
 
         :param: DAQmx.Taskhandle object taskhandle: pointer to the virtual channel
@@ -271,6 +272,9 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
 
         :return: None
         """
+        if timeout is None:
+            timeout = self._rw_timeout
+
         daq.WriteAnalogScalarF64(taskhandle, autostart, timeout, voltage,
                                  None)  # parameters passed in: taskHandle, autoStart, timeout, value, reserved
         daq.DAQmxStartTask(taskhandle)
@@ -424,7 +428,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
                 daq.DAQmxCreateTask('', daq.byref(self.laser_ao_taskhandles[channel]))
                 daq.DAQmxCreateAOVoltageChan(self.laser_ao_taskhandles[channel], channel, '', self._ao_voltage_range[0],
                                              self._ao_voltage_range[1], daq.DAQmx_Val_Volts, None)
-        except:
+        except Exception:
             self.log.exception('Error starting analog output task.')
             return -1
         return 0
@@ -449,7 +453,7 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
 
         Make sure that the config contains all the necessary elements.
 
-        :return: laser_dict
+        :return: dict laser_dict
         """
         laser_dict = {}
 
@@ -466,12 +470,11 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
 
         return laser_dict
 
-
 # ----------------------------------------------------------------------------------------------------------------------
 # Various functionality of DAQ
 # ----------------------------------------------------------------------------------------------------------------------
 
-# functions used on PALM setup
+# functions used on PALM setup -----------------------------------------------------------------------------------------
 
     def send_trigger(self):
         """ This method sends a sequence of digital output values [0, 1, 0] as trigger.
@@ -502,22 +505,22 @@ class NIDAQMSeries(Base, LaserControlInterface, DaqInterface):
         if self.trigger_read_taskhandle is None:
             self.log.info('No analog input task configured')
         else:
-            self.write_to_do_channel(self.trigger_read_taskhandle, 1, np.array([0], dtype=np.uint8))
+            self.write_to_do_channel(self.trigger_write_taskhandle, 1, np.array([0], dtype=np.uint8))
             sleep(0.001)  # waiting time in s
-            self.write_to_do_channel(self.trigger_read_taskhandle, 1, np.array([1], dtype=np.uint8))
+            self.write_to_do_channel(self.trigger_write_taskhandle, 1, np.array([1], dtype=np.uint8))
             sleep(0.001)  # waiting time in s
-            ai_read = self.read_ai_channel(self.trigger_write_taskhandle)
+            ai_read = self.read_ai_channel(self.trigger_read_taskhandle)
             if ai_read > 2.5:
-                self.write_to_do_channel(self.trigger_read_taskhandle, 1, np.array([0], dtype=np.uint8))
+                self.write_to_do_channel(self.trigger_write_taskhandle, 1, np.array([0], dtype=np.uint8))
                 sleep(0.001)  # waiting time in s
                 return 0
             else:
                 self.log.info('fire not received')
-                self.write_to_do_channel(self.trigger_read_taskhandle, 1, np.array([0], dtype=np.uint8))
+                self.write_to_do_channel(self.trigger_write_taskhandle, 1, np.array([0], dtype=np.uint8))
                 sleep(0.001)  # waiting time in s
                 return -1
 
-# functions used on RAMM setup
+# functions used on RAMM setup -----------------------------------------------------------------------------------------
 
     def read_piezo(self):
         """ Read the voltage applied to the channel controlling the piezo.

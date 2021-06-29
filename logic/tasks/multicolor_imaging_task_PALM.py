@@ -74,12 +74,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             sleep(1)
             pos = self.ref['filter'].get_position()
 
-        # initialize the digital output channel for trigger
-        self.ref['daq'].set_up_do_channel()
-        
-        # initialize the analog input channel that reads the fire
-        self.ref['daq'].set_up_ai_channel()
-
         # prepare the camera
         frames = len(self.imaging_sequence) * self.num_frames 
         self.ref['camera'].prepare_camera_for_multichannel_imaging(frames, self.exposure, self.gain, self.complete_path.rsplit('.', 1)[0], self.file_format)
@@ -116,11 +110,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 err = self.ref['daq'].send_trigger_and_control_ai()  
             
                 # read fire signal of camera and switch off when the signal is low
-                ai_read = self.ref['daq'].read_ai_channel()
+                ai_read = self.ref['daq'].read_trigger_ai_channel()
                 count = 0
                 while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
                     sleep(0.001)  # read every ms
-                    ai_read = self.ref['daq'].read_ai_channel()
+                    ai_read = self.ref['daq'].read_trigger_ai_channel()
                     count += 1  # can be used for control and debug
                 self.ref['daq'].voltage_off()
                 # self.log.debug(f'iterations of read analog in - while loop: {count}')
@@ -165,8 +159,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
-        self.ref['daq'].close_do_task()
-        self.ref['daq'].close_ai_task()
 
         self.log.debug(f'number of missed triggers: {self.err_count}')
 
