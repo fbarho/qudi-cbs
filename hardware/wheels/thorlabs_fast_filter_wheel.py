@@ -1,9 +1,42 @@
-# from hardware.motor.aptmotor import APTMotor
-import thorlabs_apt as apt
-from time import sleep
+# -*- coding: utf-8 -*-
+"""
+Qudi-CBS
 
-class ThorlabsFastFilterWheel:
-    """ Hardware class representing the Thorlabs motorized filterwheel.
+This module contains the hardware class representing a Thorlabs fast filterwheel.
+
+An extension to Qudi.
+
+@author: F. Barho
+
+Created on Tue Jun 30 2020
+-----------------------------------------------------------------------------------
+
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
+"""
+import numpy as np
+import thorlabs_apt as apt
+from core.module import Base
+from interface.filterwheel_interface import FilterwheelInterface
+from core.configoption import ConfigOption
+
+
+class ThorlabsFastFilterWheel(Base, FilterwheelInterface):
+    """ Hardware class representing the Thorlabs fast filterwheel.
     6 positions
 
     Example config for copy-paste:
@@ -34,7 +67,15 @@ class ThorlabsFastFilterWheel:
             - [True, True, True, False]
             - [True, False, True, True]
     """
-    serial_number = 40846334
+    # config options
+    serial_number = ConfigOption('serial_num', missing='error')
+    _num_filters = ConfigOption('num_filters', 6)
+    _filternames = ConfigOption('filters', missing='error')
+    _positions = ConfigOption('filterpositions', missing='error')
+    _allowed_lasers = ConfigOption('allowed_lasers', missing='error')
+
+    # attributes
+    _position_dict = {}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -46,21 +87,51 @@ class ThorlabsFastFilterWheel:
         # print(devices)
         self._motor = apt.Motor(self.serial_number)
         self.move_home()
+        self._position_dict = self.init_position_dict()
 
     def on_deactivate(self):
         """ Disconnect from hardware on deactivation. """
         pass
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Helper functions
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def init_position_dict(self):
+        """ Initialize the dictionary containing filter positions as key and corresponding angles of the wheel as
+        values.
+        :return dict position_dict: {1: 0, 2: -60, 3: -120, 4: -180, 5: -240, 6: -300} for a standard wheel with
+                                    6 filters
+        """
+        pos_dict = {}
+        for i in range(self._num_filters):
+            pos_dict[i+1] = -360/self._num_filters * i
+        return pos_dict
+
+# Functions from Thorlabs apt library ----------------------------------------------------------------------------------
     def move_home(self):
-        self._motor.move_home(True)
+        """ Move the motor to its home position and wait until the home position is reached (blocking = True)
+         """
+        self._motor.move_home(blocking=True)
 
     def move_by(self, angle):
+        """ Perform a relative movement and wait until the target position is reached.
+        :param: float angle: rotation angle
+        :return: None
+        """
         self._motor.move_by(angle, blocking=True)
 
     def move_to(self, position):
+        """ Perform an absolute movement and wait until the target position is reached.
+        :param: float position: target position in degree
+        :return: None
+        """
         self._motor.move_to(position)
 
     def get_motor_position(self):
+        """ Read the current motor position.
+        :return: float motor_pos: current rotation angle in degree
+        """
         motor_pos = self._motor.position
         return motor_pos
 
@@ -69,11 +140,16 @@ class ThorlabsFastFilterWheel:
 # ----------------------------------------------------------------------------------------------------------------------
 
     def get_position(self):
-        """ Get the current position, from 1 to 6 (or 12).
-         :return int position: number of the filterwheel position that is currently set """
-        # position = self._query('pos?')
-        # return int(position)
-        pass
+        """ Get the current position, from 1 to num_filters.
+        :return int position: number of the filterwheel position that is currently set """
+        motor_pos = np.round(self._motor.position, decimals=0)  # round to integer value for angle
+        inv_dict = dict([(value, key) for key, value in self._position_dict.items()])
+        try:
+            pos = inv_dict[motor_pos]
+        except KeyError:
+            self.log.warning('Filter position does not correspond to a valid position. Please reset filterwheel to home position.')
+            pos = 0
+        return pos
 
     def set_position(self, target_position):
         """ Set the position to a given value.
@@ -82,14 +158,14 @@ class ThorlabsFastFilterWheel:
         :param: int target_position: position number
         :return: int error code: ok = 0
         """
-        # if target_position < self._num_filters + 1:
-        #     res = self._write("pos={}".format(int(target_position)))
-        #     err = 0
-        # else:
-        #     self.log.error('Can not go to filter {0}. Filterwheel has only {1} positions'.format(target_position, self._num_filters))
-        #     err = -1
-        # return err
-        pass
+        if target_position < self._num_filters + 1:
+            motor_pos = self._position_dict[target_position]
+            self.move_to(motor_pos)
+            err = 0
+        else:
+            self.log.error('Can not go to filter {0}. Filterwheel has only {1} positions'.format(target_position, self._num_filters))
+            err = -1
+        return err
 
     def get_filter_dict(self):
         """ Retrieves a dictionary with the following entries:
@@ -103,34 +179,29 @@ class ThorlabsFastFilterWheel:
 
         :return: dict filter_dict
         """
-        # filter_dict = {}
-        #
-        # for i, item in enumerate(
-        #         self._filternames):  # use any of the lists retrieved as config option, just to have an index variable
-        #     label = 'filter{}'.format(i + 1)  # create a label for the i's element in the list starting from 'filter1'
-        #
-        #     dic_entry = {'label': label,
-        #                  'name': self._filternames[i],
-        #                  'position': self._positions[i],
-        #                  'lasers': self._allowed_lasers[i]}
-        #
-        #     filter_dict[dic_entry['label']] = dic_entry
-        #
-        # return filter_dict
-        pass
+        filter_dict = {}
 
+        for i, item in enumerate(
+                self._filternames):  # use any of the lists retrieved as config option, just to have an index variable
+            label = 'filter{}'.format(i + 1)  # create a label for the i's element in the list starting from 'filter1'
 
-if __name__ == '__main__':
-    wheel = ThorlabsFastFilterWheel()
-    wheel.on_activate()
-    # wheel.move_home()
-    # print('moved to home position')
-    # for i in range(6):
-    #     wheel.move_by(360/6)
-    #     pos = wheel.get_motor_position()
-    #     print(f'position {i}: {pos}')
-    #     sleep(1)
-    wheel.move_to(0)  # 0: filter 1 ;  -60 : filter 2  ; -120 : filter 3 ; filter 4 : -180 ; filter 5 : -240 ; filter 6 : -300
+            dic_entry = {'label': label,
+                         'name': self._filternames[i],
+                         'position': self._positions[i],
+                         'lasers': self._allowed_lasers[i]}
 
+            filter_dict[dic_entry['label']] = dic_entry
 
+        return filter_dict
 
+# if __name__ == '__main__':
+#     wheel = ThorlabsFastFilterWheel()
+#     wheel.on_activate()
+#     # wheel.move_home()
+#     # print('moved to home position')
+#     # for i in range(6):
+#     #     wheel.move_by(360/6)
+#     #     pos = wheel.get_motor_position()
+#     #     print(f'position {i}: {pos}')
+#     #     sleep(1)
+#     wheel.move_to(0)  # 0: filter 1 ;  -60 : filter 2  ; -120 : filter 3 ; filter 4 : -180 ; filter 5 : -240 ; filter 6 : -300
