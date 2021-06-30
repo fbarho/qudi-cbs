@@ -18,11 +18,10 @@ from time import sleep
 
 from core.module import Base
 from interface.lasercontrol_interface import LasercontrolInterface
-from interface.fpga_interface import FPGAInterface
 from core.configoption import ConfigOption
 
 
-class Nifpga(Base, LasercontrolInterface, FPGAInterface):
+class Nifpga(Base, LasercontrolInterface):
     """ National Instruments FPGA that controls the lasers via an OTF.
 
     Example config for copy-paste:

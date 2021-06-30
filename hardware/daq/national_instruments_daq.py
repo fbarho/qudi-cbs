@@ -10,7 +10,7 @@ An extension to Qudi.
 
 @author: F. Barho
 
-Created on Fri Oct 23 2020
+Created on Tue Jun 30 2020
 -----------------------------------------------------------------------------------
 
 Qudi is free software: you can redistribute it and/or modify
@@ -32,14 +32,13 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 """
 import PyDAQmx as daq  # this only runs on systems where the niDAQmx library is available
 from core.module import Base
-from interface.daq_interface import DaqInterface
 from interface.lasercontrol_interface import LasercontrolInterface
 from core.configoption import ConfigOption
 import numpy as np
 from time import sleep
 
 
-class NIDAQMSeries(Base, LasercontrolInterface, DaqInterface):
+class NIDAQMSeries(Base, LasercontrolInterface):
     """ National Instruments DAQ that controls the lasers via an OTF.
 
     Example config for copy-paste:

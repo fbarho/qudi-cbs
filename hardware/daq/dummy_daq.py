@@ -1,10 +1,9 @@
 from core.module import Base
 from core.configoption import ConfigOption
-from interface.daq_interface import DaqInterface
 from interface.lasercontrol_interface import LasercontrolInterface
 
 
-class DummyDaq(Base, LasercontrolInterface, DaqInterface):
+class DummyDaq(Base, LasercontrolInterface):
     """ Dummy DAQ with analog output channels for the control of an OTF.
 
     Example config for copy-paste:
