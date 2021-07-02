@@ -164,7 +164,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 # parameters: num_z_planes, wavelengths: array of length 5 with only 1 entry != 0, intensities: array of length 5 with only 1 entry != 0, num_laserlines, exposure_time
 
                 # prepare the daq: set the digital output to 0 before starting the task
-                self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+                self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
                 print(f'{item}: Laserline {i}: performing z stack..')
 
@@ -178,17 +178,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                     # print(f'current position: {cur_pos} um')
 
                     # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
-                    self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+                    self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([1], dtype=np.uint8))
                     time.sleep(0.005)
-                    self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+                    self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
                     # wait for signal from FPGA to DAQ ('acquisition ready')
-                    fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+                    fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
                     t0 = time.time()
 
                     while not fpga_ready:
                         time.sleep(0.001)
-                        fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+                        fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
 
                         t1 = time.time() - t0
                         if t1 > 1:  # for safety: timeout if no signal received within 1 s

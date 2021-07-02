@@ -542,7 +542,7 @@ class NIDAQMSeries(Base, LasercontrolInterface):
         else:
             self.log.warning('Piezo target position out of boundaries')
 
-    def write_to_pump_channel(self, voltage):
+    def write_to_rinsing_pump_channel(self, voltage):
         """ Start / Stop the needle rinsing pump by applying the target voltage.
 
         :param: float voltage: target voltage to apply to the pump channel
@@ -553,5 +553,3 @@ class NIDAQMSeries(Base, LasercontrolInterface):
             self.write_to_ao_channel(self.pump_write_taskhandle)
         else:
             self.log.warning('Voltage not in allowed range.')
-
-    # modify the calls to write_to_do_channel used from logic

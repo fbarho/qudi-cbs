@@ -106,6 +106,8 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].stop_acquisition()  # for safety
         self.ref['cam'].start_acquisition()
 
+        print(f'time after preparing camera: {time.time()-start_time}')
+
         # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus (using autofocus and stop when stable)
         # --------------------------------------------------------------------------------------------------------------
@@ -118,8 +120,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             # go to roi
             self.ref['roi'].set_active_roi(name=item)
             self.ref['roi'].go_to_roi_xy()
-            self.log.info(f'Moved to {item} xy position')
-            self.ref['roi'].stage_wait_for_idle()
+            # self.ref['roi'].stage_wait_for_idle()
 
             # autofocus
             self.ref['focus'].start_autofocus(stop_when_stable=True, search_focus=False)
@@ -135,37 +136,33 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             start_position = self.calculate_start_position(self.centered_focal_plane)
 
+            print(f'time after moving to roi {item} and autofocus: {time.time() - start_time}')
+
             # ----------------------------------------------------------------------------------------------------------
             # imaging sequence
             # ----------------------------------------------------------------------------------------------------------
             # prepare the daq: set the digital output to 0 before starting the task
-            self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+            self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
-            print(f'{item}: performing z stack..')
-
-            for plane in tqdm(range(self.num_z_planes)):
-                # print(f'plane number {plane + 1}')
+            for plane in range(self.num_z_planes):
 
                 # position the piezo
                 position = start_position + plane * self.z_step
                 self.ref['focus'].go_to_position(position)
-                # print(f'target position: {position} um')
                 time.sleep(0.03)
-                cur_pos = self.ref['focus'].get_position()
-                # print(f'current position: {cur_pos} um')
 
                 # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
-                self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+                self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([1], dtype=np.uint8))
                 time.sleep(0.005)
-                self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+                self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
                 # wait for signal from FPGA to DAQ ('acquisition ready')
-                fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+                fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
                 t0 = time.time()
 
                 while not fpga_ready:
                     time.sleep(0.001)
-                    fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+                    fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
 
                     t1 = time.time() - t0
                     if t1 > 1:  # for safety: timeout if no signal received within 1 s
@@ -173,11 +170,11 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                         break
 
             self.ref['focus'].go_to_position(start_position)
+            print(f'time after imaging {item}: {time.time() - start_time}')
 
         # go back to first ROI
         self.ref['roi'].set_active_roi(name=self.roi_names[0])
         self.ref['roi'].go_to_roi_xy()
-        self.ref['roi'].stage_wait_for_idle()
 
         # --------------------------------------------------------------------------------------------------------------
         # data saving
@@ -189,18 +186,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
         else:  # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
-            metadata = self.get_metadata()
-            file_path = cur_save_path.replace('tiff', 'yaml', 1)
-            self.save_metadata_file(metadata, file_path)
+
+        print(f'time after data saving: {time.time() - start_time}')
 
         self.counter += 1
 
-        # waiting time before going to next step
-        finish_time = time.time()
-        duration = finish_time - start_time
-        print(f'Finished step in {duration} s.')
-
-        print(roi_start_times)  # replace this: save this as metadata entries ..
+        print(f'Finished cycle in {time.time() - start_time} s.')
 
         return self.counter < self.num_iterations
 

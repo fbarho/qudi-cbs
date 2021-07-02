@@ -126,7 +126,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # imaging sequence
         # --------------------------------------------------------------------------------------------------------------
         # prepare the daq: set the digital output to 0 before starting the task
-        self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+        self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
         # start camera acquisition
         self.ref['cam'].stop_acquisition()  # for safety
@@ -152,17 +152,17 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             z_actual_positions.append(cur_pos)
 
             # send signal from daq to FPGA connector 0/DIO3 ('piezo ready')
-            self.ref['daq'].write_to_do_channel(1, np.array([1], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+            self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([1], dtype=np.uint8))
             sleep(0.005)
-            self.ref['daq'].write_to_do_channel(1, np.array([0], dtype=np.uint8), self.ref['daq']._daq.DIO3_taskhandle)
+            self.ref['daq'].write_to_do_channel(self.ref['daq']._daq.start_acquisition_taskhandle, 1, np.array([0], dtype=np.uint8))
 
             # wait for signal from FPGA to DAQ ('acquisition ready')
-            fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+            fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
             t0 = time()
 
             while not fpga_ready:
                 sleep(0.001)
-                fpga_ready = self.ref['daq'].read_do_channel(1, self.ref['daq']._daq.DIO4_taskhandle)[0]
+                fpga_ready = self.ref['daq'].read_di_channel(self.ref['daq']._daq.acquisition_done_taskhandle, 1)[0]
 
                 t1 = time() - t0
                 if t1 > 1:  # for safety: timeout if no signal received within 1 s
