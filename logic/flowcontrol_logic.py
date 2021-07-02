@@ -133,7 +133,7 @@ class FlowcontrolLogic(GenericLogic):
     """
     # declare connectors
     flowboard = Connector(interface='MicrofluidicsInterface')
-    daq_logic = Connector(interface='DAQaoLogic')
+    daq_logic = Connector(interface='DAQLogic')
 
     # signals
     sigUpdateFlowMeasurement = QtCore.Signal(float, float)
