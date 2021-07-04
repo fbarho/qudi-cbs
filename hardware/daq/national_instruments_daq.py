@@ -247,7 +247,7 @@ class NIDAQMSeries(Base, LasercontrolInterface):
 # DAQ utility functions
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Analog output channels ------------------------------------------------------------------------------------------------
+# Analog output channels -----------------------------------------------------------------------------------------------
     @staticmethod
     def set_up_ao_channel(taskhandle, channel, voltage_range):
         """ Create an analog output virtual channel.
@@ -315,7 +315,7 @@ class NIDAQMSeries(Base, LasercontrolInterface):
         daq.DAQmxStopTask(taskhandle)
         return data[0]
 
-# Digital output channels ------------------------------------------------------------------------------------------------
+# Digital output channels ----------------------------------------------------------------------------------------------
     @staticmethod
     def set_up_do_channel(taskhandle, channel):
         """ Create a digital output virtual channel.
@@ -352,7 +352,7 @@ class NIDAQMSeries(Base, LasercontrolInterface):
         daq.DAQmxStopTask(taskhandle)
         return digital_read  # or digital_read.value ??  # maybe not needed
 
-# Digital input channels ------------------------------------------------------------------------------------------------
+# Digital input channels -----------------------------------------------------------------------------------------------
     @staticmethod
     def set_up_di_channel(taskhandle, channel):
         """ Create a digital input virtual channel.

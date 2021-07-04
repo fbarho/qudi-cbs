@@ -1,14 +1,32 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Qudi-CBS
+
+This file contains a class for the Measurement Computing DAQ.
+
+An extension to Qudi.
+
+@author: F. Barho
+
 Created on Wed June 6 2021
+-----------------------------------------------------------------------------------
 
-@author: fbarho
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-This file contains a class for the Measurement Computing DAQ
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-This module is an extension to the hardware code base of Qudi software
-obtained from <https://github.com/Ulm-IQO/qudi/>
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
 import numpy as np
 from time import sleep
@@ -19,7 +37,6 @@ from mcculw.device_info import DaqDeviceInfo
 
 from core.module import Base
 from core.configoption import ConfigOption
-
 
 
 class MccDAQ(Base):
@@ -33,10 +50,10 @@ class MccDAQ(Base):
 
     """
 
-    # config
+    # config options
     # ao channels
-    rinsing_pump_channel = ConfigOption('rinsing_pump_channel', missing='error')
-    fluidics_pump_channel = ConfigOption('fluidics_pump_channel', missing='error')
+    rinsing_pump_channel = ConfigOption('rinsing_pump_channel', None, missing='warn')
+    fluidics_pump_channel = ConfigOption('fluidics_pump_channel', None, missing='warn')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -68,10 +85,11 @@ class MccDAQ(Base):
         """
         ul.release_daq_device(self.board_num)
 
-#=======================================================================================================================
-# Helper functions
-#=======================================================================================================================
+# ----------------------------------------------------------------------------------------------------------------------
+# DAQ utility functions
+# ----------------------------------------------------------------------------------------------------------------------
 
+# Analog output channels -----------------------------------------------------------------------------------------------
     def write_to_ao_channel(self, voltage, channel):
         daq_dev_info = DaqDeviceInfo(self.board_num)
         if not daq_dev_info.supports_analog_output:
@@ -86,20 +104,22 @@ class MccDAQ(Base):
         # Send the value to the device (optional parameter omitted)
         ul.v_out(self.board_num, channel, ao_range, voltage)
 
-
+# Analog input channels ------------------------------------------------------------------------------------------------
     # no ai channels for this daq
-    # def read_ai_channel(self):
-    #     daq_dev_info = DaqDeviceInfo(self.board_num)
-    #     if not daq_dev_info.supports_analog_input:
-    #         raise Exception('Error: The DAQ device does not support '
-    #                         'analog input')
+    def read_ai_channel(self, channel):
+        daq_dev_info = DaqDeviceInfo(self.board_num)
+        if not daq_dev_info.supports_analog_input:
+            raise Exception('Error: The DAQ device does not support '
+                            'analog input')
 
+# Digital output channels ----------------------------------------------------------------------------------------------
     def set_up_do_channel(self):
         pass
 
     def write_to_do_channel(self):
         pass
 
+# Digital input channels -----------------------------------------------------------------------------------------------
     def set_up_di_channel(self):
         daq_dev_info = DaqDeviceInfo(self.board_num)
         if not daq_dev_info.supports_digital_io:
@@ -242,11 +262,12 @@ class MccDAQ(Base):
     #         if use_device_detection:
     #             ul.release_daq_device(board_num)
 
-# =======================================================================================================================
-# Methods for pump channels
-# =======================================================================================================================
+# ----------------------------------------------------------------------------------------------------------------------
+# Various functionality of DAQ
+# ----------------------------------------------------------------------------------------------------------------------
 
-    def write_to_pump_ao_channel(self, voltage):
+# Needle rinsing pump---------------------------------------------------------------------------------------------------
+    def write_to_rinsign_pump_channel(self, voltage):
         """ Start / Stop the needle rinsing pump
 
         :param: float voltage: target voltage to apply to the channel
@@ -258,7 +279,8 @@ class MccDAQ(Base):
         else:
             self.log.warning('Voltage not in allowed range.')
 
-    def write_to_fluidics_pump_ao_channel(self, voltage):
+# Flowcontrol pump------------------------------------------------------------------------------------------------------
+    def write_to_fluidics_pump_channel(self, voltage):
         if voltage >= 0 and voltage <= 10: # replace by reading limits from device
             self.write_to_ao_channel(voltage, self.fluidics_pump_channel)
         else:
