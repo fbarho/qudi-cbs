@@ -71,6 +71,7 @@ class FluidicsWindow(QtWidgets.QMainWindow):
         uic.loadUi(ui_file, self)
         self.show()
 
+
 class FluidicsWindowCE(FluidicsWindow):
     """ Fluidics Window child class that reimplements the close event.
     The aim is to stop the continuously running modes such as the flowrate measurement mode when the window is closed.
@@ -86,6 +87,7 @@ class FluidicsWindowCE(FluidicsWindow):
 # ======================================================================================================================
 # GUI class
 # ======================================================================================================================
+
 
 class FluidicsGUI(GUIBase):
     """ Class for the GUI that allows to control the fluidics devices.
@@ -134,6 +136,10 @@ class FluidicsGUI(GUIBase):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._valve_logic = None
+        self._flow_logic = None
+        self._positioning_logic = None
+        self._mw = None
 
     def on_activate(self):
         """ Required initialization steps.
@@ -584,7 +590,7 @@ class FluidicsGUI(GUIBase):
             self._mw.volume_measurement_Action.setText('Start volume measurement')
             self.sigStopVolumeMeasurement.emit()
         else:
-            target_volume = 500000 # np.inf  --> caused problems because the value is sometimes large negative !
+            target_volume = 500000  # np.inf  --> caused problems because the value is sometimes large negative !
             sampling_interval = 1  # in seconds, fixed for measurement started from GUI
             self._mw.volume_measurement_Action.setText('Stop volume measurement')
             self.sigStartVolumeMeasurement.emit(target_volume, sampling_interval)
@@ -720,4 +726,3 @@ class FluidicsGUI(GUIBase):
             self._mw.rinsing_Action.setText('Start rinsing')
             self._mw.rinsing_Action.setChecked(False)
             self._mw.rinsing_time_SpinBox.setDisabled(False)
-

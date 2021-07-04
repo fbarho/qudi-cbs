@@ -1,7 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-This module contains a test GUI for controlling a piezo which allows to set the focus
+Qudi-CBS
 
+This module contains a GUI for the focus tools (manual focus using simple piezo positioning, and autofocus routines).
+
+An extension to Qudi.
+
+@author: F. Barho, JB. Fiche
+-----------------------------------------------------------------------------------
+
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
+-----------------------------------------------------------------------------------
 """
 import os
 import numpy as np
@@ -15,6 +38,10 @@ import pyqtgraph as pg
 from gui.guibase import GUIBase
 from core.connector import Connector
 
+
+# ======================================================================================================================
+# Dialog and main windows
+# ======================================================================================================================
 
 class PIDSettingDialog(QtWidgets.QDialog):
     """ Create the SettingsDialog window, based on the corresponding *.ui file.
@@ -30,7 +57,7 @@ class PIDSettingDialog(QtWidgets.QDialog):
 
 
 class FocusWindow(QtWidgets.QMainWindow):
-    """ Class defined for the main window (not the module)
+    """ Class defined for the main window (not the module).
     """
     def __init__(self):
         # Get the path to the *.ui file
@@ -42,8 +69,11 @@ class FocusWindow(QtWidgets.QMainWindow):
         uic.loadUi(ui_file, self)
         self.show()
 
+
 class FocusWindowCE(FocusWindow):
-    """ Focus Window child class that allows to stop the tracking mode and camera live mode when window is closed. """
+    """ Focus Window child class that allows to stop the tracking mode and camera live mode when window is closed.
+    For this, the close function is reimplemented.
+    """
     def __init__(self, close_function):
         super().__init__()
         self.close_function = close_function
@@ -53,10 +83,24 @@ class FocusWindowCE(FocusWindow):
         event.accept()
 
 
+# ======================================================================================================================
+# GUI class
+# ======================================================================================================================
+
+
 class FocusGUI(GUIBase):
-    """ Tools to position the piezo to set the focus, and to calibrate and start focus stabilization (= autofocus)
+    """ Tools to position the piezo to set the focus, and to calibrate and start focus stabilization (= autofocus),
+    or to search the focues (= autofocus using the option stop when stable, focus is eventually searched on a reference
+    plane below the sample surface plane, if the setup disposes of a 3 axes stage).
+
+    Example config for copy-paste:
+
+    Focus Tools:
+    module.Class: 'focus.focus_gui.FocusGUI'
+    connect:
+        focus_logic: 'focus_logic'
     """
-    # Define connectors to logic modules
+    # Define connectors to logic module
     focus_logic = Connector(interface='FocusLogic')
 
     # Signals
@@ -76,6 +120,7 @@ class FocusGUI(GUIBase):
     sigSearchFocus = QtCore.Signal()
 
     _mw = None
+    _focus_logic = None
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -128,6 +173,7 @@ class FocusGUI(GUIBase):
         self._mw.tracking_Action.setChecked(self._focus_logic.timetrace_enabled)  # checked state takes the same bool value as enabled attribute in logic (enabled = 0: no timetrace running) # button is defined as checkable in designer
         self._mw.start_live_Action.setChecked(self._focus_logic.live_display_enabled)
         self._mw.autofocus_Action.setChecked(self._focus_logic.autofocus_enabled)
+        # disable autofocus routine action buttons until calibration is done
         self._mw.autofocus_Action.setDisabled(True)
         self._mw.search_focus_Action.setDisabled(True)
 
@@ -204,11 +250,12 @@ class FocusGUI(GUIBase):
         self._mw.activateWindow()
         self._mw.raise_()
 
-# =============================================
-# PID settings window
-# =============================================
+# ----------------------------------------------------------------------------------------------------------------------
+# Methods for the PID settings window
+# ----------------------------------------------------------------------------------------------------------------------
+
     def init_pid_settings_ui(self):
-        """ Initialize the window for the pid parameters
+        """ Initialize the window for the pid parameters.
         """
         # Create the PID settings window
         self._w_pid = PIDSettingDialog()
@@ -216,6 +263,7 @@ class FocusGUI(GUIBase):
         self._w_pid.accepted.connect(self.update_pid_parameters)  # ok button
         self._w_pid.rejected.connect(self.keep_pid_parameters)  # cancel buttons
 
+        # Set default parameters on start
         self.keep_pid_parameters()
 
     def open_pid_settings(self):
@@ -234,9 +282,10 @@ class FocusGUI(GUIBase):
         self._w_pid.Pgain_doubleSpinBox.setValue(self._focus_logic._autofocus_logic._P_gain)
         self._w_pid.Igain_doubleSpinBox.setValue(self._focus_logic._autofocus_logic._I_gain)
 
-# =============================================
+
+# ----------------------------------------------------------------------------------------------------------------------
 # Slots for manual piezo positioning
-# =============================================
+# ----------------------------------------------------------------------------------------------------------------------
 
     def step_changed(self):
         """ Callback invoked when the step for piezo movement is changed. """
@@ -304,9 +353,9 @@ class FocusGUI(GUIBase):
         # self._timetrace.setData(self.t_data, self.y_data) # x axis values running with the timetrace
         self._timetrace.setData(self.y_data)  # x axis values do not move
 
-# =============================================
+# ----------------------------------------------------------------------------------------------------------------------
 # Slots for autofocus
-# =============================================
+# ----------------------------------------------------------------------------------------------------------------------
 
     def threshold_changed(self):
         """ Callback invoked when the value in the threshold spinbox is changed.
@@ -459,6 +508,10 @@ class FocusGUI(GUIBase):
         self._mw.autofocus_Action.setText('Start focus stabilization')
         self._mw.autofocus_Action.setChecked(False)
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Methods to handle the user interface state (toolbuttons disabled / enabled) for example during tasks
+# ----------------------------------------------------------------------------------------------------------------------
+
     @QtCore.Slot()
     def disable_focus_toolbuttons(self):
         self._mw.piezo_init_Action.setDisabled(True)
@@ -470,6 +523,10 @@ class FocusGUI(GUIBase):
         self._mw.piezo_init_Action.setDisabled(False)
         self._mw.autofocus_Action.setDisabled(False)
         self._mw.search_focus_Action.setDisabled(False)
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Custom close function
+# ----------------------------------------------------------------------------------------------------------------------
 
     def close_function(self):
         # stop timetrace when window is cloded
@@ -484,4 +541,3 @@ class FocusGUI(GUIBase):
         if self._focus_logic.autofocus_enabled:
             self.start_focus_stabilization_clicked()
             self.reset_start_focus_stabilization_button()
-
