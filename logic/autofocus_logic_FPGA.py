@@ -57,7 +57,7 @@ class AutofocusLogic(GenericLogic):
             stage: 'ms2000'
     """
     # declare connectors
-    fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
+    fpga = Connector(interface='Base')
     stage = Connector(interface='MotorInterface')
     camera = Connector(interface='CameraInterface')
 
