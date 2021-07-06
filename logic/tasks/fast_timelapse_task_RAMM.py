@@ -27,6 +27,7 @@ import numpy as np
 import os
 import yaml
 import time
+import asyncio
 from datetime import datetime
 from tqdm import tqdm
 from logic.generic_task import InterruptableTask
@@ -66,9 +67,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['focus'].stop_autofocus()
         self.ref['focus'].disable_focus_actions()
 
-        # set stage velocity
-        self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
-
         # read all user parameters from config
         self.load_user_parameters()
 
@@ -106,7 +104,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].stop_acquisition()  # for safety
         self.ref['cam'].start_acquisition()
 
-        print(f'time after preparing camera: {time.time()-start_time}')
+        # print(f'time after preparing camera: {time.time()-start_time}')
 
         # --------------------------------------------------------------------------------------------------------------
         # move to ROI and focus (using autofocus and stop when stable)
@@ -117,13 +115,14 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             roi_start_time = time.time()
             roi_start_times.append(roi_start_time)
 
+            # autofocus
+            self.ref['focus'].start_autofocus(stop_when_stable=True, search_focus=False)
+
             # go to roi
             self.ref['roi'].set_active_roi(name=item)
             self.ref['roi'].go_to_roi_xy()
-            # self.ref['roi'].stage_wait_for_idle()
+            self.ref['roi'].stage_wait_for_idle()
 
-            # autofocus
-            self.ref['focus'].start_autofocus(stop_when_stable=True, search_focus=False)
             # ensure that focus is stable here
             busy = self.ref['focus'].autofocus_enabled  # autofocus_enabled is True when autofocus is started and once it is stable is set to false
             counter = 0
@@ -136,7 +135,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
             start_position = self.calculate_start_position(self.centered_focal_plane)
 
-            print(f'time after moving to roi {item} and autofocus: {time.time() - start_time}')
+            # print(f'time after moving to roi {item} and autofocus: {time.time() - start_time}')
 
             # ----------------------------------------------------------------------------------------------------------
             # imaging sequence
@@ -170,7 +169,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                         break
 
             self.ref['focus'].go_to_position(start_position)
-            print(f'time after imaging {item}: {time.time() - start_time}')
+            # print(f'time after imaging {item}: {time.time() - start_time}')
 
         # go back to first ROI
         self.ref['roi'].set_active_roi(name=self.roi_names[0])
@@ -181,13 +180,15 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # --------------------------------------------------------------------------------------------------------------
         image_data = self.ref['cam'].get_acquired_data()
 
+        # np.save(cur_save_path, image_data)
+
         if self.file_format == 'fits':
             metadata = self.get_fits_metadata()
             self.ref['cam']._save_to_fits(cur_save_path, image_data, metadata)
         else:  # use tiff as default format
             self.ref['cam']._save_to_tiff(self.num_frames, cur_save_path, image_data)
 
-        print(f'time after data saving: {time.time() - start_time}')
+        # print(f'time after data saving: {time.time() - start_time}')
 
         self.counter += 1
 
@@ -214,9 +215,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].end_task_session()
         self.ref['laser'].restart_default_session()
         self.log.info('restarted default session')
-
-        # reset stage velocity to default
-        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
         # enable gui actions
         # roi gui
@@ -254,8 +252,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 self.num_iterations = self.user_param_dict['num_iterations']
                 self.time_step = self.user_param_dict['time_step']
                 # self.imaging_sequence = self.user_param_dict['imaging_sequence']
-                self.imaging_sequence = [{'laserline': '561 nm', 'intensity': 5},
-                                         {'laserline': '488 nm', 'intensity': 10}]
+                self.imaging_sequence = [{'laserline': '488 nm', 'intensity': 5},
+                                         {'laserline': '561 nm', 'intensity': 5},
+                                         {'laserline': '561 nm', 'intensity': 5}]
 
         except Exception as e:  # add the type of exception
             self.log.warning(f'Could not load user parameters for task {self.name}: {e}')
@@ -351,6 +350,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         :return: str complete_path """
 
         file_name = f'timelapse_{self.prefix}_step_{str(counter).zfill(2)}.{self.file_format}'
+        # file_name = f'timelapse_{self.prefix}_step_{str(counter).zfill(2)}'
 
         complete_path = os.path.join(directory, file_name)
         return complete_path
@@ -394,3 +394,13 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         with open(path, 'w') as outfile:
             yaml.safe_dump(metadata, outfile, default_flow_style=False)
         self.log.info('Saved metadata to {}'.format(path))
+
+
+# async def save_data(path, array):
+#     np.save(path, array)
+#
+# async def do_nothing():
+#     pass
+#
+# async def main():
+#     do_nothing()
