@@ -100,13 +100,17 @@ class ThorlabsFastFilterWheel(Base, FilterwheelInterface):
     def init_position_dict(self):
         """ Initialize the dictionary containing filter positions as key and corresponding angles of the wheel as
         values.
-        :return dict position_dict: {1: 0, 2: -60, 3: -120, 4: -180, 5: -240, 6: -300} for a standard wheel with
+        :return dict position_dict: {1: 0, 2: 300, 3: 240, 4: 180, 5: 120, 6: 60} for a standard wheel with
                                     6 filters
         """
         pos_dict = {}
         for i in range(self._num_filters):
-            pos_dict[i+1] = -360/self._num_filters * i
+            if i == 0:
+                pos_dict[i+1] = -360/self._num_filters * i
+            else:
+                pos_dict[i+1] = -360/self._num_filters * i + 360
         return pos_dict
+    # try to combine this to one single formula calculating values between 0 and 359
 
 # Functions from Thorlabs apt library ----------------------------------------------------------------------------------
     def move_home(self):
@@ -193,15 +197,3 @@ class ThorlabsFastFilterWheel(Base, FilterwheelInterface):
             filter_dict[dic_entry['label']] = dic_entry
 
         return filter_dict
-
-# if __name__ == '__main__':
-#     wheel = ThorlabsFastFilterWheel()
-#     wheel.on_activate()
-#     # wheel.move_home()
-#     # print('moved to home position')
-#     # for i in range(6):
-#     #     wheel.move_by(360/6)
-#     #     pos = wheel.get_motor_position()
-#     #     print(f'position {i}: {pos}')
-#     #     sleep(1)
-#     wheel.move_to(0)  # 0: filter 1 ;  -60 : filter 2  ; -120 : filter 3 ; filter 4 : -180 ; filter 5 : -240 ; filter 6 : -300
