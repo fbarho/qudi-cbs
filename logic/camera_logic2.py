@@ -48,6 +48,7 @@ class WorkerSignals(QtCore.QObject):
     """ Defines the signals available from a running worker thread """
 
     sigFinished = QtCore.Signal()
+    sigStepFinished = QtCore.Signal(str, str, int, bool, dict, bool)
 
 
 class LiveImageWorker(QtCore.QRunnable):
@@ -65,6 +66,30 @@ class LiveImageWorker(QtCore.QRunnable):
         """ """
         sleep(self.time_constant)
         self.signals.sigFinished.emit()
+
+
+class SaveProgressWorker(QtCore.QRunnable):
+    """ Worker thread to update the progress during video saving and eventually handle the image display.
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators """
+
+    def __init__(self, time_constant, filenamestem, fileformat, n_frames, is_display, metadata, emit_signal):
+        super(SaveProgressWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.time_constant = time_constant
+        # the following attributes need to be transmitted by the worker to the finish_save_video method
+        self.filenamestem = filenamestem
+        self.fileformat = fileformat
+        self.n_frames = n_frames
+        self.is_display = is_display
+        self.metadata = metadata
+        self.emit_signal = emit_signal
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(self.time_constant)
+        self.signals.sigStepFinished.emit(self.filenamestem, self.fileformat, self.n_frames, self.is_display, self.metadata, self.emit_signal)
 
 # ======================================================================================================================
 # Logic class
@@ -135,6 +160,7 @@ class CameraLogic(GenericLogic):
 
         self.enabled = False
         self.saving = False
+        self.restart_live = False
         self.has_temp = self._hardware.has_temp()
         if self.has_temp:
             self.temperature_setpoint = self._hardware._default_temperature
@@ -402,7 +428,7 @@ class CameraLogic(GenericLogic):
         """ Start the live display loop.
         """
         self.enabled = True
-        # self.timer.start(1000*1/self._fps)
+
         worker = LiveImageWorker(1 / self._fps)
         worker.signals.sigFinished.connect(self.loop)
         self.threadpool.start(worker)
@@ -415,9 +441,14 @@ class CameraLogic(GenericLogic):
     def loop(self):
         """ Execute step in the live display loop: save one of each control and process values
         """
-        self._last_image = self._hardware.get_acquired_data()
-        self.sigUpdateDisplay.emit()
+
         if self.enabled:
+
+            print('one iteration of loop')
+            self._last_image = self._hardware.get_acquired_data()
+            print(f'last image : {self._last_image.shape}')
+            self.sigUpdateDisplay.emit()
+
             worker = LiveImageWorker(1 / self._fps)
             worker.signals.sigFinished.connect(self.loop)
             self.threadpool.start(worker)
@@ -428,6 +459,7 @@ class CameraLogic(GenericLogic):
     def stop_loop(self):
         """ Stop the live display loop.
         """
+        print('stop loop called')
         self.enabled = False
         self._hardware.stop_acquisition()
         self.sigVideoFinished.emit()
@@ -465,7 +497,10 @@ class CameraLogic(GenericLogic):
             self._save_metadata_txt_file(path, '_Image', metadata)
 
 # Methods invoked by start video button on GUI--------------------------------------------------------------------------
-    def save_video(self, filenamestem, fileformat, n_frames, display, metadata, emit_signal=True):
+
+    # test new version -------------------------------------------------------------------------------------------------
+
+    def start_save_video(self, filenamestem, fileformat, n_frames, is_display, metadata, emit_signal=True):
         """ Saves n_frames to disk as a tiff stack
 
         :param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
@@ -478,41 +513,55 @@ class CameraLogic(GenericLogic):
                 #leave the default value True when function is called from gui
         """
         if self.enabled:  # live mode is on
-            self.interrupt_live()  # do not call stop_loop. self.enabled must be left in its state.
+            # store the state of live mode in a helper variable
+            self.restart_live = True
+            self.enabled = False  # live mode will stop then
+            self._hardware.stop_acquisition()
 
         self.saving = True
-        # n_proxy helps to limit the number of displayed images during the video saving
-        n_proxy = int(250 / (self._exposure * 1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
-        # of displayed images (every 5th for an exposure time of 50 ms for example)
-        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
+
         err = self._hardware.start_movie_acquisition(n_frames)
         if not err:
             self.log.warning('Video acquisition did not start')
 
+        # start a worker thread that will monitor the status of the saving
+        worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata, emit_signal)
+        worker.signals.sigStepFinished.connect(self.save_video_loop)
+        self.threadpool.start(worker)
+
+    def save_video_loop(self, filenamestem, fileformat, n_frames, is_display, metadata, emit_signal):
+
         ready = self._hardware.get_ready_state()
-        while not ready:
+
+        if not ready:
             progress = self._hardware.get_progress()
             self.sigProgress.emit(progress)
-            ready = self._hardware.get_ready_state()
-            if display:
-                if progress % n_proxy == 0:  # to limit the number of displayed images
-                    self._last_image = self._hardware.get_most_recent_image()
-                    self.sigUpdateDisplay.emit()
-                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
-                    # is a better way to do this ? not needed in case the modulo operation is used to take only every
-                    # n'th image
 
+            if is_display:
+                self._last_image = self._hardware.get_most_recent_image()
+                self.sigUpdateDisplay.emit()
+
+            # restart a worker if acquisition still ongoing
+            worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata, emit_signal)
+            worker.signals.sigStepFinished.connect(self.save_video_loop)
+            self.threadpool.start(worker)
+
+        # finish the save procedure when hardware is ready
+        else:
+            self.finish_save_video(filenamestem, fileformat, n_frames, metadata, emit_signal)
+
+    def finish_save_video(self, filenamestem, fileformat, n_frames, metadata, emit_signal=True):
         self._hardware.wait_until_finished()  # this is important especially if display is disabled
         self.sigSaving.emit()  # for info message on statusbar of GUI
 
-        image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
-        # of the camera
+        image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode of the camera
         self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
         self.saving = False
 
         # restart live in case it was activated
-        if self.enabled:
-            self.resume_live()
+        if self.restart_live:
+            self.restart_live = False  # reset to default value
+            self.start_loop()
 
         # data handling
         complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
@@ -532,7 +581,7 @@ class CameraLogic(GenericLogic):
             self.sigCleanStatusbar.emit()
 
     # this function is specific for andor ixon ultra camera
-    def do_spooling(self, filenamestem, fileformat, n_frames, display, metadata):
+    def start_spooling(self, filenamestem, fileformat, n_frames, is_display, metadata):
         """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
         Available for andor camera. Useful for large data sets which would be overwritten in the buffer
 
@@ -542,13 +591,12 @@ class CameraLogic(GenericLogic):
         :param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
         """
         if self.enabled:  # live mode is on
-            self.interrupt_live()
+            # store the state of live mode in a helper variable
+            self.restart_live = True
+            self.enabled = False  # live mode will stop then
+            self._hardware.stop_acquisition()
 
         self.saving = True
-        # n_proxy helps to limit the number of displayed images during the video saving
-        n_proxy = int(250 / (self._exposure * 1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
-        # of displayed images (every 5th for an exposure time of 50 ms for example)
-        n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
         path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty
         # string for fileformat. this will be handled by the camera itself
         if fileformat == '.tiff':
@@ -566,17 +614,39 @@ class CameraLogic(GenericLogic):
         if not err:
             self.log.warning('Spooling did not start')
 
+        # start a worker thread that will monitor the status of the saving
+        worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata, True)
+        worker.signals.sigStepFinished.connect(self.spooling_loop)
+        self.threadpool.start(worker)
+
+    def spooling_loop(self, filenamestem, fileformat, n_frames, is_display, metadata):
+
         ready = self._hardware.get_ready_state()
-        while not ready:
+
+        if not ready:
             spoolprogress = self._hardware.get_progress()
             self.sigProgress.emit(spoolprogress)
-            ready = self._hardware.get_ready_state()
-            if display:
-                if spoolprogress % n_proxy == 0:  # to limit the number of displayed images
-                    self._last_image = self._hardware.get_most_recent_image()
-                    self.sigUpdateDisplay.emit()
-                    # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
-                    # is a better way to do this ?
+
+            if is_display:
+                self._last_image = self._hardware.get_most_recent_image()
+                self.sigUpdateDisplay.emit()
+
+            # restart a worker if acquisition still ongoing
+            worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata)
+            worker.signals.sigStepFinished.connect(self.save_video_loop)
+            self.threadpool.start(worker)
+
+        # finish the save procedure when hardware is ready
+        else:
+            self.finish_spooling(filenamestem, fileformat, n_frames, metadata)
+
+    def finish_spooling(self, filenamestem, fileformat, n_frames, metadata):
+
+        path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)
+        if fileformat == '.tiff':
+            method = 7
+        elif fileformat == '.fits':
+            method = 5
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
@@ -593,15 +663,157 @@ class CameraLogic(GenericLogic):
             except Exception as e:
                 self.log.warn(f'Metadata not saved: {e}.')
         else:
-            pass  # this case will never be accessed because the same if-elif-else structure was already applied above
+            pass
 
         self.saving = False
 
         # restart live in case it was activated
-        if self.enabled:
-            self.resume_live()
+        if self.restart_live:
+            self.restart_live = False  # reset to default value
+            self.start_loop()
 
         self.sigSpoolingFinished.emit()
+
+
+
+    # --------------------------------------------------------------------------------------------------------------------
+    # def save_video(self, filenamestem, fileformat, n_frames, display, metadata, emit_signal=True):
+    #     """ Saves n_frames to disk as a tiff stack
+    #
+    #     :param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
+    #     :param: str fileformat (including the dot, such as '.tiff', '.fits')
+    #     :param: int n_frames: number of frames to be saved
+    #     :param: bool display: show images on live display on gui
+    #     :param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
+    #     :param: bool emit_signal: can be set to false to avoid sending the signal for gui interaction,
+    #             for example when function is called from ipython console or in a task
+    #             #leave the default value True when function is called from gui
+    #     """
+    #     if self.enabled:  # live mode is on
+    #         self.interrupt_live()  # do not call stop_loop. self.enabled must be left in its state.
+    #
+    #     self.saving = True
+    #     # n_proxy helps to limit the number of displayed images during the video saving
+    #     n_proxy = int(250 / (self._exposure * 1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
+    #     # of displayed images (every 5th for an exposure time of 50 ms for example)
+    #     n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
+    #     err = self._hardware.start_movie_acquisition(n_frames)
+    #     if not err:
+    #         self.log.warning('Video acquisition did not start')
+    #
+    #     ready = self._hardware.get_ready_state()
+    #     while not ready:
+    #         progress = self._hardware.get_progress()
+    #         self.sigProgress.emit(progress)
+    #         ready = self._hardware.get_ready_state()
+    #         if display:
+    #             if progress % n_proxy == 0:  # to limit the number of displayed images
+    #                 self._last_image = self._hardware.get_most_recent_image()
+    #                 self.sigUpdateDisplay.emit()
+    #                 # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
+    #                 # is a better way to do this ? not needed in case the modulo operation is used to take only every
+    #                 # n'th image
+    #
+    #     self._hardware.wait_until_finished()  # this is important especially if display is disabled
+    #     self.sigSaving.emit()  # for info message on statusbar of GUI
+    #
+    #     image_data = self._hardware.get_acquired_data()  # first get the data before resetting the acquisition mode
+    #     # of the camera
+    #     self._hardware.finish_movie_acquisition()  # reset the attributes and the default acquisition mode
+    #     self.saving = False
+    #
+    #     # restart live in case it was activated
+    #     if self.enabled:
+    #         self.resume_live()
+    #
+    #     # data handling
+    #     complete_path = self._create_generic_filename(filenamestem, '_Movie', 'movie', fileformat, addfile=False)
+    #     # create the PIL.Image object and save it to tiff
+    #     if fileformat == '.tiff':
+    #         self._save_to_tiff(n_frames, complete_path, image_data)
+    #         self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+    #
+    #     elif fileformat == '.fits':
+    #         fits_metadata = self.convert_to_fits_metadata(metadata)
+    #         self._save_to_fits(complete_path, image_data, fits_metadata)
+    #     else:
+    #         self.log.info(f'Your fileformat {fileformat} is currently not covered')
+    #     if emit_signal:
+    #         self.sigVideoSavingFinished.emit()
+    #     else:  # needed to clean up the info on statusbar when gui is opened without calling video_saving_finished
+    #         self.sigCleanStatusbar.emit()
+
+    # # this function is specific for andor ixon ultra camera
+    # def do_spooling(self, filenamestem, fileformat, n_frames, display, metadata):
+    #     """ Saves n_frames to disk as a tiff stack without need of data handling within this function.
+    #     Available for andor camera. Useful for large data sets which would be overwritten in the buffer
+    #
+    #     :param: str filenamestem, such as /home/barho/images/2020-12-16/samplename
+    #     :param: int n_frames: number of frames to be saved
+    #     :param: bool display: show images on live display on gui
+    #     :param: dict metadata: meta information to be saved with the image data (in a separate txt file if tiff fileformat, or in the header if fits format)
+    #     """
+    #     if self.enabled:  # live mode is on
+    #         self.interrupt_live()
+    #
+    #     self.saving = True
+    #     # n_proxy helps to limit the number of displayed images during the video saving
+    #     n_proxy = int(250 / (self._exposure * 1000))  # the factor 250 is chosen arbitrarily to give a reasonable number
+    #     # of displayed images (every 5th for an exposure time of 50 ms for example)
+    #     n_proxy = max(1, n_proxy)  # if n_proxy is less than 1 (long exposure time), display every image
+    #     path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)  # use an empty
+    #     # string for fileformat. this will be handled by the camera itself
+    #     if fileformat == '.tiff':
+    #         method = 7
+    #     elif fileformat == '.fits':
+    #         method = 5
+    #     else:
+    #         self.log.info(f'Your fileformat {fileformat} is currently not covered')
+    #         return
+    #
+    #     self._hardware._set_spool(1, method, path, 10)  # parameters: active (1 = yes), method (7 save as tiff,
+    #     # 5 save as fits), filenamestem, framebuffersize
+    #     err = self._hardware.start_movie_acquisition(n_frames)  # setting kinetics acquisition mode, make sure
+    #     # everything is ready for an acquisition
+    #     if not err:
+    #         self.log.warning('Spooling did not start')
+    #
+    #     ready = self._hardware.get_ready_state()
+    #     while not ready:
+    #         spoolprogress = self._hardware.get_progress()
+    #         self.sigProgress.emit(spoolprogress)
+    #         ready = self._hardware.get_ready_state()
+    #         if display:
+    #             if spoolprogress % n_proxy == 0:  # to limit the number of displayed images
+    #                 self._last_image = self._hardware.get_most_recent_image()
+    #                 self.sigUpdateDisplay.emit()
+    #                 # sleep(0.0001)  # this is used to force enough time for a signal to be transmitted. maybe there
+    #                 # is a better way to do this ?
+    #
+    #     self._hardware.wait_until_finished()
+    #     self._hardware.finish_movie_acquisition()
+    #     self._hardware._set_spool(0, method, path, 10)  # deactivate spooling
+    #     self.log.info('Saved data to file {}{}'.format(path, fileformat))
+    #     # metadata saving
+    #     if fileformat == '.tiff':
+    #         self._save_metadata_txt_file(filenamestem, '_Movie', metadata)
+    #     elif fileformat == '.fits':
+    #         try:
+    #             complete_path = path + '.fits'
+    #             fits_metadata = self.convert_to_fits_metadata(metadata)
+    #             self._add_fits_header(complete_path, fits_metadata)
+    #         except Exception as e:
+    #             self.log.warn(f'Metadata not saved: {e}.')
+    #     else:
+    #         pass  # this case will never be accessed because the same if-elif-else structure was already applied above
+    #
+    #     self.saving = False
+    #
+    #     # restart live in case it was activated
+    #     if self.enabled:
+    #         self.resume_live()
+    #
+    #     self.sigSpoolingFinished.emit()
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Methods for Qudi tasks / experiments requiring synchronization between camera and lightsources
