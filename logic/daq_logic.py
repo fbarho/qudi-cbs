@@ -77,10 +77,10 @@ class DAQLogic(GenericLogic):
     Example config for copy-paste:
 
     nidaq_logic:
-    module.Class: 'daq_logic.DAQLogic'
-    voltage_rinsing_pump: -3
-    connect:
-        daq: 'nidaq_6259'
+        module.Class: 'daq_logic.DAQLogic'
+        voltage_rinsing_pump: -3
+        connect:
+            daq: 'nidaq_6259'
     """
     # declare connectors
     daq = Connector(interface='Base')  # no specific DAQ interface required
