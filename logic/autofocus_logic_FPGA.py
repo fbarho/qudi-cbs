@@ -57,7 +57,7 @@ class AutofocusLogic(GenericLogic):
             stage: 'ms2000'
     """
     # declare connectors
-    fpga = Connector(interface='FPGAInterface')  # to check _ a new interface was defined for FPGA connection
+    fpga = Connector(interface='Base')
     stage = Connector(interface='MotorInterface')
     camera = Connector(interface='CameraInterface')
 
@@ -100,8 +100,6 @@ class AutofocusLogic(GenericLogic):
 
         # initialize the camera
         self._camera.set_exposure(self._exposure)
-
-        self.init_pid()
 
     def on_deactivate(self):
         """ Required deactivation.
@@ -169,6 +167,7 @@ class AutofocusLogic(GenericLogic):
         if do_stabilization_check:
             self._autofocus_iterations += 1
             self._last_pid_output_values = np.concatenate((self._last_pid_output_values[1:10], [pid_output]))
+            # self._last_pid_output_values = np.concatenate((self._last_pid_output_values[1:2], [pid_output]))
             return pid_output, self.check_stabilization()
         else:
             return pid_output
@@ -179,9 +178,11 @@ class AutofocusLogic(GenericLogic):
         self._autofocus_stable is updated by this function.
         :return: bool: is the autofocus stable ?
         """
-        if self._autofocus_iterations > 10:
+        if self._autofocus_iterations > 2: # 10:
             p = Poly.fit(np.linspace(0, 9, num=10), self._last_pid_output_values, deg=1)
+            # p = Poly.fit(np.linspace(0, 1, num=2), self._last_pid_output_values, deg=1)
             slope = p(9) - p(0)
+            # slope = p(1) - p(0)
             if np.absolute(slope) < 10:
                 self._autofocus_stable = True
             else:
@@ -220,12 +221,14 @@ class AutofocusLogic(GenericLogic):
         with the IR signal and makes the regular focus stabilization unstable.
         :return: float offset: distance to the sample plane where a maximum signal was found
         """
+        self.stage_wait_for_idle()
         # Read the stage position
         z_up = self._stage.get_pos()['z']
         offset = self._focus_offset
 
         # Move the stage by the default offset value along the z-axis
         self.stage_move_z(offset)
+        self.stage_wait_for_idle()
 
         # rescue autofocus when no signal detected
         if not self.autofocus_check_signal():
@@ -237,10 +240,12 @@ class AutofocusLogic(GenericLogic):
         z_step = 0.1  # in µm
 
         self.stage_move_z(-z_range/2)
+        self.stage_wait_for_idle()
 
         for n in range(int(z_range/z_step)):
 
             self.stage_move_z(z_step)
+            self.stage_wait_for_idle()
 
             sum = self.read_detector_intensity()
             print(sum)
@@ -250,6 +255,7 @@ class AutofocusLogic(GenericLogic):
                 break
 
         # Calculate the offset for the stage and move back to the initial position
+
         offset = self._stage.get_pos()['z'] - z_up
         offset = np.round(offset, decimals=1)
 
@@ -257,6 +263,7 @@ class AutofocusLogic(GenericLogic):
         sleep(0.1)
 
         self.stage_move_z(-offset)
+        self.stage_wait_for_idle()
 
         # send signal to focus logic that will be linked to define_autofocus_setpoint
         self.sigOffsetDefined.emit()
@@ -270,15 +277,18 @@ class AutofocusLogic(GenericLogic):
         The stage moves along the z axis until the signal is found.
         :return: bool success: True: rescue was successful, signal was found. False: Signal not found during rescue.
         """
+        print('doing rescue .. ')
         success = False
         z_range = 20
         while not self.autofocus_check_signal() and z_range <= 40:
 
             self.stage_move_z(-z_range/2)
+            self.stage_wait_for_idle()
 
             for z in range(z_range):
                 step = 1
                 self.stage_move_z(step)
+                self.stage_wait_for_idle()
 
                 if self.autofocus_check_signal():
                     success = True
@@ -287,8 +297,9 @@ class AutofocusLogic(GenericLogic):
 
             if not self.autofocus_check_signal():
                 self.stage_move_z(-z_range/2)
+                self.stage_wait_for_idle()
                 z_range += 10
-
+        print('rescue finished ')
         return success
 
     def stage_move_z(self, step):

@@ -203,7 +203,7 @@ class DAQLogic(GenericLogic):
 
         :return: None
         """
-        self._daq.write_to_rinsing_pump_ao_channel(0.0)
+        self._daq.write_to_rinsing_pump_channel(0.0)
         self.sigRinsingDurationFinished.emit()
 
 # flowcontrol peristaltic pump used only on Airyscan setup -------------------------------------------------------------

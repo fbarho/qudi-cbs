@@ -66,7 +66,7 @@ class NIDAQMSeries(Base, LasercontrolInterface):
 
         (example for RAMM setup)
         nidaq_6259:
-            module.Class: 'daq.national_instruments_m_series.NIDAQMSeries'
+            module.Class: 'daq.national_instruments_daq.NIDAQMSeries'
             read_write_timeout: 10  # in s
             ao_voltage_range: [0, 10]  # in V
             lasercontrol: False
@@ -76,9 +76,9 @@ class NIDAQMSeries(Base, LasercontrolInterface):
             # ai channels
             piezo_read_ai_channel: 'Dev1/AI0'
             # do channels
-            start_acquisition_do_channel: 'Dev1/'  # DIO3
+            start_acquisition_do_channel: '/Dev1/port0/line7'  # DIO3
             # di channels
-            acquisition_done_di_channel: 'Dev1/'  # DIO4
+            acquisition_done_di_channel: '/Dev1/port0/line8'  # DIO4
 
     """
     # config options
@@ -166,7 +166,8 @@ class NIDAQMSeries(Base, LasercontrolInterface):
         if self._pump_write_ao_channel:
             try:
                 self.pump_write_taskhandle = self.create_taskhandle()
-                self.set_up_ao_channel(self.pump_write_taskhandle, self._pump_write_ao_channel, self._ao_voltage_range)
+                self.set_up_ao_channel(self.pump_write_taskhandle, self._pump_write_ao_channel, [-10, 10])
+                # custom ao voltage range for this channel !
                 print('Pump write created!')
             except Exception:
                 print('Failed to create ao channel')
@@ -550,6 +551,6 @@ class NIDAQMSeries(Base, LasercontrolInterface):
         :return: None
         """
         if -10 <= voltage <= 10:  # allow here a different range from the ao range given in config..
-            self.write_to_ao_channel(self.pump_write_taskhandle)
+            self.write_to_ao_channel(self.pump_write_taskhandle, voltage)
         else:
             self.log.warning('Voltage not in allowed range.')
