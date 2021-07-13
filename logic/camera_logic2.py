@@ -479,7 +479,6 @@ class CameraLogic(GenericLogic):
     def stop_loop(self):
         """ Stop the live display loop.
         """
-        print('stop loop called')
         self.enabled = False
         self._hardware.stop_acquisition()
         self.sigVideoFinished.emit()
