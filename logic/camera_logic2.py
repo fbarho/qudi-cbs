@@ -49,6 +49,7 @@ class WorkerSignals(QtCore.QObject):
 
     sigFinished = QtCore.Signal()
     sigStepFinished = QtCore.Signal(str, str, int, bool, dict, bool)
+    sigSpoolingStepFinished = QtCore.Signal(str, str, str, bool, dict)
 
 
 class LiveImageWorker(QtCore.QRunnable):
@@ -91,6 +92,28 @@ class SaveProgressWorker(QtCore.QRunnable):
         sleep(self.time_constant)
         self.signals.sigStepFinished.emit(self.filenamestem, self.fileformat, self.n_frames, self.is_display, self.metadata, self.emit_signal)
 
+
+class SpoolProgressWorker(QtCore.QRunnable):
+    """ Worker thread to update the progress during spooling and eventually handle the image display.
+
+    The worker handles only the waiting time, and emits a signal that serves to trigger the update indicators. """
+
+    def __init__(self, time_constant, filenamestem, path, fileformat, is_display, metadata):
+        super(SpoolProgressWorker, self).__init__()
+        self.signals = WorkerSignals()
+        self.time_constant = time_constant
+        # the following attributes need to be transmitted by the worker to the finish_spooling method
+        self.filenamestem = filenamestem
+        self.path = path
+        self.fileformat = fileformat
+        self.is_display = is_display
+        self.metadata = metadata
+
+    @QtCore.Slot()
+    def run(self):
+        """ """
+        sleep(self.time_constant)
+        self.signals.sigSpoolingStepFinished.emit(self.filenamestem, self.path, self.fileformat, self.is_display, self.metadata)
 # ======================================================================================================================
 # Logic class
 # ======================================================================================================================
@@ -443,10 +466,7 @@ class CameraLogic(GenericLogic):
         """
 
         if self.enabled:
-
-            print('one iteration of loop')
             self._last_image = self._hardware.get_acquired_data()
-            print(f'last image : {self._last_image.shape}')
             self.sigUpdateDisplay.emit()
 
             worker = LiveImageWorker(1 / self._fps)
@@ -615,11 +635,11 @@ class CameraLogic(GenericLogic):
             self.log.warning('Spooling did not start')
 
         # start a worker thread that will monitor the status of the saving
-        worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata, True)
-        worker.signals.sigStepFinished.connect(self.spooling_loop)
+        worker = SpoolProgressWorker(1 / self._fps, filenamestem, path, fileformat, is_display, metadata)
+        worker.signals.sigSpoolingStepFinished.connect(self.spooling_loop)
         self.threadpool.start(worker)
 
-    def spooling_loop(self, filenamestem, fileformat, n_frames, is_display, metadata):
+    def spooling_loop(self, filenamestem, path, fileformat, is_display, metadata):
 
         ready = self._hardware.get_ready_state()
 
@@ -632,21 +652,22 @@ class CameraLogic(GenericLogic):
                 self.sigUpdateDisplay.emit()
 
             # restart a worker if acquisition still ongoing
-            worker = SaveProgressWorker(1 / self._fps, filenamestem, fileformat, n_frames, is_display, metadata)
-            worker.signals.sigStepFinished.connect(self.save_video_loop)
+            worker = SpoolProgressWorker(1 / self._fps, filenamestem, path, fileformat, is_display, metadata)
+            worker.signals.sigSpoolingStepFinished.connect(self.spooling_loop)
             self.threadpool.start(worker)
 
         # finish the save procedure when hardware is ready
         else:
-            self.finish_spooling(filenamestem, fileformat, n_frames, metadata)
+            self.finish_spooling(filenamestem, path,fileformat, metadata)
 
-    def finish_spooling(self, filenamestem, fileformat, n_frames, metadata):
+    def finish_spooling(self, filenamestem, path, fileformat, metadata):
 
-        path = self._create_generic_filename(filenamestem, '_Movie', 'movie', '', addfile=False)
         if fileformat == '.tiff':
             method = 7
         elif fileformat == '.fits':
             method = 5
+        else:
+            pass
 
         self._hardware.wait_until_finished()
         self._hardware.finish_movie_acquisition()
