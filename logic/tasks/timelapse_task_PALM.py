@@ -27,7 +27,6 @@ import yaml
 from datetime import datetime
 import os
 import time
-from tqdm import tqdm
 from logic.generic_task import InterruptableTask
 
 
@@ -76,17 +75,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # open camera shutter ??
 
-        # set stage velocity
-        self.ref['roi'].set_stage_velocity({'x': 1, 'y': 1})
-
         # read all user parameters from config
         self.load_user_parameters()
 
-        # initialize the digital output channel for trigger
-        self.ref['daq'].set_up_do_channel()
-
-        # initialize the analog input channel that reads the fire
-        self.ref['daq'].set_up_ai_channel()
+        # control if laser - filter combinations ok ?
 
         # create a directory in which all the data will be saved
         self.directory = self.create_directory(self.save_path)
@@ -102,8 +94,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         start_time = time.time()
 
         # create a save path for the current iteration
-        cur_save_path = self.get_complete_path(self.directory, self.counter+1)  # replace roi by relevant quantity for timelapse
-        print(cur_save_path)
+        cur_save_path = self.get_complete_path(self.directory, self.counter+1)
 
         # prepare the camera
         num_z_planes_total = sum(self.imaging_sequence[i]['num_z_planes'] for i in range(len(self.imaging_sequence)))  # get the total number of planes
@@ -121,7 +112,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['roi'].set_active_roi(name=item)
             self.ref['roi'].go_to_roi_xy()
             self.log.info(f'Moved to {item} xy position')
-            # time.sleep(1)  # replace maybe by wait for idle
             self.ref['roi'].stage_wait_for_idle()
 
             for i in range(len(self.imaging_sequence)):  # loop over all laser lines specified in the user config
@@ -153,9 +143,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                         break
 
                 initial_position = self.ref['focus'].get_position()
-                print(f'initial position: {initial_position}')
+                # print(f'initial position: {initial_position}')
                 start_position = self.calculate_start_position(self.centered_focal_plane, num_z_planes, z_step)
-                print(f'start position: {start_position}')
+                # print(f'start position: {start_position}')
 
                 # prepare the light source output
                 laserline = self.imaging_sequence[i]['laserline']
@@ -167,17 +157,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                 # waiting time for stability of the synchronization
                 # time.sleep(0.05)  # might not be needed here - to test
 
-                for plane in tqdm(range(num_z_planes)):
-
-                    # print(f'plane number {plane + 1}')
+                for plane in range(num_z_planes):
 
                     # position the piezo
                     position = np.round(start_position + plane * z_step, decimals=3)
                     self.ref['focus'].go_to_position(position)
-                    # print(f'target position: {position} um')
                     time.sleep(0.03)
-                    cur_pos = self.ref['focus'].get_position()
-                    # print(f'current position: {cur_pos} um')
 
                     # use a while loop to catch the exception when a trigger is missed and repeat the missed image
                     j = 0
@@ -187,12 +172,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
                         err = self.ref['daq'].send_trigger_and_control_ai()
 
                         # read fire signal of camera and switch off when the signal is low
-                        ai_read = self.ref['daq'].read_ai_channel()
+                        ai_read = self.ref['daq'].read_trigger_ai_channel()
 
                         count = 0
                         while not ai_read <= 2.5:  # analog input varies between 0 and 5 V. use max/2 to check if signal is low
                             time.sleep(0.001)  # read every ms
-                            ai_read = self.ref['daq'].read_ai_channel()
+                            ai_read = self.ref['daq'].read_trigger_ai_channel()
                             count += 1  # can be used for control and debug
                         self.ref['daq'].voltage_off()
                         # self.log.debug(f'iterations of read analog in - while loop: {count}')
@@ -209,10 +194,10 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
                 # go back to the initial plane position
                 self.ref['focus'].go_to_position(initial_position)
-                print(f'initial_position: {initial_position}')
+                # print(f'initial_position: {initial_position}')
                 time.sleep(0.5)
-                position = self.ref['focus'].get_position()
-                print(f'piezo position reset to {position}')
+                # position = self.ref['focus'].get_position()
+                # print(f'piezo position reset to {position}')
 
         # --------------------------------------------------------------------------------------------------------------
         # metadata saving
@@ -260,11 +245,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         self.ref['daq'].voltage_off()  # as security
         self.ref['daq'].reset_intensity_dict()
-        self.ref['daq'].close_do_task()
-        self.ref['daq'].close_ai_task()
-
-        # reset stage velocity to default
-        self.ref['roi'].set_stage_velocity({'x': 6, 'y': 6})  # 5.74592
 
         # enable gui actions
         # roi gui
