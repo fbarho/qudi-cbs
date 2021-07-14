@@ -43,8 +43,9 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         print('Task {0} added!'.format(self.name))
         self.user_config_path = self.config['path_to_user_config']
         # for logging:
-        self.status_dict_path = 'Z:/DATA/JB/hi_m_log/current_status.yaml'    # maybe read from config
-        self.log_path = 'Z:/DATA/JB/hi_m_log/log_hi_m_airyscan.csv'   # maybe read from config
+        self.status_dict_path = 'Z:/DATA/hi_m_log_Airyscan/current_status.yaml'    # maybe read from config
+        self.log_path = 'Z:/DATA/hi_m_log_Airyscan/log_hi_m.csv'   # maybe read from config
+        self.default_info_path = 'Z:/DATA/hi_m_log_Airyscan/default_info.yaml'  # maybe read from config
         self.logging = True
 
     def startTask(self):
@@ -81,6 +82,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # create a directory in which all the data will be saved
         self.directory = self.create_directory(self.save_path)
+
+        # update the default_info_file that is necessary to run the bokeh_app
+        if self.logging:
+            hybr_list = [item for item in self.hybridization_list if item['time'] is None]
+            photobl_list = [item for item in self.photobleaching_list if item['time'] is None]
+            update_default_info(self.default_info_path, self.directory, self.file_format, len(self.probe_list), len(self.roi_names), len(hybr_list), len(photobl_list))
 
         # initialize a counter to iterate over the number of probes to inject
         self.probe_counter = 0
@@ -481,3 +488,21 @@ def add_log_entry(path, cycle, process, event, level='info'):
     df_line = pd.DataFrame(entry, columns=['timestamp', 'cycle_no', 'process', 'event', 'level'])
     with open(path, 'a') as file:
         df_line.to_csv(file, index=False, header=False)
+
+def update_default_info(path, image_path, fileformat, num_cycles, num_roi, num_inj_hybr, num_inj_photobl):
+    """ Create a dictionary with relevant entries for the default info file and save it under the specified path.
+
+    :param: str path: complete path to the default_info file
+    :param: str image_path: name of the path where the image data is saved
+    :param: str fileformat: fileformat for the image data
+    :param: int num_cycles: number of cycles in the Hi-M experiment
+    :param: int num_roi: number of ROIs defined in the list for the Hi-M experiment
+    :param: int num_inj_hybr: number of injection steps during the hybridization sequence (excluding incubation steps)
+    :param: int num_inj_photobl: number of injection steps during the photobleaching sequence (excluding incubation)
+
+    :return: None
+    """
+    info_dict = {'image_path': image_path, 'fileformat': fileformat, 'num_cycles': num_cycles, 'num_roi': num_roi, 'num_injections_hybr': num_inj_hybr, 'num_injections_photobl': num_inj_photobl}
+
+    with open(path, 'w') as outfile:
+        yaml.safe_dump(info_dict, outfile, default_flow_style=False)
