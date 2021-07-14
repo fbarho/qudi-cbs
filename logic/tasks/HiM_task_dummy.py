@@ -22,7 +22,7 @@ Config example pour copy-paste:
             pos: 'positioning_logic'
             flow: 'flowcontrol_logic'
         config:
-            path_to_user_config: 'home/barho/qudi_files/qudi_task_config_files/hi_m_task_RAMM.yaml'
+            path_to_user_config: 'home/barho/qudi_files/qudi_task_config_files/hi_m_task_RAMM.yml'
 """
 import yaml
 from datetime import datetime
@@ -49,6 +49,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         # for logging:
         self.status_dict_path = '/home/barho/hi_m_log/current_status.yaml'
         self.log_path = '/home/barho/hi_m_log/log_for_hi_m_dummy_task.csv'
+        self.default_info_path = '/home/barho/hi_m_log/default_info.yaml'
         self.logging = True
 
     def startTask(self):
@@ -76,7 +77,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['laser'].disable_laser_actions()  # includes also disableing of brightfield on / off button
 
         self.ref['valves'].disable_valve_positioning()
-        self.ref['flow'].disable_pressure_setting()
+        self.ref['flow'].disable_flowcontrol_actions()
         self.ref['pos'].disable_positioning_actions()
 
         # control if experiment can be started : origin defined in position logic ?
@@ -92,6 +93,12 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
 
         # create a directory in which all the data will be saved
         self.directory = self.create_directory(self.save_path)
+
+        # update the default_info file that is necessary to run the bokeh app
+        if self.logging:
+            hybr_list = [item for item in self.hybridization_list if item['time'] is None]
+            photobl_list = [item for item in self.photobleaching_list if item['time'] is None]
+            update_default_info(self.default_info_path, self.directory, self.file_format, len(self.probe_list), len(self.roi_names), len(hybr_list), len(photobl_list))
 
         # prepare the camera
         self.num_frames = self.num_z_planes * self.num_laserlines
@@ -378,10 +385,6 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
             self.ref['valves'].set_valve_position('c', 1)  # Syringe valve: towards syringe
             self.ref['valves'].wait_for_idle()
 
-        # # go back to first ROI
-        # self.ref['roi'].set_active_roi(name=self.roi_names[0])
-        # self.ref['roi'].go_to_roi_xy()
-
         # reset the camera to default state
         self.ref['cam'].reset_camera_after_multichannel_imaging()
 
@@ -396,7 +399,7 @@ class Task(InterruptableTask):  # do not change the name of the class. it is alw
         self.ref['cam'].enable_camera_actions()
         self.ref['laser'].enable_laser_actions()
         self.ref['valves'].enable_valve_positioning()
-        self.ref['flow'].enable_pressure_setting()
+        self.ref['flow'].enable_flowcontrol_actions()
         self.ref['pos'].enable_positioning_actions()
         total = time.time() - self.start
         print(f'total time with logging = {self.logging}: {total} s')
@@ -606,6 +609,23 @@ def add_log_entry(path, cycle, process, event, level='info'):
     with open(path, 'a') as file:
         df_line.to_csv(file, index=False, header=False)
 
+def update_default_info(path, image_path, fileformat, num_cycles, num_roi, num_inj_hybr, num_inj_photobl):
+    """ Create a dictionary with relevant entries for the default info file and save it under the specified path.
+
+    :param: str path: complete path to the default_info file
+    :param: str image_path: name of the path where the image data is saved
+    :param: str fileformat: fileformat for the image data
+    :param: int num_cycles: number of cycles in the Hi-M experiment
+    :param: int num_roi: number of ROIs defined in the list for the Hi-M experiment
+    :param: int num_inj_hybr: number of injection steps during the hybridization sequence (excluding incubation steps)
+    :param: int num_inj_photobl: number of injection steps during the photobleaching sequence (excluding incubation)
+
+    :return: None
+    """
+    info_dict = {'image_path': image_path, 'fileformat': fileformat, 'num_cycles': num_cycles, 'num_roi': num_roi, 'num_injections_hybr': num_inj_hybr, 'num_injections_photobl': num_inj_photobl}
+
+    with open(path, 'w') as outfile:
+        yaml.safe_dump(info_dict, outfile, default_flow_style=False)
 
 # use for integration with bokeh app
 
